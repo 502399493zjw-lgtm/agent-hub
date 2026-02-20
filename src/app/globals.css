@@ -1,0 +1,120 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+:root {
+  --color-paper: #faf8f4;
+  --color-ink: #1a1a1a;
+  --color-ink-light: #4a4a4a;
+  --color-ink-muted: #8a8a8a;
+  --color-blue: #60a5fa;
+  --color-blue-dim: #3b82f6;
+  --color-red: #f87171;
+  --color-red-dim: #ef4444;
+  --color-card: #ffffff;
+  --color-border: rgba(0,0,0,0.08);
+  --font-serif: 'Noto Serif SC', 'Source Han Serif SC', Georgia, serif;
+  --font-sans: system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+@theme inline {
+  --color-background: var(--color-paper);
+  --color-foreground: var(--color-ink);
+  --color-gold: var(--color-blue);
+  --color-gold-dim: var(--color-blue-dim);
+  --color-red: var(--color-red);
+  --color-red-dim: var(--color-red-dim);
+  --color-card-bg: var(--color-card);
+  --color-card-border: var(--color-border);
+  --color-card-hover: rgba(0,0,0,0.04);
+  --color-muted: var(--color-ink-muted);
+  --color-surface: #f5f3ef;
+  --color-paper: var(--color-paper);
+  --color-ink: var(--color-ink);
+  --color-ink-light: var(--color-ink-light);
+  --color-ink-muted: var(--color-ink-muted);
+  --color-blue: var(--color-blue);
+  --color-blue-dim: var(--color-blue-dim);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-serif: var(--font-serif);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #d4d0c8 transparent;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+/* Paper-style subtle effects — replaces cyberpunk glow */
+.glow-gold {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+.glow-red {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+.glow-text-gold {
+  text-shadow: none;
+}
+
+.glow-text-red {
+  text-shadow: none;
+}
+
+/* Removed scanlines */
+.scanlines::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Removed grid pattern */
+.grid-bg {
+  background-image: none;
+}
+
+/* Card hover lift — elegant */
+.card-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+}
+
+/* Gradient text — blue to red */
+.gradient-text {
+  background: linear-gradient(135deg, #60a5fa, #f87171);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Pulse dot */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.5); }
+}
+
+.pulse-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+/* Serif headings */
+h1, h2, h3 {
+  font-family: var(--font-serif);
+}
+
+/* Mono numbers */
+.font-mono {
+  font-family: var(--font-mono);
+}
