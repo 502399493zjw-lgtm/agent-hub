@@ -1,4 +1,3 @@
-# syntax=docker.io/docker/dockerfile:1
 FROM node:22-alpine AS base
 
 # Dependencies stage - install with native build tools for better-sqlite3
