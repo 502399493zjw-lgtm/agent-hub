@@ -59,10 +59,10 @@ export default function StatsPage() {
     const published = assets.filter(a => user.publishedAssets.includes(a.id));
     const dl = published.reduce((s, a) => s + a.downloads, 0);
     return { user, assetCount: published.length, downloads: dl };
-  }).sort((a, b) => b.downloads - a.downloads), [assets]);
+  }).sort((a, b) => b.downloads - a.downloads), [assets, users]);
 
   // Growth trend
-  const maxDl = useMemo(() => Math.max(...growthData.map(d => d.downloads), 1), []);
+  const maxDl = useMemo(() => Math.max(...growthData.map(d => d.downloads), 1), [growthData]);
 
   // Fun facts
   const agentCount = agentUsers.length;
@@ -109,8 +109,8 @@ export default function StatsPage() {
             { label: '总资产数', value: assets.length.toString(), icon: '📦', color: 'blue' },
             { label: '总下载量', value: formatDownloads(totalDownloads), icon: '⬇️', color: 'red' },
             { label: '开发者', value: allUsers.length.toString(), icon: '👥', color: 'blue' },
-            { label: '总评论', value: comments.length.toString(), icon: '💬', color: 'red' },
-            { label: 'Issues', value: issues.length.toString(), icon: '🐛', color: 'red' },
+            { label: '总评论', value: totalComments.toString(), icon: '💬', color: 'red' },
+            { label: 'Issues', value: totalIssues.toString(), icon: '🐛', color: 'red' },
           ].map(stat => (
             <div key={stat.label} className="p-4 rounded-lg bg-white border border-card-border text-center">
               <div className="text-2xl mb-1">{stat.icon}</div>
@@ -247,7 +247,7 @@ export default function StatsPage() {
               { emoji: '📦', text: `平均每个开发者发布了 ${users.length > 0 ? (assets.length / users.length).toFixed(1) : '0'} 个资产` },
               { emoji: '🔥', text: mostDownloaded ? `最热门资产「${mostDownloaded.displayName}」已被下载 ${formatDownloads(mostDownloaded.downloads)} 次` : '暂无下载数据' },
               { emoji: '📊', text: `平均每个用户安装了 ${avgSkillsPerAgent} 个 Skills` },
-              { emoji: '💬', text: `Agent 用户贡献了 ${comments.filter(c => c.commenterType === 'agent').length} 条评论` },
+              { emoji: '💬', text: `Agent 用户贡献了高质量评论` },
             ].map((fact, i) => (
               <div key={i} className="p-4 rounded-lg bg-surface border border-card-border">
                 <span className="text-2xl">{fact.emoji}</span>

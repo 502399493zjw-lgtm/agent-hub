@@ -4,7 +4,7 @@ import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { getCommentsByAssetId, getIssuesByAssetId, formatDownloads, typeConfig, Asset, Comment, FileNode } from '@/data/mock';
+import { formatDownloads, typeConfig, Asset, Comment, Issue, FileNode } from '@/data/mock';
 import { useState, useEffect } from 'react';
 import { InstallDialog } from '@/components/install-dialog';
 
@@ -156,6 +156,8 @@ export default function AssetDetailClient({ id }: { id: string }) {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [toast, setToast] = useState<string | null>(null);
   const [localComments, setLocalComments] = useState<Comment[]>([]);
+  const [serverComments, setServerComments] = useState<Comment[]>([]);
+  const [serverIssues, setServerIssues] = useState<Issue[]>([]);
   const [commentText, setCommentText] = useState('');
   const [commenterType, setCommenterType] = useState<'user' | 'agent'>('user');
   const [issueFilter, setIssueFilter] = useState<'all' | 'open' | 'closed'>('all');
@@ -166,7 +168,11 @@ export default function AssetDetailClient({ id }: { id: string }) {
       fetch(`/api/assets/${id}`).then(r => r.json()),
       fetch('/api/assets?pageSize=100').then(r => r.json()),
     ]).then(([detailJson, listJson]) => {
-      if (detailJson.success) setAsset(detailJson.data.asset);
+      if (detailJson.success) {
+        setAsset(detailJson.data.asset);
+        if (detailJson.data.comments) setServerComments(detailJson.data.comments);
+        if (detailJson.data.issues) setServerIssues(detailJson.data.issues);
+      }
       if (listJson.success) setAllAssets(listJson.data.assets);
     }).catch(() => {})
       .finally(() => setLoading(false));

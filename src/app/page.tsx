@@ -33,13 +33,12 @@ interface StatsData {
 
 /* ── Tab definitions ── */
 const TABS: { key: string; label: string; type?: AssetType }[] = [
-  { key: 'all', label: '全部' },
+  { key: 'template', label: '合集', type: 'template' },
   { key: 'skill', label: '技能', type: 'skill' },
   { key: 'config', label: '配置', type: 'config' },
   { key: 'plugin', label: '插件', type: 'plugin' },
   { key: 'trigger', label: '触发器', type: 'trigger' },
   { key: 'channel', label: '通信器', type: 'channel' },
-  { key: 'template', label: '合集', type: 'template' },
 ];
 
 /* ── Helper: relative time ── */
@@ -121,7 +120,7 @@ export default function HomePage() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [stats, setStats] = useState<StatsData | null>(null);
-  const [activeTab, setActiveTab] = useState('all');
+  const [activeTab, setActiveTab] = useState('template');
   const [tabAssets, setTabAssets] = useState<Record<string, Asset[]>>({});
   const [loaded, setLoaded] = useState(false);
 
@@ -129,18 +128,16 @@ export default function HomePage() {
     // Fetch stats + all tab data
     const fetchAll = async () => {
       try {
-        const [statsRes, allRes] = await Promise.all([
+        const [statsRes] = await Promise.all([
           fetch('/api/stats').then(r => r.json()),
-          fetch('/api/assets?sort=downloads&pageSize=6').then(r => r.json()),
         ]);
 
         if (statsRes.success) setStats(statsRes.data);
 
         const assets: Record<string, Asset[]> = {};
-        if (allRes.success) assets['all'] = allRes.data.assets;
 
         // Fetch per-type in parallel
-        const types: AssetType[] = ['skill', 'config', 'plugin', 'trigger', 'channel', 'template'];
+        const types: AssetType[] = ['template', 'skill', 'config', 'plugin', 'trigger', 'channel'];
         const typeResults = await Promise.all(
           types.map(t =>
             fetch(`/api/assets?sort=downloads&pageSize=6&type=${t}`).then(r => r.json())
@@ -285,7 +282,7 @@ export default function HomePage() {
         <div className="relative mb-8">
           <div className="flex overflow-x-auto scrollbar-hide gap-1 border-b border-card-border">
             {TABS.map(tab => {
-              const count = tab.type ? (stats?.typeCounts?.[tab.type] ?? 0) : stats?.totalAssets ?? 0;
+              const count = tab.type ? (stats?.typeCounts?.[tab.type] ?? 0) : 0;
               return (
                 <button
                   key={tab.key}

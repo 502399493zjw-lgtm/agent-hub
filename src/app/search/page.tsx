@@ -4,7 +4,7 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { searchUsers, searchIssues, typeConfig, formatDownloads, Asset, User, Issue } from '@/data/mock';
+import { typeConfig, formatDownloads, Asset, User, Issue } from '@/data/mock';
 
 function SearchContent() {
   const searchParams = useSearchParams();
@@ -24,16 +24,17 @@ function SearchContent() {
       setIssueResults([]);
       return;
     }
-    // Fetch assets from DB via API
-    fetch(`/api/assets?q=${encodeURIComponent(initialQ)}&pageSize=50`)
+    // Fetch all search results from API (DB-backed)
+    fetch(`/api/search?q=${encodeURIComponent(initialQ)}`)
       .then(res => res.json())
       .then(json => {
-        if (json.success) setAssetResults(json.data.assets);
+        if (json.results) {
+          setAssetResults(json.results.assets?.items || []);
+          setUserResults(json.results.users?.items || []);
+          setIssueResults(json.results.issues?.items || []);
+        }
       })
       .catch(() => {});
-    // Users and issues still from mock (no DB table yet)
-    setUserResults(searchUsers(initialQ));
-    setIssueResults(searchIssues(initialQ));
   }, [initialQ]);
 
   const totalCount = assetResults.length + userResults.length + issueResults.length;

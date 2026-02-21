@@ -2,12 +2,50 @@
 
 import Link from 'next/link';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { mockNotifications } from '@/data/mock';
-import { useNotifications } from '@/hooks/use-notifications';
+import { useState, useEffect, useCallback } from 'react';
+
+interface Notification {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  icon: string;
+  linkTo?: string;
+  read: boolean;
+  createdAt: string;
+}
 
 export function NotificationBell() {
-  const { isRead, markAsRead, markAllAsRead } = useNotifications();
-  const unreadCount = mockNotifications.filter(n => !isRead(n.id)).length;
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  useEffect(() => {
+    fetch('/api/notifications')
+      .then(res => res.json())
+      .then(json => {
+        if (json.success && json.data) setNotifications(json.data);
+      })
+      .catch(() => {});
+  }, []);
+
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  const markAsRead = useCallback((id: string) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    fetch('/api/notifications', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'markRead', id }),
+    }).catch(() => {});
+  }, []);
+
+  const markAllAsRead = useCallback(() => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    fetch('/api/notifications', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'markAllRead' }),
+    }).catch(() => {});
+  }, []);
 
   return (
     <DropdownMenu.Root>
@@ -34,7 +72,7 @@ export function NotificationBell() {
             <span className="text-sm font-semibold text-foreground">通知</span>
             {unreadCount > 0 && (
               <button
-                onClick={() => markAllAsRead(mockNotifications.map(n => n.id))}
+                onClick={markAllAsRead}
                 className="text-xs text-blue hover:text-blue-dim transition-colors"
               >
                 全部已读
@@ -42,23 +80,22 @@ export function NotificationBell() {
             )}
           </div>
 
-          {mockNotifications.length === 0 ? (
+          {notifications.length === 0 ? (
             <div className="p-8 text-center text-muted text-sm">暂无通知</div>
           ) : (
-            mockNotifications.map(notification => {
-              const read = isRead(notification.id);
+            notifications.map(notification => {
               const timeAgo = getTimeAgo(notification.createdAt);
 
               const content = (
                 <div
-                  className={`flex items-start gap-3 px-4 py-3 transition-colors hover:bg-surface cursor-pointer ${!read ? 'bg-blue/5' : ''}`}
+                  className={`flex items-start gap-3 px-4 py-3 transition-colors hover:bg-surface cursor-pointer ${!notification.read ? 'bg-blue/5' : ''}`}
                   onClick={() => markAsRead(notification.id)}
                 >
                   <span className="text-lg shrink-0 mt-0.5">{notification.icon}</span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className={`text-xs font-semibold ${!read ? 'text-blue' : 'text-muted'}`}>{notification.title}</span>
-                      {!read && <span className="w-1.5 h-1.5 rounded-full bg-blue" />}
+                      <span className={`text-xs font-semibold ${!notification.read ? 'text-blue' : 'text-muted'}`}>{notification.title}</span>
+                      {!notification.read && <span className="w-1.5 h-1.5 rounded-full bg-blue" />}
                     </div>
                     <p className="text-sm text-muted mt-0.5 line-clamp-1">{notification.message}</p>
                     <span className="text-[10px] text-muted/60 mt-1 block">{timeAgo}</span>
