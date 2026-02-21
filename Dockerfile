@@ -30,9 +30,8 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Data directory for SQLite
+# Data directory for SQLite (do NOT copy hub.db — volume mount provides it)
 RUN mkdir -p /app/data && chown nextjs:nodejs /app/data
-COPY --chown=nextjs:nodejs data/hub.db /app/data/hub.db
 
 EXPOSE 3000
 ENV PORT=3000
@@ -40,4 +39,6 @@ ENV HOSTNAME="0.0.0.0"
 
 # Run as root to avoid volume mount permission issues with SQLite
 # (mounted /app/data is owned by host root)
-CMD ["node", "server.js"]
+# Entrypoint: copy seed DB only if no DB exists in the mounted volume
+COPY --chown=nextjs:nodejs data/hub.db /app/data/hub.db.seed
+CMD ["sh", "-c", "if [ ! -f /app/data/hub.db ]; then cp /app/data/hub.db.seed /app/data/hub.db; fi; node server.js"]
