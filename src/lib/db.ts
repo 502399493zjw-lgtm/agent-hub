@@ -17,23 +17,61 @@ function getDb(): Database.Database {
 }
 
 // ════════════════════════════════════════════
-// Hub Score — dynamic calculation
+// Hub Score — v3 cumulative (no cap)
 // ════════════════════════════════════════════
+
+// Score events and their point values for assets
+export const ASSET_SCORE_EVENTS = {
+  install:       10,  // per unique user install
+  raw_read:       2,  // agent /raw read (deduped per IP per day)
+  comment:        3,  // received a comment
+  rating:         5,  // received a rating
+  rating_5star:   8,  // received a 5-star rating (replaces rating)
+  favorite:       5,  // favorited
+  new_version:   15,  // author published a new version
+  referenced:    20,  // referenced by another asset
+} as const;
+
+// Score events and their point values for user reputation
+export const USER_REP_EVENTS = {
+  publish_asset:   20,
+  asset_installed:  3,
+  asset_rated_good: 5,  // 4-5 star
+  issue_closed:     5,
+  write_comment:    2,
+  submit_issue:     2,
+  invite_user:     10,
+  new_version:      8,
+} as const;
+
+// Score events for shrimp coins (earnable currency)
+export const SHRIMP_COIN_EVENTS = {
+  register:        100,  // welcome bonus
+  daily_login:       5,
+  publish_asset:    50,
+  asset_installed:  10,
+  asset_rated_5star: 15,
+  write_comment:     3,
+  submit_issue:      5,
+  invite_user:      30,
+  new_version:      20,
+} as const;
 
 export function calculateHubScore(downloads: number, rating: number, ratingCount: number): {
   hubScore: number;
   hubScoreBreakdown: { downloadScore: number; maintenanceScore: number; reputationScore: number };
 } {
-  const downloadScore = Math.min(100, Math.log10(1 + downloads) * 25);
-  const maintenanceScore = 100; // no active issue system yet, default full
-  const reputationScore = ratingCount < 3 ? 50 : rating * 20;
-  const hubScore = Math.round(downloadScore * 0.40 + maintenanceScore * 0.30 + reputationScore * 0.30);
+  // v3: Hub Score = downloads * 10 (install points) + ratingCount * 5 + bonus
+  // Keep the function signature for backward compat, but score is now cumulative
+  const installScore = downloads * ASSET_SCORE_EVENTS.install;
+  const ratingScore = ratingCount * ASSET_SCORE_EVENTS.rating;
+  const hubScore = installScore + ratingScore;
   return {
     hubScore,
     hubScoreBreakdown: {
-      downloadScore: Math.round(downloadScore),
-      maintenanceScore,
-      reputationScore: Math.round(reputationScore),
+      downloadScore: installScore,
+      maintenanceScore: 0,
+      reputationScore: ratingScore,
     },
   };
 }
@@ -53,8 +91,59 @@ export function incrementDownload(assetId: string): number | null {
   const result = db.prepare('UPDATE assets SET downloads = downloads + 1 WHERE id = ?').run(assetId);
   if (result.changes === 0) return null;
   recalculateHubScore(assetId);
-  const row = db.prepare('SELECT downloads FROM assets WHERE id = ?').get(assetId) as { downloads: number };
-  return row.downloads;
+
+  // Award coins to asset author
+  const asset = db.prepare('SELECT author_id, downloads FROM assets WHERE id = ?').get(assetId) as { author_id: string; downloads: number } | undefined;
+  if (asset?.author_id) {
+    addCoins(asset.author_id, 'reputation', USER_REP_EVENTS.asset_installed, 'asset_installed', assetId);
+    addCoins(asset.author_id, 'shrimp_coin', SHRIMP_COIN_EVENTS.asset_installed, 'asset_installed', assetId);
+  }
+  return asset?.downloads ?? null;
+}
+
+// ════════════════════════════════════════════
+// Coin System — Reputation & Shrimp Coins
+// ════════════════════════════════════════════
+
+export function addCoins(userId: string, coinType: 'reputation' | 'shrimp_coin', amount: number, event: string, refId?: string): void {
+  const db = getDb();
+  const col = coinType === 'reputation' ? 'reputation' : 'shrimp_coins';
+
+  // Check user exists
+  const user = db.prepare(`SELECT ${col} FROM users WHERE id = ?`).get(userId) as Record<string, number> | undefined;
+  if (!user) return;
+
+  const currentBalance = user[col] ?? 0;
+  const newBalance = Math.max(0, currentBalance + amount); // never go below 0
+
+  db.prepare(`UPDATE users SET ${col} = ? WHERE id = ?`).run(newBalance, userId);
+  db.prepare(`INSERT INTO coin_events (user_id, coin_type, amount, event, ref_id, balance_after, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
+    userId, coinType, amount, event, refId ?? null, newBalance, new Date().toISOString()
+  );
+}
+
+export function getUserCoins(userId: string): { reputation: number; shrimpCoins: number } {
+  const row = getDb().prepare('SELECT reputation, shrimp_coins FROM users WHERE id = ?').get(userId) as { reputation: number; shrimp_coins: number } | undefined;
+  return { reputation: row?.reputation ?? 0, shrimpCoins: row?.shrimp_coins ?? 100 };
+}
+
+export function getCoinHistory(userId: string, coinType?: 'reputation' | 'shrimp_coin', limit: number = 50): { id: number; coinType: string; amount: number; event: string; refId: string | null; balanceAfter: number; createdAt: string }[] {
+  const db = getDb();
+  let sql = 'SELECT * FROM coin_events WHERE user_id = ?';
+  const params: (string | number)[] = [userId];
+  if (coinType) {
+    sql += ' AND coin_type = ?';
+    params.push(coinType);
+  }
+  sql += ' ORDER BY id DESC LIMIT ?';
+  params.push(limit);
+  const rows = db.prepare(sql).all(...params) as { id: number; user_id: string; coin_type: string; amount: number; event: string; ref_id: string | null; balance_after: number; created_at: string }[];
+  return rows.map(r => ({ id: r.id, coinType: r.coin_type, amount: r.amount, event: r.event, refId: r.ref_id, balanceAfter: r.balance_after, createdAt: r.created_at }));
+}
+
+export function hasEnoughCoins(userId: string, amount: number): boolean {
+  const { shrimpCoins } = getUserCoins(userId);
+  return shrimpCoins >= amount;
 }
 
 // ════════════════════════════════════════════
@@ -142,7 +231,27 @@ function initTables(db: Database.Database): void {
       day INTEGER PRIMARY KEY, downloads INTEGER NOT NULL DEFAULT 0,
       new_assets INTEGER NOT NULL DEFAULT 0, new_users INTEGER NOT NULL DEFAULT 0
     );
+    CREATE TABLE IF NOT EXISTS coin_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL,
+      coin_type TEXT NOT NULL CHECK(coin_type IN ('reputation', 'shrimp_coin')),
+      amount INTEGER NOT NULL,
+      event TEXT NOT NULL,
+      ref_id TEXT,
+      balance_after INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_coin_events_user ON coin_events(user_id, coin_type);
+    CREATE INDEX IF NOT EXISTS idx_coin_events_ref ON coin_events(ref_id);
   `);
+
+  // Migration: add reputation and shrimp_coins columns to users table if missing
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN reputation INTEGER NOT NULL DEFAULT 0`);
+  } catch { /* column already exists */ }
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN shrimp_coins INTEGER NOT NULL DEFAULT 100`);
+  } catch { /* column already exists */ }
 
   // Seed invite codes if empty
   const inviteCount = db.prepare('SELECT COUNT(*) as cnt FROM invite_codes').get() as { cnt: number };
@@ -288,6 +397,13 @@ export function createAsset(data: {
     hubScore, hubScoreBreakdown, upgradeRate: 25,
   };
   db.prepare(`INSERT INTO assets (id,name,display_name,type,author_id,author_name,author_avatar,description,long_description,version,downloads,rating,rating_count,tags,category,created_at,updated_at,install_command,readme,versions,dependencies,issue_count,config_subtype,hub_score,hub_score_breakdown,upgrade_rate,compatibility,files) VALUES (@id,@name,@display_name,@type,@author_id,@author_name,@author_avatar,@description,@long_description,@version,@downloads,@rating,@rating_count,@tags,@category,@created_at,@updated_at,@install_command,@readme,@versions,@dependencies,@issue_count,@config_subtype,@hub_score,@hub_score_breakdown,@upgrade_rate,@compatibility,@files)`).run(assetToRow(asset));
+
+  // Award coins to publisher
+  if (data.authorId) {
+    addCoins(data.authorId, 'reputation', USER_REP_EVENTS.publish_asset, 'publish_asset', id);
+    addCoins(data.authorId, 'shrimp_coin', SHRIMP_COIN_EVENTS.publish_asset, 'publish_asset', id);
+  }
+
   return asset;
 }
 
@@ -331,6 +447,7 @@ export interface DbUser {
   id: string; email: string | null; name: string; avatar: string;
   provider: string; provider_id: string; bio: string;
   invite_code: string | null; created_at: string; updated_at: string; deleted_at: string | null;
+  reputation: number; shrimp_coins: number;
 }
 
 export function findUserByProvider(provider: string, providerId: string): DbUser | null {
@@ -343,7 +460,11 @@ export function findUserById(id: string): DbUser | null {
 
 export function createUser(data: { id: string; email: string | null; name: string; avatar: string; provider: string; providerId: string; }): DbUser {
   const now = new Date().toISOString();
-  getDb().prepare(`INSERT INTO users (id,email,name,avatar,provider,provider_id,bio,invite_code,created_at,updated_at) VALUES (?,?,?,?,?,?,'',NULL,?,?)`).run(data.id, data.email, data.name, data.avatar, data.provider, data.providerId, now, now);
+  getDb().prepare(`INSERT INTO users (id,email,name,avatar,provider,provider_id,bio,invite_code,created_at,updated_at,reputation,shrimp_coins) VALUES (?,?,?,?,?,?,'',NULL,?,?,0,?)`).run(data.id, data.email, data.name, data.avatar, data.provider, data.providerId, now, now, SHRIMP_COIN_EVENTS.register);
+
+  // Record the welcome bonus in coin_events
+  addCoins(data.id, 'shrimp_coin', 0, 'register_bonus', null); // balance already set to 100 above, just log it
+
   return findUserById(data.id)!;
 }
 
@@ -368,6 +489,14 @@ export function activateInviteCode(userId: string, code: string): { success: boo
     // Auto-generate 6 invite codes for the newly activated user
     generateUserInviteCodes(userId);
   })();
+
+  // Award coins to the invite code creator
+  const inviteDetail = db.prepare('SELECT created_by FROM invite_codes WHERE code = ?').get(code) as { created_by: string } | undefined;
+  if (inviteDetail?.created_by && inviteDetail.created_by !== 'system') {
+    addCoins(inviteDetail.created_by, 'reputation', USER_REP_EVENTS.invite_user, 'invite_user', userId);
+    addCoins(inviteDetail.created_by, 'shrimp_coin', SHRIMP_COIN_EVENTS.invite_user, 'invite_user', userId);
+  }
+
   return { success: true };
 }
 
@@ -625,6 +754,25 @@ export function createComment(data: { assetId: string; userId: string; userName:
   const id = 'cm-' + Math.random().toString(36).substring(2, 8);
   const now = new Date().toISOString().split('T')[0];
   db.prepare(`INSERT INTO comments (id,asset_id,user_id,user_name,user_avatar,content,rating,created_at,commenter_type) VALUES (?,?,?,?,?,?,?,?,?)`).run(id, data.assetId, data.userId, data.userName, data.userAvatar, data.content, data.rating, now, data.commenterType ?? 'user');
+
+  // Award coins to commenter
+  addCoins(data.userId, 'reputation', USER_REP_EVENTS.write_comment, 'write_comment', data.assetId);
+  addCoins(data.userId, 'shrimp_coin', SHRIMP_COIN_EVENTS.write_comment, 'write_comment', data.assetId);
+
+  // Award coins to asset author for receiving a comment/rating
+  const asset = db.prepare('SELECT author_id FROM assets WHERE id = ?').get(data.assetId) as { author_id: string } | undefined;
+  if (asset?.author_id && asset.author_id !== data.userId) {
+    if (data.rating >= 4) {
+      addCoins(asset.author_id, 'reputation', USER_REP_EVENTS.asset_rated_good, 'asset_rated_good', data.assetId);
+    }
+    if (data.rating === 5) {
+      addCoins(asset.author_id, 'shrimp_coin', SHRIMP_COIN_EVENTS.asset_rated_5star, 'asset_rated_5star', data.assetId);
+    }
+  }
+
+  // Recalculate hub score after rating
+  recalculateHubScore(data.assetId);
+
   return { id, ...data, createdAt: now };
 }
 
@@ -662,6 +810,11 @@ export function createIssue(data: { assetId: string; authorId: string; authorNam
   const id = 'is-' + Math.random().toString(36).substring(2, 8);
   const now = new Date().toISOString().split('T')[0];
   db.prepare(`INSERT INTO issues (id,asset_id,author_id,author_name,author_avatar,author_type,title,body,status,labels,created_at,comment_count) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run(id, data.assetId, data.authorId, data.authorName, data.authorAvatar, data.authorType ?? 'user', data.title, data.body, 'open', JSON.stringify(data.labels ?? []), now, 0);
+
+  // Award coins to issue submitter
+  addCoins(data.authorId, 'reputation', USER_REP_EVENTS.submit_issue, 'submit_issue', data.assetId);
+  addCoins(data.authorId, 'shrimp_coin', SHRIMP_COIN_EVENTS.submit_issue, 'submit_issue', data.assetId);
+
   return { id, ...data, status: 'open', createdAt: now, commentCount: 0 };
 }
 
