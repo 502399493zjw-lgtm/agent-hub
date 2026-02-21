@@ -463,7 +463,7 @@ export function createUser(data: { id: string; email: string | null; name: strin
   getDb().prepare(`INSERT INTO users (id,email,name,avatar,provider,provider_id,bio,invite_code,created_at,updated_at,reputation,shrimp_coins) VALUES (?,?,?,?,?,?,'',NULL,?,?,0,?)`).run(data.id, data.email, data.name, data.avatar, data.provider, data.providerId, now, now, SHRIMP_COIN_EVENTS.register);
 
   // Record the welcome bonus in coin_events
-  addCoins(data.id, 'shrimp_coin', 0, 'register_bonus', null); // balance already set to 100 above, just log it
+  addCoins(data.id, 'shrimp_coin', 0, 'register_bonus'); // balance already set to 100 above, just log it
 
   return findUserById(data.id)!;
 }
