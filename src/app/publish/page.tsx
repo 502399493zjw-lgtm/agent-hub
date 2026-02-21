@@ -51,7 +51,7 @@ export default function PublishPage() {
     { value: 'plugin', label: '工具', icon: '', desc: '扩展 Agent 基础设施的工具' },
     { value: 'trigger', label: '触发器', icon: '', desc: '事件监听与条件触发模板' },
     { value: 'channel', label: '通信器', icon: '', desc: '连接 Agent 与外部世界' },
-    { value: 'template', label: '模板', icon: '', desc: '完整 Agent 配置模板' },
+    { value: 'template', label: '合集', icon: '', desc: '完整 Agent 配置合集' },
   ];
 
   const parsedTags = useMemo(() => tags.split(',').map(t => t.trim()).filter(Boolean).slice(0, 5), [tags]);

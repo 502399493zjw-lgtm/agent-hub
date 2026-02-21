@@ -102,7 +102,7 @@ export function formatDownloads(n: number): string {
 
 
 export const typeConfig: Record<AssetType, { label: string; icon: string; color: string; bgColor: string; borderColor: string }> = {
-  template: { label: '模板', icon: '', color: 'text-emerald-400', bgColor: 'bg-emerald-400/10', borderColor: 'border-emerald-400/30' },
+  template: { label: '合集', icon: '', color: 'text-emerald-400', bgColor: 'bg-emerald-400/10', borderColor: 'border-emerald-400/30' },
   skill: { label: '技能', icon: '', color: 'text-blue', bgColor: 'bg-blue/10', borderColor: 'border-blue/30' },
   config: { label: '配置', icon: '', color: 'text-red', bgColor: 'bg-red/10', borderColor: 'border-red/30' },
   plugin: { label: '工具', icon: '', color: 'text-blue-400', bgColor: 'bg-blue-400/10', borderColor: 'border-blue-400/30' },
