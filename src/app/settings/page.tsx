@@ -6,6 +6,17 @@ import { useAuth } from '@/lib/auth-context';
 import { signOut } from 'next-auth/react';
 import { showToast } from '@/components/toast';
 
+interface InviteCodeInfo {
+  code: string;
+  createdBy: string;
+  usedBy: string | null;
+  usedAt: string | null;
+  maxUses: number;
+  useCount: number;
+  type: string;
+  createdAt: string;
+}
+
 export default function SettingsPage() {
   const router = useRouter();
   const { user, isLoading } = useAuth();
@@ -16,6 +27,9 @@ export default function SettingsPage() {
   const [inviteError, setInviteError] = useState('');
   const [activatedCode, setActivatedCode] = useState<string | null>(null);
   const [isActivating, setIsActivating] = useState(false);
+  const [userCodes, setUserCodes] = useState<InviteCodeInfo[]>([]);
+  const [loadingCodes, setLoadingCodes] = useState(false);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   // Delete account
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -31,6 +45,29 @@ export default function SettingsPage() {
       setActivatedCode(user.inviteCode);
     }
   }, [user]);
+
+  // Fetch user's invite codes when viewing invite section
+  useEffect(() => {
+    if (activeSection === 'invite' && activatedCode) {
+      fetchUserCodes();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSection, activatedCode]);
+
+  const fetchUserCodes = async () => {
+    setLoadingCodes(true);
+    try {
+      const res = await fetch('/api/auth/invite');
+      const data = await res.json();
+      if (data.success && data.data?.codes) {
+        setUserCodes(data.data.codes);
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setLoadingCodes(false);
+    }
+  };
 
   // Redirect if not logged in
   useEffect(() => {
@@ -87,7 +124,13 @@ export default function SettingsPage() {
         setActivatedCode(inviteCode.trim().toUpperCase());
         setInviteCode('');
         setInviteStatus('idle');
-        showToast('🎉 邀请码激活成功！现在可以发布内容了');
+        showToast('🎉 邀请码激活成功！你已获得 6 个邀请码');
+        // Fetch the generated codes
+        if (data.data?.generatedCodes) {
+          setUserCodes(data.data.generatedCodes);
+        } else {
+          fetchUserCodes();
+        }
       } else {
         setInviteStatus('invalid');
         setInviteError(data.error || '激活失败');
@@ -98,6 +141,13 @@ export default function SettingsPage() {
     } finally {
       setIsActivating(false);
     }
+  };
+
+  const handleCopyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedCode(code);
+    showToast(`已复制邀请码: ${code}`);
+    setTimeout(() => setCopiedCode(null), 2000);
   };
 
   const handleDeleteAccount = async () => {
@@ -229,16 +279,71 @@ export default function SettingsPage() {
               </h2>
 
               {activatedCode ? (
-                <div className="p-4 rounded-lg bg-green-50 border border-green-200">
-                  <div className="flex items-center gap-2">
-                    <span className="text-green-600 text-lg">✅</span>
-                    <div>
-                      <p className="font-medium text-green-800">邀请码已激活</p>
-                      <p className="text-sm text-green-600 font-mono mt-1">{activatedCode}</p>
+                <>
+                  <div className="p-4 rounded-lg bg-green-50 border border-green-200">
+                    <div className="flex items-center gap-2">
+                      <span className="text-green-600 text-lg">✅</span>
+                      <div>
+                        <p className="font-medium text-green-800">邀请码已激活</p>
+                        <p className="text-sm text-green-600 font-mono mt-1">{activatedCode}</p>
+                      </div>
                     </div>
+                    <p className="text-sm text-green-600 mt-2">你可以自由发布和编辑内容了</p>
                   </div>
-                  <p className="text-sm text-green-600 mt-2">你可以自由发布和编辑内容了</p>
-                </div>
+
+                  {/* User's invite codes */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">
+                        我的邀请码
+                      </h3>
+                      <span className="text-xs text-muted">分享给朋友，邀请他们加入</span>
+                    </div>
+
+                    {loadingCodes ? (
+                      <div className="text-sm text-muted py-4 text-center">加载中...</div>
+                    ) : userCodes.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {userCodes.map((c) => {
+                          const isUsed = c.useCount >= c.maxUses;
+                          return (
+                            <div
+                              key={c.code}
+                              className={`flex items-center justify-between p-3 rounded-lg border ${
+                                isUsed
+                                  ? 'bg-gray-50 border-gray-200'
+                                  : 'bg-blue-50/50 border-blue/20'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className={`font-mono text-sm font-semibold ${isUsed ? 'text-gray-400 line-through' : 'text-blue'}`}>
+                                  {c.code}
+                                </span>
+                                {isUsed && (
+                                  <span className="text-xs px-1.5 py-0.5 rounded bg-gray-200 text-gray-500">
+                                    已使用
+                                  </span>
+                                )}
+                              </div>
+                              {!isUsed && (
+                                <button
+                                  onClick={() => handleCopyCode(c.code)}
+                                  className="text-xs px-2.5 py-1 rounded-lg border border-blue/30 text-blue hover:bg-blue/10 transition-colors"
+                                >
+                                  {copiedCode === c.code ? '✓ 已复制' : '复制'}
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-muted py-4 text-center border border-card-border rounded-lg">
+                        暂无邀请码
+                      </div>
+                    )}
+                  </div>
+                </>
               ) : (
                 <>
                   <p className="text-sm text-muted">

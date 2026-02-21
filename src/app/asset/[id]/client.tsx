@@ -5,8 +5,9 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { formatDownloads, typeConfig, Asset, Comment, Issue, FileNode } from '@/data/mock';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { InstallDialog } from '@/components/install-dialog';
+import { useAuth } from '@/lib/auth-context';
 
 type TabId = 'overview' | 'files' | 'versions' | 'issues' | 'comments' | 'dependencies';
 
@@ -148,44 +149,29 @@ function FileTree({ files }: { files: FileNode[] }) {
   );
 }
 
-export default function AssetDetailClient({ id }: { id: string }) {
-  const [asset, setAsset] = useState<Asset | null>(null);
-  const [allAssets, setAllAssets] = useState<Asset[]>([]);
-  const [loading, setLoading] = useState(true);
+interface AssetDetailClientProps {
+  id: string;
+  initialAsset: Asset | null;
+  initialComments: Comment[];
+  initialIssues: Issue[];
+  initialAllAssets: Asset[];
+}
+
+export default function AssetDetailClient({ id, initialAsset, initialComments, initialIssues, initialAllAssets }: AssetDetailClientProps) {
+  const { user } = useAuth();
+  const hasInviteAccess = !!user?.inviteCode;
+  const [asset] = useState<Asset | null>(initialAsset);
+  const [allAssets] = useState<Asset[]>(initialAllAssets);
   const [copied, setCopied] = useState(false);
+  const [rawCopied, setRawCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [toast, setToast] = useState<string | null>(null);
   const [localComments, setLocalComments] = useState<Comment[]>([]);
-  const [serverComments, setServerComments] = useState<Comment[]>([]);
-  const [serverIssues, setServerIssues] = useState<Issue[]>([]);
+  const [serverComments] = useState<Comment[]>(initialComments);
+  const [serverIssues] = useState<Issue[]>(initialIssues);
   const [commentText, setCommentText] = useState('');
   const [commenterType, setCommenterType] = useState<'user' | 'agent'>('user');
   const [issueFilter, setIssueFilter] = useState<'all' | 'open' | 'closed'>('all');
-
-  useEffect(() => {
-    setLoading(true);
-    Promise.all([
-      fetch(`/api/assets/${id}`).then(r => r.json()),
-      fetch('/api/assets?pageSize=100').then(r => r.json()),
-    ]).then(([detailJson, listJson]) => {
-      if (detailJson.success) {
-        setAsset(detailJson.data.asset);
-        if (detailJson.data.comments) setServerComments(detailJson.data.comments);
-        if (detailJson.data.issues) setServerIssues(detailJson.data.issues);
-      }
-      if (listJson.success) setAllAssets(listJson.data.assets);
-    }).catch(() => {})
-      .finally(() => setLoading(false));
-  }, [id]);
-
-  if (loading) {
-    return (
-      <div className="max-w-7xl mx-auto px-4 py-20 text-center">
-        <div className="text-4xl mb-4 animate-pulse">⏳</div>
-        <p className="text-muted">加载中...</p>
-      </div>
-    );
-  }
 
   if (!asset) {
     return (
@@ -214,6 +200,13 @@ export default function AssetDetailClient({ id }: { id: string }) {
     navigator.clipboard.writeText(installCmd);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const copyRawUrl = () => {
+    const url = `${window.location.origin}/api/assets/${asset.id}/raw`;
+    navigator.clipboard.writeText(url);
+    setRawCopied(true);
+    setTimeout(() => setRawCopied(false), 2000);
   };
 
   const showToast = (msg: string) => {
@@ -308,6 +301,25 @@ export default function AssetDetailClient({ id }: { id: string }) {
                   </button>
                 </div>
                 <code className="block text-sm font-mono text-foreground bg-surface p-3 rounded-lg overflow-x-auto">{installCmd}</code>
+              </div>
+
+              <div className="mb-8 p-4 rounded-lg bg-surface border border-card-border">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">🤖</span>
+                  <h3 className="font-semibold text-sm">Agent 直读</h3>
+                  <span className="text-xs text-muted">— Agent 可以直接阅读并使用此资产</span>
+                </div>
+                <p className="text-xs text-muted mb-3">
+                  此资产可被任何 AI Agent 直接读取。Agent 通过访问下方链接获取完整内容，无需安装，即可在此基础上理解、修改和创作。
+                </p>
+                <div className="flex items-center gap-2 bg-background rounded-md p-2 border border-card-border/50">
+                  <code className="text-xs text-blue flex-1 truncate">
+                    curl {typeof window !== 'undefined' ? window.location.origin : ''}/api/assets/{asset.id}/raw
+                  </code>
+                  <button onClick={copyRawUrl} className="text-xs px-2 py-1 rounded bg-blue/10 text-blue hover:bg-blue/20 transition-colors flex-shrink-0">
+                    {rawCopied ? '✓ 已复制' : '复制'}
+                  </button>
+                </div>
               </div>
 
               <div className="mb-8">
@@ -580,6 +592,16 @@ export default function AssetDetailClient({ id }: { id: string }) {
           {activeTab === 'comments' && (
             <div>
               <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-4">评论 ({allComments.length})</h3>
+
+              {/* Comment form - gated by invite code */}
+              {user && !hasInviteAccess ? (
+                <div className="mb-6 p-5 rounded-lg bg-amber-50 border border-amber-200 text-center">
+                  <p className="text-sm text-amber-700 mb-3">🎟️ 需要激活邀请码才能发表评论</p>
+                  <Link href="/settings" className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue text-white text-sm font-medium hover:bg-blue-dim transition-colors">
+                    去激活邀请码
+                  </Link>
+                </div>
+              ) : (
               <div className="mb-6 p-5 rounded-lg bg-white border border-card-border">
                 <div className="flex items-center gap-3 mb-4">
                   <span className="text-sm font-semibold">发表评论</span>
@@ -604,6 +626,7 @@ export default function AssetDetailClient({ id }: { id: string }) {
                     className="px-5 py-2 rounded-lg bg-blue text-white font-semibold text-sm hover:bg-blue-dim transition-colors disabled:opacity-40 disabled:cursor-not-allowed">发布评论</button>
                 </div>
               </div>
+              )}
               {allComments.length > 0 ? (
                 <div className="space-y-4">
                   {allComments.map(c => {

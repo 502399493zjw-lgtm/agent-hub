@@ -1,17 +1,7 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import { Asset, User } from '@/data/mock';
-import {
-  assets as mockAssets,
-  users as mockUsers,
-  comments as mockComments,
-  issues as mockIssues,
-  collections as mockCollections,
-  mockNotifications,
-  evolutionEvents as mockEvolutionEvents,
-  activityEvents as mockActivityEvents,
-  growthData as mockGrowthData,
-} from '@/data/seed';
+import { inviteCodes } from '@/data/seed';
 
 const DB_PATH = path.join(process.cwd(), 'data', 'hub.db');
 
@@ -22,9 +12,49 @@ function getDb(): Database.Database {
     _db = new Database(DB_PATH);
     _db.pragma('journal_mode = WAL');
     initTables(_db);
-    seedIfEmpty(_db);
   }
   return _db;
+}
+
+// ════════════════════════════════════════════
+// Hub Score — dynamic calculation
+// ════════════════════════════════════════════
+
+export function calculateHubScore(downloads: number, rating: number, ratingCount: number): {
+  hubScore: number;
+  hubScoreBreakdown: { downloadScore: number; maintenanceScore: number; reputationScore: number };
+} {
+  const downloadScore = Math.min(100, Math.log10(1 + downloads) * 25);
+  const maintenanceScore = 100; // no active issue system yet, default full
+  const reputationScore = ratingCount < 3 ? 50 : rating * 20;
+  const hubScore = Math.round(downloadScore * 0.40 + maintenanceScore * 0.30 + reputationScore * 0.30);
+  return {
+    hubScore,
+    hubScoreBreakdown: {
+      downloadScore: Math.round(downloadScore),
+      maintenanceScore,
+      reputationScore: Math.round(reputationScore),
+    },
+  };
+}
+
+export function recalculateHubScore(assetId: string): void {
+  const db = getDb();
+  const row = db.prepare('SELECT downloads, rating, rating_count FROM assets WHERE id = ?').get(assetId) as { downloads: number; rating: number; rating_count: number } | undefined;
+  if (!row) return;
+  const { hubScore, hubScoreBreakdown } = calculateHubScore(row.downloads, row.rating, row.rating_count);
+  db.prepare('UPDATE assets SET hub_score = ?, hub_score_breakdown = ? WHERE id = ?').run(
+    hubScore, JSON.stringify(hubScoreBreakdown), assetId
+  );
+}
+
+export function incrementDownload(assetId: string): number | null {
+  const db = getDb();
+  const result = db.prepare('UPDATE assets SET downloads = downloads + 1 WHERE id = ?').run(assetId);
+  if (result.changes === 0) return null;
+  recalculateHubScore(assetId);
+  const row = db.prepare('SELECT downloads FROM assets WHERE id = ?').get(assetId) as { downloads: number };
+  return row.downloads;
 }
 
 // ════════════════════════════════════════════
@@ -57,7 +87,8 @@ function initTables(db: Database.Database): void {
     );
     CREATE TABLE IF NOT EXISTS invite_codes (
       code TEXT PRIMARY KEY, created_by TEXT DEFAULT 'system', used_by TEXT, used_at TEXT,
-      max_uses INTEGER DEFAULT 1, use_count INTEGER DEFAULT 0, expires_at TEXT, created_at TEXT NOT NULL
+      max_uses INTEGER DEFAULT 1, use_count INTEGER DEFAULT 0, expires_at TEXT, created_at TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'normal'
     );
     CREATE TABLE IF NOT EXISTS user_profiles (
       id TEXT PRIMARY KEY, name TEXT NOT NULL, avatar TEXT NOT NULL DEFAULT '', bio TEXT NOT NULL DEFAULT '',
@@ -117,9 +148,9 @@ function initTables(db: Database.Database): void {
   const inviteCount = db.prepare('SELECT COUNT(*) as cnt FROM invite_codes').get() as { cnt: number };
   if (inviteCount.cnt === 0) {
     const now = new Date().toISOString();
-    const insertCode = db.prepare(`INSERT OR IGNORE INTO invite_codes (code, created_by, max_uses, use_count, created_at) VALUES (?, 'system', ?, 0, ?)`);
-    for (const c of [{ code: 'SEAFOOD-2026', m: 100 }, { code: 'CYBERNOVA-VIP', m: 100 }, { code: 'AGENT-HUB-BETA', m: 100 }]) {
-      insertCode.run(c.code, c.m, now);
+    const insertCode = db.prepare(`INSERT OR IGNORE INTO invite_codes (code, created_by, max_uses, use_count, type, created_at) VALUES (?, 'system', ?, 0, ?, ?)`);
+    for (const c of inviteCodes) {
+      insertCode.run(c.code, c.maxUses, c.type ?? 'system', now);
     }
   }
 }
@@ -141,6 +172,8 @@ export interface DbRow {
 }
 
 export function rowToAsset(row: DbRow): Asset {
+  // Compute hub score dynamically from current data
+  const { hubScore, hubScoreBreakdown } = calculateHubScore(row.downloads, row.rating, row.rating_count);
   return {
     id: row.id, name: row.name, displayName: row.display_name,
     type: row.type as Asset['type'],
@@ -154,12 +187,13 @@ export function rowToAsset(row: DbRow): Asset {
     compatibility: JSON.parse(row.compatibility), issueCount: row.issue_count,
     files: JSON.parse(row.files || '[]'),
     configSubtype: (row.config_subtype ?? undefined) as Asset['configSubtype'],
-    hubScore: row.hub_score, hubScoreBreakdown: JSON.parse(row.hub_score_breakdown),
+    hubScore, hubScoreBreakdown,
     upgradeRate: row.upgrade_rate,
   };
 }
 
 function assetToRow(a: Asset) {
+  const { hubScore, hubScoreBreakdown } = calculateHubScore(a.downloads, a.rating, a.ratingCount);
   return {
     id: a.id, name: a.name, display_name: a.displayName, type: a.type,
     author_id: a.author.id, author_name: a.author.name, author_avatar: a.author.avatar,
@@ -171,81 +205,9 @@ function assetToRow(a: Asset) {
     versions: JSON.stringify(a.versions), dependencies: JSON.stringify(a.dependencies),
     issue_count: a.issueCount, config_subtype: a.configSubtype ?? null,
     files: JSON.stringify(a.files ?? []),
-    hub_score: a.hubScore ?? 70, hub_score_breakdown: JSON.stringify(a.hubScoreBreakdown ?? {}),
+    hub_score: hubScore, hub_score_breakdown: JSON.stringify(hubScoreBreakdown),
     upgrade_rate: a.upgradeRate ?? 50, compatibility: JSON.stringify(a.compatibility ?? {}),
   };
-}
-
-const FS_EVENT_TRIGGER_ASSET: Asset = {
-  id: 's-fsevent', name: 'fs-event-trigger', displayName: '📂 FS Event Trigger', type: 'skill',
-  author: { id: 'u1', name: 'CyberNova', avatar: '🤖' },
-  description: '文件系统事件监听 — 监控目录变化，自动触发 Agent 动作',
-  longDescription: '', version: '1.0.0', downloads: 0, rating: 0, ratingCount: 0,
-  tags: ['filesystem','watcher','automation','hooks','trigger'], category: '系统工具',
-  createdAt: '2026-02-20', updatedAt: '2026-02-20',
-  installCommand: 'seafood-market install skill/@u1/fs-event-trigger',
-  readme: '# FS Event Trigger',
-  versions: [{ version: '1.0.0', changelog: '首次发布', date: '2026-02-20' }],
-  dependencies: [], compatibility: { models: ['GPT-4','Claude 3'], platforms: ['OpenClaw'], frameworks: ['Node.js'] },
-  issueCount: 0, hubScore: 65,
-  hubScoreBreakdown: { downloadScore: 0, maintenanceScore: 100, reputationScore: 0 }, upgradeRate: 25,
-};
-
-// ════════════════════════════════════════════
-// Seed all tables from mock data
-// ════════════════════════════════════════════
-
-function seedIfEmpty(db: Database.Database): void {
-  const count = db.prepare('SELECT COUNT(*) as cnt FROM assets').get() as { cnt: number };
-  if (count.cnt > 0) return;
-
-  // Assets
-  const insertAsset = db.prepare(`INSERT INTO assets (id,name,display_name,type,author_id,author_name,author_avatar,description,long_description,version,downloads,rating,rating_count,tags,category,created_at,updated_at,install_command,readme,versions,dependencies,issue_count,config_subtype,hub_score,hub_score_breakdown,upgrade_rate,compatibility,files) VALUES (@id,@name,@display_name,@type,@author_id,@author_name,@author_avatar,@description,@long_description,@version,@downloads,@rating,@rating_count,@tags,@category,@created_at,@updated_at,@install_command,@readme,@versions,@dependencies,@issue_count,@config_subtype,@hub_score,@hub_score_breakdown,@upgrade_rate,@compatibility,@files)`);
-  db.transaction(() => { for (const a of [...mockAssets, FS_EVENT_TRIGGER_ASSET]) insertAsset.run(assetToRow(a)); })();
-
-  // User profiles (deduplicate)
-  const seenIds = new Set<string>();
-  const uniqUsers = mockUsers.filter(u => { if (seenIds.has(u.id)) return false; seenIds.add(u.id); return true; });
-  const insUser = db.prepare(`INSERT OR IGNORE INTO user_profiles (id,name,avatar,bio,joined_at,published_assets,favorite_assets,followers,following,is_agent,agent_model,agent_uptime,agent_tasks_completed,agent_specialization,contribution_points,contributor_level,instance_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
-  db.transaction(() => {
-    for (const u of uniqUsers) {
-      insUser.run(u.id, u.name, u.avatar, u.bio, u.joinedAt,
-        JSON.stringify(u.publishedAssets), JSON.stringify(u.favoriteAssets),
-        u.followers, u.following, u.isAgent ? 1 : 0,
-        u.agentConfig?.model ?? null, u.agentConfig?.uptime ?? null,
-        u.agentConfig?.tasksCompleted ?? 0,
-        u.agentConfig?.specialization ? JSON.stringify(u.agentConfig.specialization) : null,
-        u.contributionPoints ?? 0, u.contributorLevel ?? 'newcomer', u.instanceId ?? null);
-    }
-  })();
-
-  // Comments
-  const insComment = db.prepare(`INSERT OR IGNORE INTO comments (id,asset_id,user_id,user_name,user_avatar,content,rating,created_at,commenter_type) VALUES (?,?,?,?,?,?,?,?,?)`);
-  db.transaction(() => { for (const c of mockComments) insComment.run(c.id, c.assetId, c.userId, c.userName, c.userAvatar, c.content, c.rating, c.createdAt, c.commenterType); })();
-
-  // Issues
-  const insIssue = db.prepare(`INSERT OR IGNORE INTO issues (id,asset_id,author_id,author_name,author_avatar,author_type,title,body,status,labels,created_at,comment_count) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`);
-  db.transaction(() => { for (const i of mockIssues) insIssue.run(i.id, i.assetId, i.authorId, i.authorName, i.authorAvatar, i.authorType, i.title, i.body, i.status, JSON.stringify(i.labels), i.createdAt, i.commentCount); })();
-
-  // Collections
-  const insCol = db.prepare(`INSERT OR IGNORE INTO collections (id,title,description,curator_id,curator_name,curator_avatar,asset_ids,cover_emoji,followers,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)`);
-  db.transaction(() => { for (const c of mockCollections) insCol.run(c.id, c.title, c.description, c.curatorId, c.curatorName, c.curatorAvatar, JSON.stringify(c.assetIds), c.coverEmoji, c.followers, c.createdAt); })();
-
-  // Notifications
-  const insNotif = db.prepare(`INSERT OR IGNORE INTO notifications (id,user_id,type,title,message,icon,link_to,is_read,created_at) VALUES (?,?,?,?,?,?,?,?,?)`);
-  db.transaction(() => { for (const n of mockNotifications) insNotif.run(n.id, 'self', n.type, n.title, n.message, n.icon, n.linkTo ?? null, n.read ? 1 : 0, n.createdAt); })();
-
-  // Evolution events
-  const insEvo = db.prepare(`INSERT OR IGNORE INTO evolution_events (id,user_id,icon,title,description,date,type) VALUES (?,?,?,?,?,?,?)`);
-  db.transaction(() => { for (const e of mockEvolutionEvents) insEvo.run(e.id, e.userId, e.icon, e.title, e.description, e.date, e.type); })();
-
-  // Activity events
-  const insAct = db.prepare(`INSERT OR IGNORE INTO activity_events (id,user_id,icon,text,date,type,link_to,actor_type) VALUES (?,?,?,?,?,?,?,?)`);
-  db.transaction(() => { for (const a of mockActivityEvents) insAct.run(a.id, a.userId, a.icon, a.text, a.date, a.type, a.linkTo ?? null, a.actorType); })();
-
-  // Daily stats
-  const insStat = db.prepare(`INSERT OR IGNORE INTO daily_stats (day,downloads,new_assets,new_users) VALUES (?,?,?,?)`);
-  db.transaction(() => { for (const d of mockGrowthData) insStat.run(d.day, d.downloads, d.newAssets, d.newUsers); })();
 }
 
 // ════════════════════════════════════════════
@@ -308,6 +270,9 @@ export function createAsset(data: {
   const authorAvatar = data.authorAvatar || '🤖';
   const authorId = data.authorId || ('u-' + authorName.toLowerCase().replace(/\s+/g, '-'));
 
+  // Calculate initial hub score (0 downloads, 0 ratings)
+  const { hubScore, hubScoreBreakdown } = calculateHubScore(0, 0, 0);
+
   const asset: Asset = {
     id, name: data.name, displayName: data.displayName, type: data.type as Asset['type'],
     author: { id: authorId, name: authorName, avatar: authorAvatar },
@@ -320,7 +285,7 @@ export function createAsset(data: {
     versions: [{ version: data.version, changelog: '首次发布', date: now }],
     dependencies: [], compatibility: { models: ['GPT-4','Claude 3'], platforms: ['OpenClaw'], frameworks: ['Node.js'] },
     issueCount: 0, configSubtype: data.configSubtype as Asset['configSubtype'],
-    hubScore: 65, hubScoreBreakdown: { downloadScore: 0, maintenanceScore: 100, reputationScore: 0 }, upgradeRate: 25,
+    hubScore, hubScoreBreakdown, upgradeRate: 25,
   };
   db.prepare(`INSERT INTO assets (id,name,display_name,type,author_id,author_name,author_avatar,description,long_description,version,downloads,rating,rating_count,tags,category,created_at,updated_at,install_command,readme,versions,dependencies,issue_count,config_subtype,hub_score,hub_score_breakdown,upgrade_rate,compatibility,files) VALUES (@id,@name,@display_name,@type,@author_id,@author_name,@author_avatar,@description,@long_description,@version,@downloads,@rating,@rating_count,@tags,@category,@created_at,@updated_at,@install_command,@readme,@versions,@dependencies,@issue_count,@config_subtype,@hub_score,@hub_score_breakdown,@upgrade_rate,@compatibility,@files)`).run(assetToRow(asset));
   return asset;
@@ -398,6 +363,8 @@ export function activateInviteCode(userId: string, code: string): { success: boo
   db.transaction(() => {
     db.prepare('UPDATE users SET invite_code = ?, updated_at = ? WHERE id = ?').run(code, now, userId);
     db.prepare('UPDATE invite_codes SET use_count = use_count + 1, used_at = ? WHERE code = ?').run(now, code);
+    // Auto-generate 6 invite codes for the newly activated user
+    generateUserInviteCodes(userId);
   })();
   return { success: true };
 }
@@ -411,7 +378,138 @@ export function validateInviteCode(code: string): { valid: boolean; error?: stri
 }
 
 // ════════════════════════════════════════════
-// Public API — Authorized Devices (instance_id based publish auth)
+// Invite Code System — Generate / Query / Admin
+// ════════════════════════════════════════════
+
+/** Generate a random 7-char uppercase letter invite code */
+function generateInviteCode(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  let code = '';
+  for (let i = 0; i < 7; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+export interface InviteCode {
+  code: string;
+  createdBy: string;
+  usedBy: string | null;
+  usedAt: string | null;
+  maxUses: number;
+  useCount: number;
+  expiresAt: string | null;
+  type: string;
+  createdAt: string;
+}
+
+interface DbInviteCode {
+  code: string;
+  created_by: string;
+  used_by: string | null;
+  used_at: string | null;
+  max_uses: number;
+  use_count: number;
+  expires_at: string | null;
+  type: string;
+  created_at: string;
+}
+
+function dbInviteToInvite(row: DbInviteCode): InviteCode {
+  return {
+    code: row.code,
+    createdBy: row.created_by,
+    usedBy: row.used_by,
+    usedAt: row.used_at,
+    maxUses: row.max_uses,
+    useCount: row.use_count,
+    expiresAt: row.expires_at,
+    type: row.type,
+    createdAt: row.created_at,
+  };
+}
+
+/** Generate 6 one-time invite codes for a user (called after activation) */
+export function generateUserInviteCodes(userId: string): string[] {
+  const db = getDb();
+  const now = new Date().toISOString();
+  const codes: string[] = [];
+  const insert = db.prepare(
+    `INSERT OR IGNORE INTO invite_codes (code, created_by, max_uses, use_count, type, created_at) VALUES (?, ?, 1, 0, 'normal', ?)`
+  );
+  let attempts = 0;
+  while (codes.length < 6 && attempts < 30) {
+    const code = generateInviteCode();
+    const result = insert.run(code, userId, now);
+    if (result.changes > 0) {
+      codes.push(code);
+    }
+    attempts++;
+  }
+  return codes;
+}
+
+/** Get all invite codes created by a user */
+export function getUserInviteCodes(userId: string): InviteCode[] {
+  const rows = getDb().prepare('SELECT * FROM invite_codes WHERE created_by = ? ORDER BY created_at DESC').all(userId) as DbInviteCode[];
+  return rows.map(dbInviteToInvite);
+}
+
+/** Create a super invite code (admin) */
+export function createSuperInviteCode(code: string, maxUses: number, createdBy: string): boolean {
+  const db = getDb();
+  const now = new Date().toISOString();
+  try {
+    db.prepare(
+      `INSERT INTO invite_codes (code, created_by, max_uses, use_count, type, created_at) VALUES (?, ?, ?, 0, 'super', ?)`
+    ).run(code, createdBy, maxUses, now);
+    return true;
+  } catch {
+    return false; // code already exists
+  }
+}
+
+/** Get invite code detail */
+export function getInviteCodeDetail(code: string): InviteCode | null {
+  const row = getDb().prepare('SELECT * FROM invite_codes WHERE code = ?').get(code) as DbInviteCode | undefined;
+  return row ? dbInviteToInvite(row) : null;
+}
+
+/** List all invite codes (admin, with pagination and optional type filter) */
+export function listAllInviteCodes(params?: { type?: string; page?: number; pageSize?: number }): { codes: InviteCode[]; total: number } {
+  const db = getDb();
+  const conditions: string[] = [];
+  const bindings: Record<string, string | number> = {};
+
+  if (params?.type) {
+    conditions.push('type = @type');
+    bindings.type = params.type;
+  }
+
+  const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+  const total = (db.prepare(`SELECT COUNT(*) as cnt FROM invite_codes ${where}`).get(bindings) as { cnt: number }).cnt;
+
+  const page = Math.max(1, params?.page ?? 1);
+  const pageSize = Math.min(100, Math.max(1, params?.pageSize ?? 20));
+  const offset = (page - 1) * pageSize;
+
+  const rows = db.prepare(`SELECT * FROM invite_codes ${where} ORDER BY created_at DESC LIMIT @limit OFFSET @offset`).all({ ...bindings, limit: pageSize, offset }) as DbInviteCode[];
+  return { codes: rows.map(dbInviteToInvite), total };
+}
+
+/** Delete an invite code (admin) */
+export function deleteInviteCode(code: string): boolean {
+  return getDb().prepare('DELETE FROM invite_codes WHERE code = ?').run(code).changes > 0;
+}
+
+/** Check if a user has activated an invite code (has publish/comment access) */
+export function userHasInviteAccess(userId: string): boolean {
+  const user = findUserById(userId);
+  return !!user?.invite_code;
+}
+
+// ════════════════════════════════════════════
+// Public API — Authorized Devices
 // ════════════════════════════════════════════
 
 export function authorizeDevice(userId: string, deviceId: string, name: string = ''): boolean {
@@ -423,7 +521,6 @@ export function authorizeDevice(userId: string, deviceId: string, name: string =
 export function validateDevice(deviceId: string): { userId: string; name: string } | null {
   const row = getDb().prepare('SELECT user_id, name FROM authorized_devices WHERE device_id = ?').get(deviceId) as { user_id: string; name: string } | undefined;
   if (!row) return null;
-  // Update last_publish_at
   getDb().prepare('UPDATE authorized_devices SET last_publish_at = ? WHERE device_id = ?').run(new Date().toISOString(), deviceId);
   return { userId: row.user_id, name: row.name };
 }
@@ -676,12 +773,12 @@ export interface StatsData {
 export function getStats(): StatsData {
   const db = getDb();
   const totalAssets = (db.prepare('SELECT COUNT(*) as cnt FROM assets').get() as { cnt: number }).cnt;
-  const totalDevelopers = (db.prepare('SELECT COUNT(DISTINCT author_id) as cnt FROM assets').get() as { cnt: number }).cnt;
+  const totalDevelopers = (db.prepare("SELECT COUNT(DISTINCT author_id) as cnt FROM assets WHERE author_id != ''").get() as { cnt: number }).cnt;
   const totalDownloads = (db.prepare('SELECT COALESCE(SUM(downloads), 0) as total FROM assets').get() as { total: number }).total;
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   const weeklyNew = (db.prepare('SELECT COUNT(*) as cnt FROM assets WHERE created_at >= ?').get(sevenDaysAgo) as { cnt: number }).cnt;
 
-  const topDevelopers = db.prepare(`SELECT author_id as id, author_name as name, author_avatar as avatar, COUNT(*) as assetCount, COALESCE(SUM(downloads),0) as totalDownloads FROM assets GROUP BY author_id ORDER BY totalDownloads DESC LIMIT 10`).all() as { id: string; name: string; avatar: string; assetCount: number; totalDownloads: number }[];
+  const topDevelopers = db.prepare(`SELECT author_id as id, author_name as name, author_avatar as avatar, COUNT(*) as assetCount, COALESCE(SUM(downloads),0) as totalDownloads FROM assets WHERE author_id != '' GROUP BY author_id ORDER BY totalDownloads DESC LIMIT 10`).all() as { id: string; name: string; avatar: string; assetCount: number; totalDownloads: number }[];
 
   const recentRows = db.prepare(`SELECT name, display_name, author_name, author_avatar, version, created_at, updated_at FROM assets ORDER BY updated_at DESC LIMIT 20`).all() as { name: string; display_name: string; author_name: string; author_avatar: string; version: string; created_at: string; updated_at: string }[];
   const recentActivity = recentRows.map(row => ({

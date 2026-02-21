@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAssetById } from '@/lib/db';
+import { getAssetById, incrementDownload } from '@/lib/db';
 import path from 'path';
 import fs from 'fs';
 
@@ -62,6 +62,34 @@ export async function GET(
     });
   } catch (err) {
     console.error('GET /api/assets/[id]/download error:', err);
+    return NextResponse.json(
+      { success: false, error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+
+    const newCount = incrementDownload(id);
+    if (newCount === null) {
+      return NextResponse.json(
+        { success: false, error: 'Asset not found' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: { downloads: newCount },
+    });
+  } catch (err) {
+    console.error('POST /api/assets/[id]/download error:', err);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { activateInviteCode, authorizeDevice } from '@/lib/db';
+import { activateInviteCode, authorizeDevice, getUserInviteCodes } from '@/lib/db';
 
 export async function POST(request: NextRequest) {
   const session = await auth();
@@ -28,13 +28,17 @@ export async function POST(request: NextRequest) {
       deviceAuthorized = true;
     }
 
+    // Get the generated invite codes
+    const generatedCodes = getUserInviteCodes(session.user.id);
+
     return NextResponse.json({
       success: true,
       data: {
         message: deviceAuthorized
           ? '🎉 邀请码激活成功，设备已自动授权！可以直接发布了。'
-          : '邀请码激活成功',
+          : '🎉 邀请码激活成功！你已获得 6 个邀请码，可以分享给朋友。',
         deviceAuthorized,
+        generatedCodes,
       },
     });
   } catch {

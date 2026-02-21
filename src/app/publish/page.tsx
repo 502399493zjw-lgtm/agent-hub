@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { AssetType, typeConfig } from '@/data/mock';
 import { useAuth } from '@/lib/auth-context';
 
@@ -109,6 +110,24 @@ export default function PublishPage() {
         <p className="text-muted">分享你的 Skills、Configs 或 Plugins，让全世界的 Agent 受益</p>
       </div>
 
+      {/* Invite code gate */}
+      {user && !user.inviteCode && (
+        <div className="mb-8 p-6 rounded-lg bg-amber-50 border border-amber-200 text-center">
+          <div className="text-4xl mb-3">🎟️</div>
+          <h2 className="text-lg font-semibold text-amber-800 mb-2">需要邀请码</h2>
+          <p className="text-sm text-amber-700 mb-4">
+            你需要先激活邀请码才能发布资产。邀请码可以从社区获取。
+          </p>
+          <Link
+            href="/settings"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-blue text-white text-sm font-medium hover:bg-blue-dim transition-colors"
+          >
+            🎟️ 去激活邀请码
+          </Link>
+        </div>
+      )}
+
+      {(!user || user.inviteCode) && (
       <div className="flex flex-col lg:flex-row gap-8">
         {/* Form */}
         <form onSubmit={handleSubmit} className="flex-1 space-y-8">
@@ -417,6 +436,7 @@ export default function PublishPage() {
           </div>
         </aside>
       </div>
+      )}
 
       {/* Submitted Success */}
       {submitted && (

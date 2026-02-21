@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { formatDownloads, Asset, User, EvolutionEvent, ActivityEvent } from '@/data/mock';
 import { AssetCard } from '@/components/asset-card';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 const levelConfig: Record<string, { label: string; color: string; bgColor: string; borderColor: string }> = {
   newcomer: { label: '🌱 新芽', color: 'text-green-400', bgColor: 'bg-green-400/10', borderColor: 'border-green-400/30' },
@@ -22,41 +22,21 @@ const evolutionTypeColors: Record<string, string> = {
   achievement: 'bg-amber-400 border-amber-400',
 };
 
-export default function UserProfileClient({ id }: { id: string }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+interface UserProfileClientProps {
+  id: string;
+  initialUser: User | null;
+  initialPublished: Asset[];
+  initialEvolutionEvents: EvolutionEvent[];
+  initialActivityEvents: ActivityEvent[];
+}
+
+export default function UserProfileClient({ id, initialUser, initialPublished, initialEvolutionEvents, initialActivityEvents }: UserProfileClientProps) {
+  const [user] = useState<User | null>(initialUser);
   const [tab, setTab] = useState<'evolution' | 'activity' | 'published'>('evolution');
   const [isFollowing, setIsFollowing] = useState(false);
-  const [published, setPublished] = useState<Asset[]>([]);
-  const [evolutionEvents, setEvolutionEvents] = useState<EvolutionEvent[]>([]);
-  const [activityEventsData, setActivityEventsData] = useState<ActivityEvent[]>([]);
-
-  // Fetch all user data from API (DB-backed)
-  useEffect(() => {
-    fetch(`/api/users/${id}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.error) {
-          setUser(null);
-        } else {
-          setUser(data.user);
-          if (data.publishedAssets) setPublished(data.publishedAssets);
-          if (data.evolutionEvents) setEvolutionEvents(data.evolutionEvents);
-          if (data.activityEvents) setActivityEventsData(data.activityEvents);
-        }
-        setLoading(false);
-      })
-      .catch(() => { setLoading(false); });
-  }, [id]);
-
-  if (loading) {
-    return (
-      <div className="max-w-7xl mx-auto px-4 py-20 text-center">
-        <div className="text-6xl mb-4 animate-pulse">⏳</div>
-        <h1 className="text-2xl font-bold mb-2">加载中...</h1>
-      </div>
-    );
-  }
+  const [published] = useState<Asset[]>(initialPublished);
+  const [evolutionEvents] = useState<EvolutionEvent[]>(initialEvolutionEvents);
+  const [activityEventsData] = useState<ActivityEvent[]>(initialActivityEvents);
 
   if (!user) {
     return (

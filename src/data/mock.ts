@@ -109,15 +109,3 @@ export const typeConfig: Record<AssetType, { label: string; icon: string; color:
   trigger: { label: '触发器', icon: '', color: 'text-cyan-400', bgColor: 'bg-cyan-400/10', borderColor: 'border-cyan-400/30' },
   channel: { label: '通信器', icon: '', color: 'text-purple-400', bgColor: 'bg-purple-400/10', borderColor: 'border-purple-400/30' },
 };
-
-// ── Compute Hub Scores ──
-export function computeHubScore(a: Asset): { hubScore: number; hubScoreBreakdown: { downloadScore: number; maintenanceScore: number; reputationScore: number }; upgradeRate: number } {
-  const downloadScore = Math.min(100, Math.round((a.downloads / 30000) * 100));
-  const daysSinceUpdate = Math.max(1, Math.floor((new Date('2026-02-20').getTime() - new Date(a.updatedAt).getTime()) / 86400000));
-  const maintenanceScore = Math.min(100, Math.max(30, Math.round(100 - daysSinceUpdate * 1.5)));
-  const reputationScore = Math.min(100, Math.round((a.rating / 5) * 60 + Math.min(40, a.ratingCount / 15)));
-  const hubScore = Math.max(60, Math.min(95, Math.round(downloadScore * 0.4 + maintenanceScore * 0.3 + reputationScore * 0.3)));
-  const upgradeRate = Math.round(Math.min(95, Math.max(20, (a.versions.length / 4) * 30 + Math.random() * 20)));
-  return { hubScore, hubScoreBreakdown: { downloadScore, maintenanceScore, reputationScore }, upgradeRate };
-}
-
