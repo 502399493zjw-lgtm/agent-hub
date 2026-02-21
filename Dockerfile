@@ -34,10 +34,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 RUN mkdir -p /app/data && chown nextjs:nodejs /app/data
 COPY --chown=nextjs:nodejs data/hub.db /app/data/hub.db
 
-USER nextjs
-
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
+# Run as root to avoid volume mount permission issues with SQLite
+# (mounted /app/data is owned by host root)
 CMD ["node", "server.js"]
