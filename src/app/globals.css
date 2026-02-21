@@ -109,6 +109,25 @@ body {
   animation: pulse-dot 2s ease-in-out infinite;
 }
 
+/* Activity feed auto-scroll */
+@keyframes activity-scroll {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-50%); }
+}
+
+.activity-scroll {
+  animation: activity-scroll 30s linear infinite;
+}
+
+/* Hide scrollbar utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 /* Serif headings */
 h1, h2, h3 {
   font-family: var(--font-serif);

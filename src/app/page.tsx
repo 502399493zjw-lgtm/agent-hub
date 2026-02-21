@@ -1,64 +1,163 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { typeConfig, AssetType, Asset } from '@/data/mock';
+import { AssetType, Asset } from '@/data/mock';
 import { AssetCard } from '@/components/asset-card';
 
-const typeGlowColors: Record<AssetType, string> = {
-  skill: '#60a5fa',
-  config: '#f87171',
-  plugin: '#60a5fa',
-  trigger: '#f87171',
-  channel: '#60a5fa',
-  template: '#f87171',
-};
+/* ── Types ── */
+interface StatsData {
+  totalAssets: number;
+  totalDevelopers: number;
+  totalDownloads: number;
+  weeklyNew: number;
+  typeCounts: Record<string, number>;
+  topDevelopers: {
+    id: string;
+    name: string;
+    avatar: string;
+    assetCount: number;
+    totalDownloads: number;
+  }[];
+  recentActivity: {
+    type: 'publish' | 'update';
+    authorName: string;
+    authorAvatar: string;
+    assetName: string;
+    assetDisplayName: string;
+    version: string;
+    timestamp: string;
+  }[];
+}
 
+/* ── Tab definitions ── */
+const TABS: { key: string; label: string; type?: AssetType }[] = [
+  { key: 'all', label: '全部' },
+  { key: 'skill', label: '📦 技能', type: 'skill' },
+  { key: 'config', label: '⚙️ 配置', type: 'config' },
+  { key: 'plugin', label: '🔌 插件', type: 'plugin' },
+  { key: 'trigger', label: '🎯 触发器', type: 'trigger' },
+  { key: 'channel', label: '📡 通信器', type: 'channel' },
+  { key: 'template', label: '📋 合集', type: 'template' },
+];
+
+/* ── Helper: relative time ── */
+function relativeTime(dateStr: string): string {
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diff = now - then;
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return '刚刚';
+  if (minutes < 60) return `${minutes}分钟前`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}小时前`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}天前`;
+  const months = Math.floor(days / 30);
+  return `${months}个月前`;
+}
+
+function formatNumber(n: number): string {
+  if (n >= 10000) return (n / 10000).toFixed(1) + 'w';
+  if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
+  return n.toString();
+}
+
+/* ── Activity Feed ── */
+function ActivityFeed({ activities }: { activities: StatsData['recentActivity'] }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isPaused, setIsPaused] = useState(false);
+
+  // Duplicate items for seamless loop
+  const items = [...activities, ...activities];
+
+  return (
+    <div
+      className="relative overflow-hidden"
+      style={{ height: '380px' }}
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+    >
+      <div
+        ref={containerRef}
+        className="activity-scroll"
+        style={{ animationPlayState: isPaused ? 'paused' : 'running' }}
+      >
+        {items.map((item, i) => (
+          <div
+            key={`${item.assetName}-${i}`}
+            className="flex items-start gap-3 py-3 px-4 border-b border-card-border/50 last:border-0"
+          >
+            <span className={`mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ${
+              item.type === 'publish' ? 'bg-green-400' : 'bg-blue'
+            }`} />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-foreground leading-relaxed">
+                <span className="font-medium">{item.authorAvatar} {item.authorName}</span>
+                {' '}
+                <span className="text-muted">
+                  {item.type === 'publish' ? '发布了' : '更新了'}
+                </span>
+                {' '}
+                <span className="font-medium">「{item.assetDisplayName}」</span>
+                {' '}
+                <span className="text-muted font-mono text-xs">v{item.version}</span>
+              </p>
+            </div>
+            <span className="text-xs text-muted whitespace-nowrap flex-shrink-0">{relativeTime(item.timestamp)}</span>
+          </div>
+        ))}
+      </div>
+      {/* Fade edges */}
+      <div className="absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-white to-transparent pointer-events-none z-10" />
+      <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white to-transparent pointer-events-none z-10" />
+    </div>
+  );
+}
+
+/* ── Main Page ── */
 export default function HomePage() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
-  const [allAssets, setAllAssets] = useState<Asset[]>([]);
-  const [trending, setTrending] = useState<Asset[]>([]);
-  const [newest, setNewest] = useState<Asset[]>([]);
+  const [stats, setStats] = useState<StatsData | null>(null);
+  const [activeTab, setActiveTab] = useState('all');
+  const [tabAssets, setTabAssets] = useState<Record<string, Asset[]>>({});
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    Promise.all([
-      fetch('/api/assets?sort=downloads&pageSize=6').then(r => r.json()),
-      fetch('/api/assets?sort=created_at&pageSize=6').then(r => r.json()),
-      fetch('/api/assets?pageSize=100').then(r => r.json()),
-    ]).then(([hotJson, newJson, allJson]) => {
-      if (hotJson.success) setTrending(hotJson.data.assets);
-      if (newJson.success) setNewest(newJson.data.assets);
-      if (allJson.success) setAllAssets(allJson.data.assets);
-      setLoaded(true);
-    }).catch(() => setLoaded(true));
+    // Fetch stats + all tab data
+    const fetchAll = async () => {
+      try {
+        const [statsRes, allRes] = await Promise.all([
+          fetch('/api/stats').then(r => r.json()),
+          fetch('/api/assets?sort=downloads&pageSize=6').then(r => r.json()),
+        ]);
+
+        if (statsRes.success) setStats(statsRes.data);
+
+        const assets: Record<string, Asset[]> = {};
+        if (allRes.success) assets['all'] = allRes.data.assets;
+
+        // Fetch per-type in parallel
+        const types: AssetType[] = ['skill', 'config', 'plugin', 'trigger', 'channel', 'template'];
+        const typeResults = await Promise.all(
+          types.map(t =>
+            fetch(`/api/assets?sort=downloads&pageSize=6&type=${t}`).then(r => r.json())
+          )
+        );
+        types.forEach((t, i) => {
+          if (typeResults[i].success) assets[t] = typeResults[i].data.assets;
+        });
+
+        setTabAssets(assets);
+        setLoaded(true);
+      } catch {
+        setLoaded(true);
+      }
+    };
+    fetchAll();
   }, []);
-
-  const typeEntries: { type: AssetType; title: string; desc: string; count: number }[] = [
-    { type: 'template', title: '📋 合集', desc: '开箱即用的 Agent 整体方案，一键获得完整能力组合', count: allAssets.filter(a => a.type === 'template').length },
-    { type: 'skill', title: '📦 技能', desc: '让 Agent 获得新技能，按需安装即刻生效', count: allAssets.filter(a => a.type === 'skill').length },
-    { type: 'config', title: '⚙️ 配置', desc: '定义 Agent 的性格、行为与工作流偏好', count: allAssets.filter(a => a.type === 'config').length },
-    { type: 'plugin', title: '🔌 插件', desc: '扩展 Agent 底层能力，接入新的工具与服务', count: allAssets.filter(a => a.type === 'plugin').length },
-    { type: 'trigger', title: '🎯 触发器', desc: '监听外部事件，自动唤醒 Agent 执行任务', count: allAssets.filter(a => a.type === 'trigger').length },
-    { type: 'channel', title: '📡 通信器', desc: '连接 Agent 与外部世界的通信桥梁', count: allAssets.filter(a => a.type === 'channel').length },
-  ];
-
-  // "Trending this week" — mix downloads + recency
-  const trendingWeek = [...allAssets]
-    .sort((a, b) => {
-      const aScore = a.downloads * 0.7 + (new Date(a.updatedAt).getTime() / 1e10) * 0.3;
-      const bScore = b.downloads * 0.7 + (new Date(b.updatedAt).getTime() / 1e10) * 0.3;
-      return bScore - aScore;
-    })
-    .slice(0, 6);
-
-  const stats = [
-    { label: '总资产数', value: allAssets.length, icon: '📦' },
-    { label: '总下载量', value: Math.round(allAssets.reduce((s, a) => s + a.downloads, 0) / 1000) + 'k+', icon: '⬇️' },
-    { label: '开发者', value: '4', icon: '👥' },
-  ];
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,9 +166,19 @@ export default function HomePage() {
     }
   };
 
+  const statsItems = stats ? [
+    { label: '资产总数', value: stats.totalAssets, icon: '📦' },
+    { label: '入驻开发者', value: stats.totalDevelopers, icon: '👥' },
+    { label: '总下载量', value: formatNumber(stats.totalDownloads), icon: '⬇️' },
+    { label: '本周新增', value: stats.weeklyNew, icon: '🆕' },
+  ] : [];
+
+  const currentTabAssets = tabAssets[activeTab] || [];
+  const currentTab = TABS.find(t => t.key === activeTab);
+
   return (
     <div className="relative">
-      {/* Hero Section */}
+      {/* ── Hero Section ── */}
       <section className="relative overflow-hidden">
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-32">
           <div className="text-center max-w-4xl mx-auto">
@@ -109,19 +218,24 @@ export default function HomePage() {
               </div>
             </form>
 
-            <div className="flex flex-wrap justify-center gap-6 md:gap-10">
-              {stats.map(stat => (
-                <div key={stat.label} className="text-center">
-                  <div className="text-2xl md:text-3xl font-bold font-mono text-blue">{stat.value}</div>
-                  <div className="text-xs text-muted mt-1">{stat.label}</div>
-                </div>
-              ))}
-            </div>
+            {/* Dynamic stats */}
+            {stats && (
+              <div className="flex flex-wrap justify-center gap-6 md:gap-10">
+                {statsItems.map(stat => (
+                  <div key={stat.label} className="text-center">
+                    <div className="text-2xl md:text-3xl font-bold font-mono text-blue">
+                      {typeof stat.value === 'number' ? stat.value : stat.value}
+                    </div>
+                    <div className="text-xs text-muted mt-1">{stat.icon} {stat.label}</div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </section>
 
-      {/* Install Guide Banner */}
+      {/* ── Install Guide Banner ── */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
         <Link href="/guide">
           <div className="relative rounded-lg border border-blue/20 bg-gradient-to-r from-blue/5 via-white to-blue/5 p-6 md:p-8 card-hover overflow-hidden group">
@@ -150,104 +264,153 @@ export default function HomePage() {
         </Link>
       </section>
 
-      {/* Type Cards - 6 types */}
+      {/* ── 🔥 Featured Showcase ── */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {typeEntries.map(entry => {
-            const config = typeConfig[entry.type];
-            return (
-              <Link key={entry.type} href={`/explore?type=${entry.type}`}>
-                <div className={`relative group rounded-lg border border-card-border bg-white p-8 card-hover overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.04)]`}>
-                  <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-[60px] opacity-20 pointer-events-none"
-                    style={{ background: typeGlowColors[entry.type] }}
-                  />
-                  <div className="relative">
-                    <h3 className="text-2xl font-bold mb-2">{entry.title}</h3>
-                    <p className="text-sm text-muted mb-4">{entry.desc}</p>
-                    <div className="flex items-center justify-between">
-                      <span className={`text-sm font-mono ${config.color}`}>{entry.count} 个可用</span>
-                      <span className="text-muted group-hover:text-blue group-hover:translate-x-1 transition-all">→</span>
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* Trending This Week */}
-      {loaded && trendingWeek.length > 0 && (
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h2 className="text-2xl font-bold">
-                📈 <span className="text-blue">Trending</span> 本周
-              </h2>
-              <p className="text-sm text-muted mt-1">本周最受欢迎的资产</p>
-            </div>
-            <Link href="/explore?sort=trending" className="text-sm text-blue hover:text-blue-dim transition-colors">
-              查看全部 →
-            </Link>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-2xl font-bold">
+              🔥 精选资产
+            </h2>
+            <p className="text-sm text-muted mt-1">社区最受欢迎的资产，按类型浏览</p>
           </div>
+          <Link
+            href={currentTab?.type ? `/explore?type=${currentTab.type}` : '/explore'}
+            className="text-sm text-blue hover:text-blue-dim transition-colors hidden sm:block"
+          >
+            查看全部 →
+          </Link>
+        </div>
+
+        {/* Tab bar */}
+        <div className="relative mb-8">
+          <div className="flex overflow-x-auto scrollbar-hide gap-1 border-b border-card-border">
+            {TABS.map(tab => {
+              const count = tab.type ? (stats?.typeCounts?.[tab.type] ?? 0) : stats?.totalAssets ?? 0;
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`relative flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors ${
+                    activeTab === tab.key
+                      ? 'text-blue'
+                      : 'text-muted hover:text-foreground'
+                  }`}
+                >
+                  {tab.label}
+                  <span className={`text-xs font-mono px-1.5 py-0.5 rounded-full ${
+                    activeTab === tab.key
+                      ? 'bg-blue/10 text-blue'
+                      : 'bg-surface text-muted'
+                  }`}>
+                    {count}
+                  </span>
+                  {activeTab === tab.key && (
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue rounded-full" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Asset grid */}
+        {loaded ? (
+          currentTabAssets.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {currentTabAssets.map(asset => (
+                <AssetCard key={asset.id} asset={asset} />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-16 text-muted">
+              <p className="text-lg">暂无此类型的资产</p>
+            </div>
+          )
+        ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {trendingWeek.map((asset, i) => (
-              <div key={asset.id} className="relative">
-                <div className="absolute -top-2 -left-2 z-10 w-8 h-8 rounded-full bg-blue text-white flex items-center justify-center text-sm font-bold shadow-md">
-                  {i + 1}
-                </div>
-                <AssetCard asset={asset} />
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="rounded-lg border border-card-border bg-white p-5 animate-pulse">
+                <div className="h-4 bg-surface rounded w-20 mb-4" />
+                <div className="h-6 bg-surface rounded w-48 mb-2" />
+                <div className="h-4 bg-surface rounded w-32 mb-3" />
+                <div className="h-12 bg-surface rounded mb-4" />
+                <div className="h-8 bg-surface rounded" />
               </div>
             ))}
           </div>
-        </section>
-      )}
+        )}
 
-      {/* Hot */}
-      {loaded && trending.length > 0 && (
+        {/* Mobile view-all link */}
+        <div className="mt-6 text-center sm:hidden">
+          <Link
+            href={currentTab?.type ? `/explore?type=${currentTab.type}` : '/explore'}
+            className="text-sm text-blue hover:text-blue-dim transition-colors"
+          >
+            查看全部 →
+          </Link>
+        </div>
+      </section>
+
+      {/* ── 👥 Active Developers ── */}
+      {stats && stats.topDevelopers.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h2 className="text-2xl font-bold">
-                🔥 <span className="text-red">热门</span>资产
-              </h2>
-              <p className="text-sm text-muted mt-1">社区最受欢迎的资产</p>
-            </div>
-            <Link href="/explore?sort=downloads" className="text-sm text-blue hover:text-blue-dim transition-colors">
-              查看全部 →
-            </Link>
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold">
+              👥 活跃开发者
+            </h2>
+            <p className="text-sm text-muted mt-1">贡献最多的社区开发者</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {trending.map(asset => (
-              <AssetCard key={asset.id} asset={asset} />
+
+          <div className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 scrollbar-hide -mx-4 px-4">
+            {stats.topDevelopers.map(dev => (
+              <Link
+                key={dev.id}
+                href={`/user/${dev.id}`}
+                className="snap-start flex-shrink-0"
+              >
+                <div className="w-56 rounded-lg border border-card-border bg-white p-5 card-hover">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 rounded-full bg-surface border border-card-border flex items-center justify-center text-2xl">
+                      {dev.avatar}
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-sm truncate">{dev.name}</h3>
+                      <p className="text-xs text-muted">{dev.assetCount} 个资产</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 text-xs text-muted">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    <span className="font-mono">{formatNumber(dev.totalDownloads)}</span>
+                    <span>下载量</span>
+                  </div>
+                </div>
+              </Link>
             ))}
           </div>
         </section>
       )}
 
-      {/* Newest */}
-      {loaded && newest.length > 0 && (
+      {/* ── 📰 Live Activity Feed ── */}
+      {stats && stats.recentActivity.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
           <div className="flex items-center justify-between mb-8">
             <div>
               <h2 className="text-2xl font-bold">
-                ✨ <span className="text-blue">最新</span>更新
+                📰 实时动态
               </h2>
-              <p className="text-sm text-muted mt-1">最近更新的资产</p>
+              <p className="text-sm text-muted mt-1">社区最新发布与更新</p>
             </div>
-            <Link href="/explore?sort=updated" className="text-sm text-blue hover:text-blue-dim transition-colors">
-              查看全部 →
-            </Link>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {newest.map(asset => (
-              <AssetCard key={asset.id} asset={asset} />
-            ))}
+
+          <div className="rounded-lg border border-card-border bg-white overflow-hidden">
+            <ActivityFeed activities={stats.recentActivity} />
           </div>
         </section>
       )}
 
-      {/* CTA */}
+      {/* ── CTA Section ── */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="relative rounded-lg border border-card-border bg-white p-12 text-center overflow-hidden">
           <div className="relative">

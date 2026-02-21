@@ -648,6 +648,90 @@ export function activateInviteCode(userId: string, code: string): { success: boo
   return { success: true };
 }
 
+// ── Stats API ──
+
+export interface StatsData {
+  totalAssets: number;
+  totalDevelopers: number;
+  totalDownloads: number;
+  weeklyNew: number;
+  topDevelopers: {
+    id: string;
+    name: string;
+    avatar: string;
+    assetCount: number;
+    totalDownloads: number;
+  }[];
+  recentActivity: {
+    type: 'publish' | 'update';
+    authorName: string;
+    authorAvatar: string;
+    assetName: string;
+    assetDisplayName: string;
+    version: string;
+    timestamp: string;
+  }[];
+}
+
+export function getStats(): StatsData {
+  const db = getDb();
+
+  const totalAssets = (db.prepare('SELECT COUNT(*) as cnt FROM assets').get() as { cnt: number }).cnt;
+  const totalDevelopers = (db.prepare('SELECT COUNT(DISTINCT author_id) as cnt FROM assets').get() as { cnt: number }).cnt;
+  const totalDownloads = (db.prepare('SELECT COALESCE(SUM(downloads), 0) as total FROM assets').get() as { total: number }).total;
+
+  // Weekly new: assets created within the last 7 days
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const weeklyNew = (db.prepare('SELECT COUNT(*) as cnt FROM assets WHERE created_at >= ?').get(sevenDaysAgo) as { cnt: number }).cnt;
+
+  // Top developers by total downloads
+  const topDevelopers = db.prepare(`
+    SELECT author_id as id, author_name as name, author_avatar as avatar,
+           COUNT(*) as assetCount, COALESCE(SUM(downloads), 0) as totalDownloads
+    FROM assets
+    GROUP BY author_id
+    ORDER BY totalDownloads DESC
+    LIMIT 10
+  `).all() as { id: string; name: string; avatar: string; assetCount: number; totalDownloads: number }[];
+
+  // Recent activity: generate from assets ordered by updated_at
+  const recentRows = db.prepare(`
+    SELECT name, display_name, author_name, author_avatar, version, created_at, updated_at
+    FROM assets
+    ORDER BY updated_at DESC
+    LIMIT 20
+  `).all() as { name: string; display_name: string; author_name: string; author_avatar: string; version: string; created_at: string; updated_at: string }[];
+
+  const recentActivity = recentRows.map(row => ({
+    type: (row.created_at === row.updated_at ? 'publish' : 'update') as 'publish' | 'update',
+    authorName: row.author_name,
+    authorAvatar: row.author_avatar,
+    assetName: row.name,
+    assetDisplayName: row.display_name,
+    version: row.version,
+    timestamp: row.updated_at,
+  }));
+
+  return {
+    totalAssets,
+    totalDevelopers,
+    totalDownloads,
+    weeklyNew,
+    topDevelopers,
+    recentActivity,
+  };
+}
+
+export function getAssetCountByType(): Record<string, number> {
+  const db = getDb();
+  const rows = db.prepare('SELECT type, COUNT(*) as cnt FROM assets GROUP BY type').all() as { type: string; cnt: number }[];
+  const result: Record<string, number> = {};
+  for (const row of rows) {
+    result[row.type] = row.cnt;
+  }
+  return result;
+}
+
 export function validateInviteCode(code: string): { valid: boolean; error?: string } {
   const db = getDb();
   const invite = db.prepare('SELECT * FROM invite_codes WHERE code = ?').get(code) as {
