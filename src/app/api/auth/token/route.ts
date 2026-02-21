@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { findUserById, createApiToken, listApiTokens, revokeApiToken } from '@/lib/db';
 
-// GET — List my tokens
+// GET — List my device tokens
 export async function GET() {
   try {
     const session = await auth();
@@ -17,7 +17,7 @@ export async function GET() {
   }
 }
 
-// POST — Create a new API token (requires activated invite code)
+// POST — Create a new device token (requires activated invite code + instance_id)
 export async function POST(request: NextRequest) {
   try {
     const session = await auth();
@@ -27,19 +27,24 @@ export async function POST(request: NextRequest) {
 
     const dbUser = findUserById(session.user.id);
     if (!dbUser?.invite_code) {
-      return NextResponse.json({ success: false, error: '需要先激活邀请码才能生成 API Token' }, { status: 403 });
+      return NextResponse.json({ success: false, error: '需要先激活邀请码才能生成设备 Token' }, { status: 403 });
     }
 
-    const body = await request.json().catch(() => ({}));
-    const name = (body as { name?: string }).name || 'default';
+    const body = await request.json().catch(() => ({})) as { instanceId?: string; name?: string };
+    const instanceId = body.instanceId;
+    if (!instanceId) {
+      return NextResponse.json({ success: false, error: 'Missing instanceId — your Agent\'s unique device ID' }, { status: 400 });
+    }
+    const name = body.name || instanceId;
 
-    const token = createApiToken(session.user.id, name);
+    const token = createApiToken(session.user.id, instanceId, name);
 
     return NextResponse.json({
       success: true,
       data: {
         token,
-        message: '⚠️ 请保存好你的 token，它只会显示一次！',
+        instanceId,
+        message: '⚠️ 请保存好你的 token，它只会显示一次！配置到 Agent 的 ~/.seafood-market/token 中。',
       },
     }, { status: 201 });
   } catch (err) {
@@ -56,8 +61,8 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
     }
 
-    const body = await request.json();
-    const tokenToRevoke = (body as { token?: string }).token;
+    const body = await request.json() as { token?: string };
+    const tokenToRevoke = body.token;
     if (!tokenToRevoke) {
       return NextResponse.json({ success: false, error: 'Missing token field' }, { status: 400 });
     }

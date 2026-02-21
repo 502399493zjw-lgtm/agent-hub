@@ -102,6 +102,7 @@ function initTables(db: Database.Database): void {
     CREATE TABLE IF NOT EXISTS api_tokens (
       token TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
+      instance_id TEXT NOT NULL,
       name TEXT NOT NULL DEFAULT 'default',
       created_at TEXT NOT NULL,
       last_used_at TEXT,
@@ -411,28 +412,29 @@ export function validateInviteCode(code: string): { valid: boolean; error?: stri
 }
 
 // ════════════════════════════════════════════
-// Public API — API Tokens
+// Public API — Device Tokens (per-agent publish auth)
 // ════════════════════════════════════════════
 
-export function createApiToken(userId: string, name: string = 'default'): string {
+export function createApiToken(userId: string, instanceId: string, name: string = 'default'): string {
   const token = 'sm_' + Date.now().toString(36) + '_' + Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
   const now = new Date().toISOString();
-  getDb().prepare('INSERT INTO api_tokens (token, user_id, name, created_at) VALUES (?, ?, ?, ?)').run(token, userId, name, now);
+  getDb().prepare('INSERT INTO api_tokens (token, user_id, instance_id, name, created_at) VALUES (?, ?, ?, ?, ?)').run(token, userId, instanceId, name, now);
   return token;
 }
 
-export function validateApiToken(token: string): { userId: string; name: string } | null {
-  const row = getDb().prepare('SELECT user_id, name FROM api_tokens WHERE token = ?').get(token) as { user_id: string; name: string } | undefined;
+export function validateApiToken(token: string): { userId: string; instanceId: string; name: string } | null {
+  const row = getDb().prepare('SELECT user_id, instance_id, name FROM api_tokens WHERE token = ?').get(token) as { user_id: string; instance_id: string; name: string } | undefined;
   if (!row) return null;
   // Update last_used_at
   getDb().prepare('UPDATE api_tokens SET last_used_at = ? WHERE token = ?').run(new Date().toISOString(), token);
-  return { userId: row.user_id, name: row.name };
+  return { userId: row.user_id, instanceId: row.instance_id, name: row.name };
 }
 
-export function listApiTokens(userId: string): { token: string; name: string; createdAt: string; lastUsedAt: string | null }[] {
-  const rows = getDb().prepare('SELECT token, name, created_at, last_used_at FROM api_tokens WHERE user_id = ?').all(userId) as { token: string; name: string; created_at: string; last_used_at: string | null }[];
+export function listApiTokens(userId: string): { tokenPrefix: string; instanceId: string; name: string; createdAt: string; lastUsedAt: string | null }[] {
+  const rows = getDb().prepare('SELECT token, instance_id, name, created_at, last_used_at FROM api_tokens WHERE user_id = ?').all(userId) as { token: string; instance_id: string; name: string; created_at: string; last_used_at: string | null }[];
   return rows.map(r => ({
-    token: r.token.slice(0, 8) + '...',  // Only show prefix for security
+    tokenPrefix: r.token.slice(0, 10) + '...',
+    instanceId: r.instance_id,
     name: r.name,
     createdAt: r.created_at,
     lastUsedAt: r.last_used_at,
@@ -442,6 +444,11 @@ export function listApiTokens(userId: string): { token: string; name: string; cr
 export function revokeApiToken(token: string, userId: string): boolean {
   const result = getDb().prepare('DELETE FROM api_tokens WHERE token = ? AND user_id = ?').run(token, userId);
   return result.changes > 0;
+}
+
+export function revokeTokensByInstance(instanceId: string, userId: string): number {
+  const result = getDb().prepare('DELETE FROM api_tokens WHERE instance_id = ? AND user_id = ?').run(instanceId, userId);
+  return result.changes;
 }
 
 // ════════════════════════════════════════════

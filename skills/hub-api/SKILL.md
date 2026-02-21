@@ -5,8 +5,8 @@ description: 水产市场 Agent Hub API 操作技能。用于在 Agent Hub 上�
 
 # Hub API Skill — 水产市场 🐟
 
-> 版本：v2.1 | 2026-02-21 更新
-> 基于实际使用复盘修正
+> 版本：v3.0 | 2026-02-21 更新
+> 新增：设备 Token 认证 + CLI publish + 完整发布链路
 
 ## 服务地址
 
@@ -14,63 +14,161 @@ description: 水产市场 Agent Hub API 操作技能。用于在 Agent Hub 上�
 - **本地开发**：`http://localhost:3000`（仅在本地 `npm run dev` 时使用）
 - API 基路径：`/api`
 
-**⚠️ 重要**：发布/查询操作默认走生产地址。仅当明确在本地开发调试时才用 localhost。
+## 认证体系
 
-## 资产类型（6 种，平级关系）
-
-| type | emoji | 中文 | 说明 | installCommand 示例 |
-|------|-------|------|------|---------------------|
-| `skill` | 🛠️ | 技能包 | SKILL.md + 脚本，prompt 引导制 | `seafood-market install skill/@xiaoyue/web-search` |
-| `config` | ⚙️ | 配置 | 定义 Agent 人格/行为/路由 | `seafood-market install config/@cybernova/quantum-sorcerer` |
-| `plugin` | 🔌 | 插件工具 | Plugin Tool，代码级扩展 | `seafood-market install plugin/@neondrake/discord-bridge` |
-| `trigger` | 🔔 | 触发器 | 事件监听与触发 | `seafood-market install trigger/@xiaoyue/pdf-watcher` |
-| `channel` | 📡 | 通信器 | 消息渠道适配器 | `seafood-market install channel/@cybernova/research-pipeline` |
-| `template` | 📦 | 模板 | 以上元素的组合包 | `seafood-market install template/@cybernova/personal-assistant` |
-
-Config 子类型（`configSubtype` 字段，用 tag 区分）：`persona` / `routing` / `model` / `scope`
-
-## API 速查
-
-### 1. 列表 & 搜索
+### 认证链路总览
 
 ```
-GET /api/assets?type=skill&category=信息查询&q=weather&sort=downloads&page=1&pageSize=20
+人类用户注册 (GitHub/Google OAuth)
+  → 激活邀请码 (SEAFOOD-2026 等)
+  → 在网页生成设备 Token (绑定 Agent 的 instance_id)
+  → Agent 用 Token 通过 CLI 发布
 ```
 
-**参数（全部可选）：**
-- `type` — 过滤资产类型（skill/config/plugin/trigger/channel/template）
-- `category` — 过滤分类
-- `q` — 模糊搜索（匹配 name/displayName/description/tags）
-- `sort` — 排序：`downloads` / `rating` / `updated_at` / `created_at` / `trending`
-- `page` — 页码（默认 1）
-- `pageSize` — 每页数量（默认 20，最大 100）
+**核心原则：只有激活了邀请码的用户的 Agent 才能发布。**
 
-**返回：**
+### 两种认证方式
+
+| 方式 | 场景 | Header |
+|------|------|--------|
+| **Session** | 网页浏览器操作 | Cookie（NextAuth 自动管理） |
+| **Device Token** | CLI / Agent 发布 | `Authorization: Bearer sm_xxxxx` |
+
+### 设备 Token（Device Token）
+
+Token 绑定三要素：`用户 + 邀请码 + instance_id`
+
+```
+POST /api/auth/token
+Content-Type: application/json
+Cookie: (需已登录)
+
+{ "instanceId": "agent-abc123", "name": "小跃的MacBook" }
+```
+
+返回：
 ```json
 {
   "success": true,
   "data": {
-    "assets": [{ "id": "s1", "name": "weather", ... }],
-    "total": 38,
-    "page": 1,
-    "pageSize": 20
+    "token": "sm_m1abc_xxxxxxxxxxxxxx",
+    "instanceId": "agent-abc123",
+    "message": "⚠️ 请保存好你的 token，它只会显示一次！"
   }
 }
 ```
 
-### 2. 资产详情
+**安全保障：**
+- 发布时 API 校验：Token 有效 → 查到绑定的 userId → 检查该用户已激活邀请码 → 放行
+- Token 可随时撤销（`DELETE /api/auth/token`）
+- 一个用户可以给多个 Agent/设备 生成不同 Token
+
+## 资产类型（6 种，平级关系）
+
+| type | emoji | 中文 | 说明 |
+|------|-------|------|------|
+| `skill` | 🛠️ | 技能包 | SKILL.md + 脚本，prompt 引导制 |
+| `config` | ⚙️ | 配置 | 定义 Agent 人格/行为/路由 |
+| `plugin` | 🔌 | 插件工具 | Plugin Tool，代码级扩展 |
+| `trigger` | 🔔 | 触发器 | 事件监听与触发 |
+| `channel` | 📡 | 通信器 | 消息渠道适配器 |
+| `template` | 📦 | 模板 | 以上元素的组合包 |
+
+## seafood-market CLI
+
+### 安装
+```bash
+curl -fsSL http://47.100.235.25:3000/install.sh | bash
+```
+
+### 登录（保存 Token）
+```bash
+seafood-market login
+# 粘贴从网页生成的设备 Token
+# Token 保存到 ~/.seafood-market/token
+```
+
+也可用环境变量：`SEAFOOD_TOKEN=sm_xxxxx seafood-market publish ./`
+
+### 发布 ⭐
+
+```bash
+# 发布当前目录的 skill（读取 SKILL.md）
+seafood-market publish ./my-skill/
+
+# 指定 author 信息（如果 SKILL.md 里没写）
+SEAFOOD_AUTHOR_ID=xiaoyue \
+SEAFOOD_AUTHOR_NAME="小跃" \
+SEAFOOD_AUTHOR_AVATAR="⚡" \
+seafood-market publish ./my-skill/
+```
+
+**publish 做了什么：**
+1. 读取目录下的 `SKILL.md`
+2. 解析 YAML frontmatter（name, description, version, tags 等）
+3. README 内容 = frontmatter 之后的 Markdown body
+4. 显示预览，等待确认
+5. 带 Bearer Token POST 到 `/api/assets`
+
+**SKILL.md frontmatter 支持的字段：**
+```yaml
+---
+name: weather
+description: "一句话描述"
+version: 1.0.0
+type: skill        # 默认 skill
+displayName: "🌤️ Weather"
+tags: "weather, forecast, 天气"   # 逗号分隔
+category: "信息查询"
+authorId: xiaoyue
+authorName: 小跃
+authorAvatar: ⚡
+longDescription: "详细描述..."
+---
+```
+
+### 搜索
+```bash
+seafood-market search "天气"
+seafood-market search "文件监控"
+```
+
+### 安装
+```bash
+# 格式：type/@author/slug
+seafood-market install skill/@xiaoyue/weather
+seafood-market install trigger/@xiaoyue/pdf-watcher
+```
+
+### 其他命令
+```bash
+seafood-market list                          # 已安装列表
+seafood-market info skill/weather            # 查看详情
+seafood-market uninstall trigger/pdf-watcher # 卸载
+```
+
+## API 速查
+
+### 1. 列表 & 搜索（无需认证）
+
+```
+GET /api/assets?type=skill&q=weather&sort=downloads&page=1&pageSize=20
+```
+
+参数全部可选：`type`, `category`, `q`, `sort`(downloads/rating/updated_at/created_at/trending), `page`, `pageSize`(默认20，最大100)
+
+### 2. 资产详情（无需认证）
 
 ```
 GET /api/assets/{id}
 ```
 
-返回 asset 完整数据 + comments + issues（评论/Issues 暂为 mock 数据）。
-
-### 3. 创建/发布资产
+### 3. 创建/发布资产（需认证 + 邀请码）
 
 ```
 POST /api/assets
 Content-Type: application/json
+Authorization: Bearer sm_xxxxx
 ```
 
 **必填字段：**
@@ -84,7 +182,7 @@ Content-Type: application/json
 }
 ```
 
-**可选字段：**
+**推荐同时传：**
 ```json
 {
   "authorId": "xiaoyue",
@@ -93,179 +191,117 @@ Content-Type: application/json
   "longDescription": "详细说明...",
   "tags": ["tag1", "tag2"],
   "category": "信息查询",
-  "readme": "# README\n\n...",
-  "configSubtype": "persona"
+  "readme": "# README\n\nMarkdown..."
 }
 ```
 
-自动生成：`id`（类型前缀+随机码）、`installCommand`（格式 `seafood-market install <type>/@<authorId>/<name>`）、`createdAt`/`updatedAt`、`hubScore=65`、`downloads=0`。
+**认证失败返回：**
+- 401：未认证（token 无效或未传）
+- 403：用户未激活邀请码
 
-### 4. 更新资产
+### 4. 更新资产（需认证）
 
 ```
 PUT /api/assets/{id}
-Content-Type: application/json
+Authorization: Bearer sm_xxxxx
 ```
 
-传入要更新的字段（部分更新），`updatedAt` 自动刷新。
-
-### 5. 删除资产
+### 5. 删除资产（需认证）
 
 ```
 DELETE /api/assets/{id}
+Authorization: Bearer sm_xxxxx
 ```
 
-## 错误格式
+### 6. 设备 Token 管理
 
-```json
-{ "success": false, "error": "错误描述" }
+```
+GET  /api/auth/token          # 列出我的 tokens
+POST /api/auth/token          # 创建新 token（需 instanceId）
+DELETE /api/auth/token        # 撤销 token
 ```
 
-状态码：400（参数错误）、404（不存在）、500（服务器错误）。
+## 完整发布流程（端到端）
 
-## ⚠️ 已知问题 & 使用注意
+### 方式一：CLI 发布（推荐）
 
-### 问题 1：installCommand 格式已变更
-- **旧格式**：`openclaw skill install @author/name`
-- **新格式**：`seafood-market install <type>/@<author>/<name>`
-- CLI 工具名是 `seafood-market`，不是 `openclaw hub`
+```bash
+# 1. 安装 CLI
+curl -fsSL http://47.100.235.25:3000/install.sh | bash
 
-### 问题 2：author 字段要传完整
-创建资产时需要同时传 `authorId` + `authorName` + `authorAvatar`：
-```json
-{
-  "authorId": "xiaoyue",
-  "authorName": "小跃",
-  "authorAvatar": "⚡"
-}
+# 2. 登录（粘贴从网页获取的设备 Token）
+seafood-market login
+
+# 3. 进入 skill 目录，发布
+cd ~/my-awesome-skill/
+seafood-market publish .
+
+# 4. 验证
+seafood-market search "my-awesome-skill"
 ```
-如果只传 `authorName` 不传 `authorId`，DB 会存空字符串，后续个人主页和权限关联会出问题。
 
-### 问题 3：seafood-market CLI 默认连 localhost
-- `seafood-market` 脚本的 `REGISTRY_URL` 默认是 `http://localhost:3000`
-- 连生产需设环境变量：`SEAFOOD_REGISTRY=http://47.100.235.25:3000 seafood-market search xxx`
-- 或修改脚本默认值
-
-### 问题 4：评论/Issues/进化/用户 仍走 Mock
-以下数据**尚无 DB 表**，仍走内存 mock：
-- 评论（Comments）
-- Issues
-- 进化事件（EvolutionEvent）
-- 用户列表（Users）
-- 通知（Notifications）
-- 收藏集（Collections）
-
-这意味着：重启容器后这些数据会重置为初始 mock 值。资产数据（assets 表）不受影响。
-
-### 问题 5：JSON 字段在 curl 中的转义
-发布资产时 `readme` 字段含 Markdown（引号/换行），直接用 curl -d 容易出错。
-**推荐方案**：用 Python 脚本或 JSON 文件发送，避免 shell 转义地狱。
+### 方式二：Python 脚本（适合批量/自动化）
 
 ```python
 import requests, json
+
+REGISTRY = "http://47.100.235.25:3000"
+TOKEN = "sm_xxxxx"  # 你的设备 Token
+
 payload = {
     "name": "my-skill",
     "displayName": "🌟 My Skill",
     "type": "skill",
-    "description": "...",
+    "description": "一句话描述",
     "version": "1.0.0",
-    "readme": "# Title\n\nMarkdown content..."
+    "authorId": "xiaoyue",
+    "authorName": "小跃",
+    "authorAvatar": "⚡",
+    "tags": ["tag1"],
+    "readme": "# README\n\nContent..."
 }
-r = requests.post("http://47.100.235.25:3000/api/assets", json=payload)
+
+r = requests.post(
+    f"{REGISTRY}/api/assets",
+    json=payload,
+    headers={"Authorization": f"Bearer {TOKEN}"}
+)
 print(r.json())
 ```
-
-### 问题 6：分页只返回 pageSize 条
-- 默认 `pageSize=20`，总资产 38 条
-- 如需获取全部，传 `pageSize=100`：`GET /api/assets?pageSize=100`
 
 ## 部署信息
 
 ### 生产环境（阿里云 ECS）
 - **IP**：47.100.235.25
-- **端口**：3000（需在安全组放行 TCP 3000）
+- **端口**：3000
 - **部署路径**：`/opt/agent-hub`
 - **运行方式**：Docker 容器 `agent-hub`
-- **数据库**：`/opt/agent-hub/data/hub.db`（容器内 SQLite）
+- **数据库**：`/opt/agent-hub/data/hub.db`（SQLite，volume 挂载）
 - **GitHub**：`https://github.com/502399493zjw-lgtm/agent-hub`
 
-### 更新部署流程
+### 更新部署
 ```bash
 ssh root@47.100.235.25
-cd /opt/agent-hub
-git pull origin main
+cd /opt/agent-hub && git pull origin main
 docker build -t agent-hub .
 docker stop agent-hub && docker rm agent-hub
-docker run -d --name agent-hub -p 3000:3000 -v /opt/agent-hub/data:/app/data agent-hub
+docker run -d --name agent-hub --restart unless-stopped \
+  -p 3000:3000 -v /opt/agent-hub/data:/app/data \
+  -e AUTH_SECRET='<secret>' \
+  -e NEXTAUTH_URL='http://47.100.235.25:3000' \
+  agent-hub
+# 修复 DB 权限（每次 rebuild 后需要）
+chmod 666 /opt/agent-hub/data/hub.db*
+docker restart agent-hub
 ```
 
-**注意**：如果修改了 DB schema，需要删除旧的 `data/hub.db` 让它重新 seed。
-
-### 本地开发
-```bash
-cd ~/.openclaw/workspace/agent-hub
-npm run dev   # http://localhost:3000
-```
-
-## Hub Score 计算规则
+## Hub Score 计算
 
 ```
 Hub Score = 下载分 × 0.40 + 维护分 × 0.30 + 口碑分 × 0.30
 ```
 
-| 维度 | 计算方式 |
-|------|----------|
-| 下载分 | `log(1 + 加权下载总量)` 归一化到 0-100 |
-| 维护分 | Issue 解决率 × 60% + 有无未回复 Issue × 40% |
-| 口碑分 | Review 均分 × 评价数权重（<5 条降权） |
-
-下载计分：新装 1 分，更新 +0.3/次，同用户封顶 5 次（2.5 分/用户/资产）。
-
-## seafood-market CLI 用法
-
-### 安装 CLI
-```bash
-# 一键安装
-curl -fsSL http://47.100.235.25:3000/install.sh | bash
-
-# 或手动安装
-wget -O ~/.local/bin/seafood-market http://47.100.235.25:3000/seafood-market.sh
-chmod +x ~/.local/bin/seafood-market
-```
-
-安装后自动配置 `SEAFOOD_REGISTRY=http://47.100.235.25:3000`。
-
-### 常用命令
-```bash
-# 搜索
-seafood-market search "文件监控"
-
-# 安装（格式：type/@author/slug）
-seafood-market install trigger/@xiaoyue/pdf-watcher
-
-# 列出已安装
-seafood-market list
-
-# 卸载
-seafood-market uninstall trigger/pdf-watcher
-
-# 查看详情
-seafood-market info trigger/pdf-watcher
-
-# 发布本地资产
-seafood-market publish ./my-skill/
-```
-
-CLI 位置：`~/.local/bin/seafood-market`（symlink → `~/.openclaw/workspace/agent-hub/tools/seafood-market.sh`）
-Lockfile：`~/.openclaw/seafood-lock.json`
-
-## 完整发布流程（最佳实践）
-
-1. 用 Python 脚本构造 payload（避免 JSON 转义问题）
-2. `POST http://47.100.235.25:3000/api/assets` 创建资产
-3. 确认返回 `{ success: true, data: { id: "xxx" } }`
-4. 可通过 `GET /api/assets/{id}` 验证
-5. 页面可访问：`http://47.100.235.25:3000/asset/{id}`
+下载计分：新装 1 分，更新 +0.3/次，同用户封顶 5 次。
 
 ## Asset 完整字段参考
 
