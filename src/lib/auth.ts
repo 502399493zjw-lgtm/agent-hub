@@ -1,7 +1,7 @@
 import NextAuth from 'next-auth';
 import GitHub from 'next-auth/providers/github';
 import Google from 'next-auth/providers/google';
-import { findUserByProvider, createUser, findUserById, type DbUser } from '@/lib/db';
+import { findUserByProvider, createUser, findUserById, isOnboardingCompleted, updateProviderInfo, type DbUser } from '@/lib/db';
 
 declare module 'next-auth' {
   interface Session {
@@ -12,6 +12,7 @@ declare module 'next-auth' {
       image: string;
       provider: string;
       inviteCode: string | null;
+      onboardingCompleted: boolean;
     };
   }
 }
@@ -48,6 +49,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (existing.deleted_at) {
           return false;
         }
+        // Always update provider info (name/avatar might change on OAuth side)
+        updateProviderInfo(existing.id, user.name ?? existing.name, user.image ?? existing.avatar);
         return true;
       }
 
@@ -96,6 +99,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.image = dbUser.avatar;
         session.user.provider = dbUser.provider;
         session.user.inviteCode = dbUser.invite_code;
+        session.user.onboardingCompleted = !!dbUser.onboarding_completed;
       }
 
       return session;

@@ -1,4 +1,4 @@
-import { getUserProfile, listAssets, getEvolutionEventsByUserId, getActivityEventsByUserId, listUserProfileIds } from '@/lib/db';
+import { getUserProfile, listAssets, getEvolutionEventsByUserId, getActivityEventsByUserId, listUserProfileIds, getUserProviderInfo } from '@/lib/db';
 import UserProfileClient from './client';
 import type { Metadata } from 'next';
 
@@ -39,6 +39,9 @@ export default async function UserProfilePage({ params }: { params: Promise<{ id
   const evolutionEvents = getEvolutionEventsByUserId(id) as EvolutionEvent[];
   const activityEvents = getActivityEventsByUserId(id) as ActivityEvent[];
 
+  // Get OAuth provider info (Agent owner)
+  const providerInfo = getUserProviderInfo(id);
+
   return (
     <UserProfileClient
       id={id}
@@ -46,6 +49,7 @@ export default async function UserProfilePage({ params }: { params: Promise<{ id
       initialPublished={publishedAssets}
       initialEvolutionEvents={evolutionEvents}
       initialActivityEvents={activityEvents}
+      ownerInfo={providerInfo}
     />
   );
 }

@@ -233,6 +233,26 @@ function initTables(db: Database.Database): void {
   try {
     db.exec(`ALTER TABLE users ADD COLUMN shrimp_coins INTEGER NOT NULL DEFAULT 100`);
   } catch { /* column already exists */ }
+  // Migration: add onboarding + custom profile columns
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN onboarding_completed INTEGER NOT NULL DEFAULT 0`);
+  } catch { /* column already exists */ }
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN custom_name TEXT`);
+  } catch { /* column already exists */ }
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN custom_avatar TEXT`);
+  } catch { /* column already exists */ }
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN provider_name TEXT`);
+  } catch { /* column already exists */ }
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN provider_avatar TEXT`);
+  } catch { /* column already exists */ }
+  // Migration: add manifest column to assets
+  try {
+    db.exec(`ALTER TABLE assets ADD COLUMN manifest TEXT NOT NULL DEFAULT '{}'`);
+  } catch { /* column already exists */ }
 
   // Seed invite codes if empty
   const inviteCount = db.prepare('SELECT COUNT(*) as cnt FROM invite_codes').get() as { cnt: number };
@@ -424,6 +444,9 @@ export interface DbUser {
   provider: string; provider_id: string; bio: string;
   invite_code: string | null; created_at: string; updated_at: string; deleted_at: string | null;
   reputation: number; shrimp_coins: number;
+  onboarding_completed: number;
+  custom_name: string | null; custom_avatar: string | null;
+  provider_name: string | null; provider_avatar: string | null;
 }
 
 export function findUserByProvider(provider: string, providerId: string): DbUser | null {
@@ -436,7 +459,7 @@ export function findUserById(id: string): DbUser | null {
 
 export function createUser(data: { id: string; email: string | null; name: string; avatar: string; provider: string; providerId: string; }): DbUser {
   const now = new Date().toISOString();
-  getDb().prepare(`INSERT INTO users (id,email,name,avatar,provider,provider_id,bio,invite_code,created_at,updated_at,reputation,shrimp_coins) VALUES (?,?,?,?,?,?,'',NULL,?,?,0,?)`).run(data.id, data.email, data.name, data.avatar, data.provider, data.providerId, now, now, SHRIMP_COIN_EVENTS.register);
+  getDb().prepare(`INSERT INTO users (id,email,name,avatar,provider,provider_id,bio,invite_code,created_at,updated_at,reputation,shrimp_coins,onboarding_completed,provider_name,provider_avatar) VALUES (?,?,?,?,?,?,'',NULL,?,?,0,?,0,?,?)`).run(data.id, data.email, data.name, data.avatar, data.provider, data.providerId, now, now, SHRIMP_COIN_EVENTS.register, data.name, data.avatar);
 
   // Record the welcome bonus in coin_events
   addCoins(data.id, 'shrimp_coin', 0, 'register_bonus'); // balance already set to 100 above, just log it
@@ -447,6 +470,28 @@ export function createUser(data: { id: string; email: string | null; name: strin
 export function softDeleteUser(id: string): boolean {
   const now = new Date().toISOString();
   return getDb().prepare('UPDATE users SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL').run(now, now, id).changes > 0;
+}
+
+export function completeOnboarding(userId: string, data: { name: string; avatar: string }): boolean {
+  const now = new Date().toISOString();
+  const db = getDb();
+  return db.prepare('UPDATE users SET name = ?, avatar = ?, custom_name = ?, custom_avatar = ?, onboarding_completed = 1, updated_at = ? WHERE id = ?')
+    .run(data.name, data.avatar, data.name, data.avatar, now, userId).changes > 0;
+}
+
+export function isOnboardingCompleted(userId: string): boolean {
+  const row = getDb().prepare('SELECT onboarding_completed FROM users WHERE id = ?').get(userId) as { onboarding_completed: number } | undefined;
+  return !!row?.onboarding_completed;
+}
+
+export function getUserProviderInfo(userId: string): { provider: string; providerName: string | null; providerAvatar: string | null } | null {
+  const row = getDb().prepare('SELECT provider, provider_name, provider_avatar FROM users WHERE id = ?').get(userId) as { provider: string; provider_name: string | null; provider_avatar: string | null } | undefined;
+  return row ? { provider: row.provider, providerName: row.provider_name, providerAvatar: row.provider_avatar } : null;
+}
+
+export function updateProviderInfo(userId: string, name: string, avatar: string): void {
+  getDb().prepare('UPDATE users SET provider_name = ?, provider_avatar = ?, updated_at = ? WHERE id = ?')
+    .run(name, avatar, new Date().toISOString(), userId);
 }
 
 export function activateInviteCode(userId: string, code: string): { success: boolean; error?: string } {
@@ -939,4 +984,133 @@ export function getTotalIssueCount(): number {
 
 export function getTotalUserCount(): number {
   return (getDb().prepare('SELECT COUNT(*) as cnt FROM user_profiles').get() as { cnt: number }).cnt;
+}
+
+// ════════════════════════════════════════════
+// V1 API helpers
+// ════════════════════════════════════════════
+
+export interface AssetCompact {
+  id: string; name: string; displayName: string; type: string;
+  description: string; tags: string[]; installs: number; rating: number;
+  author: string; authorId: string; version: string;
+  installCommand: string; updatedAt: string; category: string;
+}
+
+export function listAssetsCompact(params: ListParams & { tag?: string }): { assets: AssetCompact[]; total: number; page: number; pageSize: number } {
+  const db = getDb();
+  const conditions: string[] = [];
+  const bindings: Record<string, string | number> = {};
+
+  if (params.type && ['skill','config','plugin','trigger','channel','template'].includes(params.type)) {
+    conditions.push('type = @type'); bindings.type = params.type;
+  }
+  if (params.category) { conditions.push('category = @category'); bindings.category = params.category; }
+  if (params.tag) {
+    conditions.push('tags LIKE @tag');
+    bindings.tag = `%"${params.tag}"%`;
+  }
+  if (params.q) {
+    conditions.push(`(name LIKE @q OR display_name LIKE @q OR description LIKE @q OR tags LIKE @q)`);
+    bindings.q = `%${params.q}%`;
+  }
+  const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+  const total = (db.prepare(`SELECT COUNT(*) as cnt FROM assets ${where}`).get(bindings) as { cnt: number }).cnt;
+
+  let orderBy: string;
+  switch (params.sort) {
+    case 'installs': case 'downloads': orderBy = 'downloads DESC'; break;
+    case 'rating': orderBy = 'rating DESC'; break;
+    case 'newest': case 'updated_at': orderBy = 'updated_at DESC'; break;
+    case 'created_at': orderBy = 'created_at DESC'; break;
+    default: orderBy = 'downloads DESC, updated_at DESC';
+  }
+  const page = Math.max(1, params.page ?? 1);
+  const pageSize = Math.min(100, Math.max(1, params.pageSize ?? 20));
+  const offset = (page - 1) * pageSize;
+
+  const rows = db.prepare(`SELECT id, name, display_name, type, description, tags, downloads, rating, author_name, author_id, version, install_command, updated_at, category FROM assets ${where} ORDER BY ${orderBy} LIMIT @limit OFFSET @offset`).all({ ...bindings, limit: pageSize, offset }) as {
+    id: string; name: string; display_name: string; type: string; description: string;
+    tags: string; downloads: number; rating: number; author_name: string; author_id: string;
+    version: string; install_command: string; updated_at: string; category: string;
+  }[];
+
+  return {
+    assets: rows.map(r => ({
+      id: r.id, name: r.name, displayName: r.display_name, type: r.type,
+      description: r.description, tags: JSON.parse(r.tags), installs: r.downloads,
+      rating: r.rating, author: r.author_name, authorId: r.author_id, version: r.version,
+      installCommand: r.install_command, updatedAt: r.updated_at, category: r.category,
+    })),
+    total, page, pageSize,
+  };
+}
+
+export function getAllTags(): { name: string; count: number }[] {
+  const db = getDb();
+  const rows = db.prepare('SELECT tags FROM assets').all() as { tags: string }[];
+  const tagMap = new Map<string, number>();
+  for (const row of rows) {
+    const tags = JSON.parse(row.tags) as string[];
+    for (const t of tags) {
+      tagMap.set(t, (tagMap.get(t) ?? 0) + 1);
+    }
+  }
+  return [...tagMap.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
+export function getAllCategories(): { name: string; count: number }[] {
+  const rows = getDb().prepare("SELECT category, COUNT(*) as cnt FROM assets WHERE category != '' GROUP BY category ORDER BY cnt DESC").all() as { category: string; cnt: number }[];
+  return rows.map(r => ({ name: r.category, count: r.cnt }));
+}
+
+export function getAssetManifest(id: string): { id: string; manifest: Record<string, unknown> } | null {
+  const row = getDb().prepare('SELECT id, manifest FROM assets WHERE id = ?').get(id) as { id: string; manifest: string } | undefined;
+  if (!row) return null;
+  return { id: row.id, manifest: JSON.parse(row.manifest || '{}') };
+}
+
+export function updateAssetManifest(id: string, manifest: Record<string, unknown>): boolean {
+  return getDb().prepare('UPDATE assets SET manifest = ? WHERE id = ?').run(JSON.stringify(manifest), id).changes > 0;
+}
+
+export function getAssetReadme(id: string): { name: string; displayName: string; readme: string; version: string } | null {
+  const row = getDb().prepare('SELECT name, display_name, readme, version FROM assets WHERE id = ?').get(id) as { name: string; display_name: string; readme: string; version: string } | undefined;
+  if (!row) return null;
+  return { name: row.name, displayName: row.display_name, readme: row.readme, version: row.version };
+}
+
+export function getAssetsByIds(ids: string[]): AssetCompact[] {
+  if (ids.length === 0) return [];
+  const db = getDb();
+  const placeholders = ids.map(() => '?').join(',');
+  const rows = db.prepare(`SELECT id, name, display_name, type, description, tags, downloads, rating, author_name, author_id, version, install_command, updated_at, category FROM assets WHERE id IN (${placeholders})`).all(...ids) as {
+    id: string; name: string; display_name: string; type: string; description: string;
+    tags: string; downloads: number; rating: number; author_name: string; author_id: string;
+    version: string; install_command: string; updated_at: string; category: string;
+  }[];
+  return rows.map(r => ({
+    id: r.id, name: r.name, displayName: r.display_name, type: r.type,
+    description: r.description, tags: JSON.parse(r.tags), installs: r.downloads,
+    rating: r.rating, author: r.author_name, authorId: r.author_id, version: r.version,
+    installCommand: r.install_command, updatedAt: r.updated_at, category: r.category,
+  }));
+}
+
+export function getTrendingAssets(period: string, limit: number = 10): AssetCompact[] {
+  const db = getDb();
+  // For now, trending = most downloads. With more data, could use time-windowed installs.
+  const rows = db.prepare(`SELECT id, name, display_name, type, description, tags, downloads, rating, author_name, author_id, version, install_command, updated_at, category FROM assets ORDER BY downloads DESC, updated_at DESC LIMIT ?`).all(Math.min(limit, 50)) as {
+    id: string; name: string; display_name: string; type: string; description: string;
+    tags: string; downloads: number; rating: number; author_name: string; author_id: string;
+    version: string; install_command: string; updated_at: string; category: string;
+  }[];
+  return rows.map(r => ({
+    id: r.id, name: r.name, displayName: r.display_name, type: r.type,
+    description: r.description, tags: JSON.parse(r.tags), installs: r.downloads,
+    rating: r.rating, author: r.author_name, authorId: r.author_id, version: r.version,
+    installCommand: r.install_command, updatedAt: r.updated_at, category: r.category,
+  }));
 }

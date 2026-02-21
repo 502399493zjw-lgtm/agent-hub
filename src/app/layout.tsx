@@ -5,6 +5,7 @@ import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { ToastProvider } from "@/components/toast";
 import { AuthProvider } from "@/lib/auth-context";
+import { OnboardingGuard } from "@/components/onboarding-guard";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,10 +33,12 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-paper text-foreground min-h-screen flex flex-col`}
       >
         <AuthProvider>
-          <Navbar />
-          <main className="flex-1">{children}</main>
-          <Footer />
-          <ToastProvider />
+          <OnboardingGuard>
+            <Navbar />
+            <main className="flex-1">{children}</main>
+            <Footer />
+            <ToastProvider />
+          </OnboardingGuard>
         </AuthProvider>
       </body>
     </html>
