@@ -1,6 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { listAssets, createAsset, findUserById } from '@/lib/db';
+import { listAssets, createAsset, findUserById, findUserByProvider } from '@/lib/db';
 import { auth } from '@/lib/auth';
+
+// API Token auth for CLI tools (Bearer token = "userId:secret")
+// Token format: "PUBLISH_<userId>" with PUBLISH_SECRET env var
+async function authenticateRequest(request: NextRequest): Promise<{ userId: string } | null> {
+  // 1. Try NextAuth session first
+  const session = await auth();
+  if (session?.user?.id) {
+    return { userId: session.user.id };
+  }
+
+  // 2. Try Bearer token (for CLI: "Authorization: Bearer <PUBLISH_TOKEN>")
+  const authHeader = request.headers.get('Authorization');
+  if (authHeader?.startsWith('Bearer ')) {
+    const token = authHeader.slice(7);
+    const publishSecret = process.env.PUBLISH_SECRET;
+    if (publishSecret && token === publishSecret) {
+      // Token-based auth uses the userId from the request body
+      // The caller must provide authorId which maps to a valid user
+      return { userId: '__token_auth__' };
+    }
+  }
+
+  return null;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -29,22 +53,24 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Auth check
-    const session = await auth();
-    if (!session?.user?.id) {
+    // Auth check: session or API token
+    const authResult = await authenticateRequest(request);
+    if (!authResult) {
       return NextResponse.json(
-        { success: false, error: 'Authentication required' },
+        { success: false, error: 'Authentication required. Use session login or Bearer token.' },
         { status: 401 }
       );
     }
 
-    // Check invite code activation
-    const dbUser = findUserById(session.user.id);
-    if (!dbUser?.invite_code) {
-      return NextResponse.json(
-        { success: false, error: '需要激活邀请码才能发布' },
-        { status: 403 }
-      );
+    // For session-based auth, check invite code
+    if (authResult.userId !== '__token_auth__') {
+      const dbUser = findUserById(authResult.userId);
+      if (!dbUser?.invite_code) {
+        return NextResponse.json(
+          { success: false, error: '需要激活邀请码才能发布' },
+          { status: 403 }
+        );
+      }
     }
 
     const body = await request.json();
