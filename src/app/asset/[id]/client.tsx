@@ -11,6 +11,14 @@ import { useAuth } from '@/lib/auth-context';
 
 type TabId = 'overview' | 'files' | 'versions' | 'issues' | 'comments' | 'dependencies';
 
+function AuthorAvatar({ src, size = 'md' }: { src: string; size?: 'sm' | 'md' | 'lg' }) {
+  const sizeClass = size === 'sm' ? 'w-5 h-5' : size === 'lg' ? 'w-10 h-10' : 'w-7 h-7';
+  if (src.startsWith('http')) {
+    return <img src={src} alt="" className={`${sizeClass} rounded-full object-cover`} />;
+  }
+  return <span className={size === 'sm' ? 'text-base' : size === 'lg' ? 'text-2xl' : 'text-xl'}>{src}</span>;
+}
+
 function Badge({ children, variant = 'default' }: { children: React.ReactNode; variant?: 'default' | 'gold' | 'red' | 'green' | 'purple' | 'cyan' | 'amber' }) {
   const styles: Record<string, string> = {
     default: 'bg-surface text-muted border-card-border',
@@ -268,9 +276,17 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
 
         <div className="flex flex-wrap items-center gap-4 mb-4">
           <Link href={`/user/${asset.author.id}`} className="flex items-center gap-2 hover:text-blue transition-colors">
-            <span className="text-xl">{asset.author.avatar}</span>
+            <AuthorAvatar src={asset.author.avatar} />
             <span className="text-sm font-medium">{asset.author.name}</span>
           </Link>
+          {(asset.githubStars ?? 0) > 0 && (
+            <a href={asset.githubUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-muted hover:text-yellow-500 transition-colors">
+              <svg className="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+              </svg>
+              {asset.githubStars} Stars
+            </a>
+          )}
           <span className="flex items-center gap-1 text-sm text-muted">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
             {formatDownloads(asset.downloads)} 次下载
@@ -333,7 +349,7 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
 
               <div className="mb-8">
                 <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-4">README</h3>
-                <div className="prose max-w-none p-6 rounded-lg bg-white border border-card-border">
+                <div className="prose max-w-none p-3 sm:p-6 rounded-lg bg-white border border-card-border overflow-x-auto">
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
                     rehypePlugins={[rehypeRaw]}
@@ -470,7 +486,7 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
                             {issue.labels.map(l => <Badge key={l} variant={l === 'bug' ? 'red' : l === 'feature-request' ? 'purple' : l === 'enhancement' ? 'cyan' : l === 'performance' ? 'amber' : 'default'}>{l}</Badge>)}
                           </div>
                           <div className="flex items-center gap-2 text-xs text-muted">
-                            <span className="flex items-center gap-1">{issue.authorAvatar} {issue.authorName}
+                            <span className="flex items-center gap-1"><AuthorAvatar src={issue.authorAvatar} size="sm" /> {issue.authorName}
                               {issue.authorType === 'agent' && <span className="text-purple-400 bg-purple-500/10 border border-purple-500/30 rounded px-1">🤖</span>}
                             </span>
                             <span>·</span><span>{issue.createdAt}</span><span>·</span><span>💬 {issue.commentCount}</span>
@@ -505,7 +521,7 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
                           <div className="flex-1">
                             <span className="text-sm font-semibold group-hover:text-blue transition-colors">{dep.displayName}</span>
                             <div className="flex items-center gap-2 text-xs text-muted mt-0.5">
-                              <span>{dep.author.avatar} {dep.author.name}</span>
+                              <span className="flex items-center gap-1"><AuthorAvatar src={dep.author.avatar} size="sm" /> {dep.author.name}</span>
                               <span>v{dep.version}</span>
                             </div>
                           </div>
@@ -573,7 +589,7 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
                           <div className="flex-1">
                             <span className="text-sm font-semibold group-hover:text-blue transition-colors">{dep.displayName}</span>
                             <div className="flex items-center gap-2 text-xs text-muted mt-0.5">
-                              <span>{dep.author.avatar} {dep.author.name}</span>
+                              <span className="flex items-center gap-1"><AuthorAvatar src={dep.author.avatar} size="sm" /> {dep.author.name}</span>
                               <span>v{dep.version}</span>
                             </div>
                           </div>

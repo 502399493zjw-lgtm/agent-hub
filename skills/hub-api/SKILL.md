@@ -10,7 +10,8 @@ description: 水产市场 Agent Hub API 操作技能。用于在 Agent Hub 上�
 
 ## 服务地址
 
-- **生产环境（ECS）**：`http://47.100.235.25:3000`（优先使用）
+- **生产环境（域名）**：`https://openclawmp.cc`（优先使用）
+- **生产环境（IP）**：`http://47.100.235.25:3000`（备用）
 - **本地开发**：`http://localhost:3000`（仅在本地 `npm run dev` 时使用）
 - API 基路径：`/api`
 
@@ -73,6 +74,50 @@ Cookie: (需已登录)
 | `trigger` | 🔔 | 触发器 | 事件监听与触发 |
 | `channel` | 📡 | 通信器 | 消息渠道适配器 |
 | `template` | 📦 | 模板 | 以上元素的组合包 |
+
+### 分类判断指南（重要！）
+
+**核心原则：看项目在 OpenClaw 架构中扮演什么角色，而非技术复杂度。**
+
+判断顺序（从最容易确定的开始）：
+
+1. **channel（通信器）** — 项目是否承担了 Agent 与用户之间的**消息输入/输出通道**？
+   - ✅ 飞书/Telegram/Discord/Slack 适配器
+   - ✅ 桌面可视化客户端（如 KKClaw 球体宠物）— 本质是用 WebSocket/Gateway 接收 Agent 输出并渲染展示，同时接受用户输入回传给 Agent，**和飞书同层**
+   - ✅ 任何有 UI 渲染 + 双向通信（WebSocket/HTTP/SSE）+ 连接 Gateway 的项目
+   - 🔑 判断标准：**如果把它的显示/交互部分拆出来，它就是一个展示输入输出的渠道**
+
+2. **trigger（触发器）** — 项目是否**监听外部事件**并唤醒 Agent？
+   - ✅ 文件监控（fswatch/inotify）、Webhook 接收器、定时器
+   - ✅ 邮件/RSS/日历变更监听
+   - 🔑 判断标准：它不处理消息，只负责"发现事件 → 通知 Agent"
+
+3. **plugin（插件工具）** — 项目是否给 Agent 提供**新的工具能力**？
+   - ✅ MCP server、Tool provider、API wrapper
+   - ✅ 数据库连接器、搜索引擎封装
+   - 🔑 判断标准：Agent 通过 tool call 调用它完成特定操作
+
+4. **skill（技能包）** — 项目是否用 SKILL.md + prompt 引导 Agent 的行为模式？
+   - ✅ 合同审查流程、代码审查流程、内容创作指南
+   - ✅ 有 SKILL.md 文件的项目
+   - 🔑 判断标准：通过自然语言 prompt 定义 Agent 该怎么做某事
+
+5. **config（配置）** — 项目是否定义 Agent 人格、模型路由或行为参数？
+   - ✅ SOUL.md / AGENTS.md / 模型配置
+   - ✅ Gateway 配置模板
+
+6. **template（模板）** — 项目是否是多种类型的**打包组合**？
+   - ✅ 包含 skill + config + plugin 的完整 Agent 方案
+   - ⚠️ 不要因为项目"复杂"就归 template——一个功能完整的桌面客户端仍然可能是 channel
+
+### 常见误判
+
+| 误判 | 正确 | 原因 |
+|------|------|------|
+| 桌面可视化客户端 → template | → **channel** | 它本质是消息渠道，不是多类型组合 |
+| WebSocket 聊天 UI → plugin | → **channel** | 它做的是输入/输出展示，不是提供工具能力 |
+| 文件 watcher + 处理逻辑 → skill | → **trigger** | 核心价值是事件监听，处理逻辑是附带的 |
+| 一个 API wrapper → skill | → **plugin** | 它提供的是代码级工具调用，不是 prompt 引导 |
 
 ## seafood-market CLI
 

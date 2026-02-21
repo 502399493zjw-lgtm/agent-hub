@@ -137,3 +137,10 @@ h1, h2, h3 {
 .font-mono {
   font-family: var(--font-mono);
 }
+
+/* Mobile-friendly prose */
+.prose pre { overflow-x: auto; max-width: 100%; }
+.prose table { display: block; overflow-x: auto; max-width: 100%; }
+.prose img { max-width: 100%; height: auto; }
+.prose code { word-break: break-word; }
+.prose pre code { word-break: normal; }

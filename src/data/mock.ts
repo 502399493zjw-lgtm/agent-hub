@@ -22,6 +22,9 @@ export interface Asset {
   issueCount: number;
   files?: FileNode[];
   configSubtype?: 'routing' | 'model' | 'persona' | 'scope';
+  githubUrl?: string;
+  githubStars?: number;
+  githubForks?: number;
 }
 
 export interface User {

@@ -208,6 +208,12 @@ function initTables(db: Database.Database): void {
       last_publish_at TEXT,
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
+    CREATE TABLE IF NOT EXISTS verification_tokens (
+      identifier TEXT NOT NULL,
+      token TEXT NOT NULL,
+      expires TEXT NOT NULL,
+      PRIMARY KEY (identifier, token)
+    );
     CREATE TABLE IF NOT EXISTS daily_stats (
       day INTEGER PRIMARY KEY, downloads INTEGER NOT NULL DEFAULT 0,
       new_assets INTEGER NOT NULL DEFAULT 0, new_users INTEGER NOT NULL DEFAULT 0
@@ -279,6 +285,8 @@ export interface DbRow {
   issue_count: number; config_subtype: string | null;
   hub_score: number; hub_score_breakdown: string; upgrade_rate: number;
   compatibility: string; files: string;
+  github_url: string; github_stars: number; github_forks: number;
+  github_language: string; github_license: string; github_synced_at: string;
 }
 
 export function rowToAsset(row: DbRow): Asset {
@@ -295,6 +303,9 @@ export function rowToAsset(row: DbRow): Asset {
     compatibility: JSON.parse(row.compatibility), issueCount: row.issue_count,
     files: JSON.parse(row.files || '[]'),
     configSubtype: (row.config_subtype ?? undefined) as Asset['configSubtype'],
+    githubUrl: row.github_url || undefined,
+    githubStars: row.github_stars || undefined,
+    githubForks: row.github_forks || undefined,
   };
 }
 
@@ -492,6 +503,27 @@ export function getUserProviderInfo(userId: string): { provider: string; provide
 export function updateProviderInfo(userId: string, name: string, avatar: string): void {
   getDb().prepare('UPDATE users SET provider_name = ?, provider_avatar = ?, updated_at = ? WHERE id = ?')
     .run(name, avatar, new Date().toISOString(), userId);
+}
+
+export function findUserByEmail(email: string): DbUser | null {
+  return (getDb().prepare('SELECT * FROM users WHERE email = ?').get(email) as DbUser | undefined) ?? null;
+}
+
+// ════════════════════════════════════════════
+// Verification Tokens (for Magic Link email login)
+// ════════════════════════════════════════════
+
+export function createVerificationToken(data: { identifier: string; token: string; expires: Date }): { identifier: string; token: string; expires: Date } {
+  getDb().prepare('INSERT OR REPLACE INTO verification_tokens (identifier, token, expires) VALUES (?, ?, ?)').run(data.identifier, data.token, data.expires.toISOString());
+  return data;
+}
+
+export function useVerificationToken(data: { identifier: string; token: string }): { identifier: string; token: string; expires: Date } | null {
+  const db = getDb();
+  const row = db.prepare('SELECT * FROM verification_tokens WHERE identifier = ? AND token = ?').get(data.identifier, data.token) as { identifier: string; token: string; expires: string } | undefined;
+  if (!row) return null;
+  db.prepare('DELETE FROM verification_tokens WHERE identifier = ? AND token = ?').run(data.identifier, data.token);
+  return { identifier: row.identifier, token: row.token, expires: new Date(row.expires) };
 }
 
 export function activateInviteCode(userId: string, code: string): { success: boolean; error?: string } {

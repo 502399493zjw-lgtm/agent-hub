@@ -203,3 +203,6 @@
 [06:28:03.273] Browser ERROR   Failed to fetch RSC payload for http://localhost:3000/explore?type=trigger. Falling back to browser navigation. {}
 [06:28:03.273] Browser ERROR   Failed to fetch RSC payload for http://localhost:3000/explore?type=trigger. Falling back to browser navigation. {}
 [06:28:03.273] Browser ERROR   Failed to fetch RSC payload for http://localhost:3000/explore?type=trigger. Falling back to browser navigation. {}
+[01:54:25.606] Server  LOG     ✓ Compiled in 58ms
+[01:54:36.566] Server  LOG     ✓ Compiled in 24ms
+[02:09:56.676] Server  LOG     ✓ Compiled in 28ms

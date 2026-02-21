@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { useAuth } from '@/lib/auth-context';
 import { showToast } from '@/components/toast';
 
@@ -10,6 +11,7 @@ type Step = 'invite' | 'profile' | 'done';
 export default function OnboardingPage() {
   const router = useRouter();
   const { user, isLoading } = useAuth();
+  const { update: updateSession } = useSession();
   const [step, setStep] = useState<Step>('invite');
 
   // Invite code
@@ -121,6 +123,8 @@ export default function OnboardingPage() {
       });
       const data = await res.json();
       if (data.success) {
+        // Refresh the session so onboardingCompleted becomes true
+        await updateSession();
         setStep('done');
         showToast('🎉 欢迎加入水产市场！');
         setTimeout(() => router.push('/'), 1500);
@@ -145,6 +149,8 @@ export default function OnboardingPage() {
           avatar: user.avatar,
         }),
       });
+      // Refresh the session so onboardingCompleted becomes true
+      await updateSession();
     } catch {
       // silently continue
     }
