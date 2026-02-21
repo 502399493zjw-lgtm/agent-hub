@@ -2,6 +2,8 @@ import { getAssetById, getCommentsByAssetId, getIssuesByAssetId, listAssets } fr
 import AssetDetailClient from './client';
 import type { Metadata } from 'next';
 
+export const dynamic = 'force-dynamic';
+
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   const asset = getAssetById(id);

@@ -3,6 +3,8 @@ import type { AssetType } from '@/data/mock';
 import HomeClient from './client';
 import type { Metadata } from 'next';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: '水产市场 — Agent 进化生态',
   description: '探索、分享、安装 Skills/Configs/Plugins，让你的 Agent 加入无限的进化',

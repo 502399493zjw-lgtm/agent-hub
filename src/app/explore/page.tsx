@@ -2,6 +2,8 @@ import { listAssets } from '@/lib/db';
 import ExploreClientPage from './client';
 import type { Metadata } from 'next';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: '探索 Agent 资产 — 水产市场',
   description: '发现社区分享的 Skills、Configs、Plugins、Triggers、Channels 和 Templates',
