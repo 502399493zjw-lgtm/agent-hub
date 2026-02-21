@@ -510,6 +510,181 @@ print()
 }
 
 # ============================================================================
+# LOGIN — Save publish token locally
+# ============================================================================
+TOKEN_FILE="$HOME/.seafood-market/token"
+
+cmd_login() {
+  echo ""
+  fish "Seafood Market Login"
+  echo ""
+  echo "  To publish assets, you need a publish token."
+  echo "  Get yours from: ${BOLD}${REGISTRY_URL}/settings/tokens${NC}"
+  echo ""
+  read -rp "  Paste your token: " token
+  if [ -z "$token" ]; then
+    err "No token provided"
+    exit 1
+  fi
+  mkdir -p "$(dirname "$TOKEN_FILE")"
+  echo "$token" > "$TOKEN_FILE"
+  chmod 600 "$TOKEN_FILE"
+  ok "Token saved to $TOKEN_FILE"
+  echo ""
+}
+
+get_token() {
+  if [ -f "$TOKEN_FILE" ]; then
+    cat "$TOKEN_FILE"
+  elif [ -n "${SEAFOOD_TOKEN:-}" ]; then
+    echo "$SEAFOOD_TOKEN"
+  else
+    return 1
+  fi
+}
+
+# ============================================================================
+# PUBLISH — Publish a local skill directory to the market
+# ============================================================================
+cmd_publish() {
+  local skill_dir="${1:-.}"
+  
+  # Resolve to absolute path
+  skill_dir="$(cd "$skill_dir" && pwd)"
+
+  local skill_md="$skill_dir/SKILL.md"
+  if [ ! -f "$skill_md" ]; then
+    err "No SKILL.md found in $skill_dir"
+    echo "  SKILL.md is required to publish. It should have YAML frontmatter with name, description, etc."
+    exit 1
+  fi
+
+  fish "Publishing from ${BOLD}$skill_dir${NC}"
+  echo ""
+
+  # Get auth token
+  local token
+  token=$(get_token) || {
+    err "Not logged in. Run ${BOLD}seafood-market login${NC} first, or set SEAFOOD_TOKEN env var."
+    exit 1
+  }
+
+  # Parse SKILL.md frontmatter + content using Python
+  local payload
+  payload=$(SKILL_DIR="$skill_dir" python3 << 'PYEOF'
+import sys, json, re, os
+
+skill_dir = os.environ.get("SKILL_DIR", ".")
+skill_md = os.path.join(skill_dir, "SKILL.md")
+
+with open(skill_md, "r") as f:
+    content = f.read()
+
+# Parse YAML frontmatter (between --- and ---)
+fm = {}
+body = content
+m = re.match(r'^---\s*\n(.*?)\n---\s*\n(.*)', content, re.DOTALL)
+if m:
+    import re as re2
+    fm_text = m.group(1)
+    body = m.group(2).strip()
+    # Simple YAML-like parser for flat keys
+    for line in fm_text.split("\n"):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        km = re.match(r'^(\w+)\s*:\s*(.*)', line)
+        if km:
+            key = km.group(1)
+            val = km.group(2).strip().strip('"').strip("'")
+            fm[key] = val
+
+name = fm.get("name", os.path.basename(skill_dir))
+description = fm.get("description", "")
+
+# Detect type from metadata or default to skill
+asset_type = fm.get("type", "skill")
+
+# Build payload
+payload = {
+    "name": name,
+    "displayName": fm.get("displayName", name),
+    "type": asset_type,
+    "description": description,
+    "version": fm.get("version", "1.0.0"),
+    "readme": body,
+    "tags": [t.strip() for t in fm.get("tags", "").split(",") if t.strip()] if fm.get("tags") else [],
+    "category": fm.get("category", ""),
+    "longDescription": fm.get("longDescription", description),
+}
+
+# Author info from env or frontmatter
+payload["authorId"] = os.environ.get("SEAFOOD_AUTHOR_ID", fm.get("authorId", ""))
+payload["authorName"] = os.environ.get("SEAFOOD_AUTHOR_NAME", fm.get("authorName", ""))
+payload["authorAvatar"] = os.environ.get("SEAFOOD_AUTHOR_AVATAR", fm.get("authorAvatar", ""))
+
+print(json.dumps(payload))
+PYEOF
+  ) || {
+    err "Failed to parse SKILL.md"
+    exit 1
+  }
+
+  # Show preview
+  echo "  $(echo "$payload" | python3 -c "
+import json, sys
+p = json.load(sys.stdin)
+print(f\"  Name:        {p['name']}\")
+print(f\"  Display:     {p['displayName']}\")
+print(f\"  Type:        {p['type']}\")
+print(f\"  Version:     {p['version']}\")
+print(f\"  Description: {p['description'][:80]}\")
+tags = ', '.join(p.get('tags', []))
+if tags:
+    print(f\"  Tags:        {tags}\")
+author = p.get('authorName', '') or p.get('authorId', 'unknown')
+print(f\"  Author:      {author}\")
+")"
+  echo ""
+
+  # Confirm
+  read -rp "  Publish to $REGISTRY_URL? [Y/n] " confirm
+  if [[ "${confirm:-Y}" =~ ^[Nn] ]]; then
+    info "Cancelled."
+    exit 0
+  fi
+
+  # POST to API
+  local response http_code
+  response=$(curl -s -w "\n%{http_code}" -X POST "$REGISTRY_URL/api/assets" \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $token" \
+    -d "$payload")
+  
+  http_code=$(echo "$response" | tail -1)
+  local body_resp
+  body_resp=$(echo "$response" | sed '$d')
+
+  if [ "$http_code" = "201" ]; then
+    local asset_id install_cmd
+    asset_id=$(echo "$body_resp" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['data']['id'])" 2>/dev/null || echo "unknown")
+    install_cmd=$(echo "$body_resp" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['data'].get('installCommand',''))" 2>/dev/null || echo "")
+    echo ""
+    ok "Published successfully! 🎉"
+    echo ""
+    echo "  ID:      $asset_id"
+    echo "  Install: $install_cmd"
+    echo "  Page:    $REGISTRY_URL/asset/$asset_id"
+    echo ""
+  else
+    local error_msg
+    error_msg=$(echo "$body_resp" | python3 -c "import json,sys; print(json.load(sys.stdin).get('error','Unknown error'))" 2>/dev/null || echo "$body_resp")
+    err "Publish failed (HTTP $http_code): $error_msg"
+    exit 1
+  fi
+}
+
+# ============================================================================
 # MAIN
 # ============================================================================
 cmd_help() {
@@ -524,6 +699,8 @@ cmd_help() {
   echo "    search <query>                      Search the market"
   echo "    list                                List installed assets"
   echo "    info <type>/<slug>                  View asset details"
+  echo "    publish <path>                      Publish a skill to the market"
+  echo "    login                               Login to get a publish token"
   echo "    help                                Show this help"
   echo ""
   echo "  Asset types: skill, config, plugin, trigger, channel, template"
@@ -546,6 +723,8 @@ main() {
     search)     cmd_search "$@" ;;
     list)       cmd_list "$@" ;;
     info)       cmd_info "$@" ;;
+    publish)    cmd_publish "$@" ;;
+    login)      cmd_login "$@" ;;
     help|--help|-h) cmd_help ;;
     *)
       err "Unknown command: $cmd"
