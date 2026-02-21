@@ -295,6 +295,7 @@ export function updateAsset(id: string, data: Partial<{
   name: string; displayName: string; description: string; longDescription: string;
   version: string; tags: string[]; category: string; readme: string;
   authorId: string; authorName: string; authorAvatar: string;
+  files: Array<{ name: string; type: string; size?: number; children?: unknown[]; content?: string }>;
 }>): Asset | null {
   const db = getDb();
   const existing = db.prepare('SELECT * FROM assets WHERE id = ?').get(id) as DbRow | undefined;
@@ -312,6 +313,7 @@ export function updateAsset(id: string, data: Partial<{
   if (data.authorId !== undefined) { updates.push('author_id = @ai'); bindings.ai = data.authorId; }
   if (data.authorName !== undefined) { updates.push('author_name = @an'); bindings.an = data.authorName; }
   if (data.authorAvatar !== undefined) { updates.push('author_avatar = @aa'); bindings.aa = data.authorAvatar; }
+  if ((data as { files?: unknown }).files !== undefined) { updates.push('files = @files'); bindings.files = JSON.stringify((data as { files: unknown }).files); }
   updates.push('updated_at = @ua'); bindings.ua = new Date().toISOString().split('T')[0];
   db.prepare(`UPDATE assets SET ${updates.join(', ')} WHERE id = @id`).run(bindings);
   return rowToAsset(db.prepare('SELECT * FROM assets WHERE id = ?').get(id) as DbRow);
