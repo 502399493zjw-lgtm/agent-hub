@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import Link from 'next/link';
-import { typeConfig, AssetType, Asset, User, formatDownloads } from '@/data/mock';
+import { typeConfig, AssetType, Asset, User, formatDownloads } from '@/data/types';
 
 interface GrowthDay { day: number; downloads: number; newAssets: number; newUsers: number; }
 

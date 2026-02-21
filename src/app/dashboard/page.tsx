@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import {
   formatDownloads, typeConfig, Asset, Comment, Issue,
-} from '@/data/mock';
+} from '@/data/types';
 
 // Simulated 7-day download data
 const weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];

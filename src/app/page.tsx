@@ -1,5 +1,5 @@
 import { getStats, getAssetCountByType, listAssets } from '@/lib/db';
-import type { AssetType } from '@/data/mock';
+import type { AssetType } from '@/data/types';
 import HomeClient from './client';
 import type { Metadata } from 'next';
 

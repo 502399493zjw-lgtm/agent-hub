@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { formatDownloads, Asset, User, EvolutionEvent, ActivityEvent } from '@/data/mock';
+import { formatDownloads, Asset, User, EvolutionEvent, ActivityEvent } from '@/data/types';
 import { AssetCard } from '@/components/asset-card';
 import { useState } from 'react';
 

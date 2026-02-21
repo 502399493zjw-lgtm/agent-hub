@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import type { Asset } from '@/data/mock';
+import type { Asset } from '@/data/types';
 
 interface InstallDialogProps {
   asset: Asset;

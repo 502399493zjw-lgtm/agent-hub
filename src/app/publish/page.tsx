@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { AssetType, typeConfig } from '@/data/mock';
+import { AssetType, typeConfig } from '@/data/types';
 import { useAuth } from '@/lib/auth-context';
 
 const allCategories = ['信息查询', '开发工具', '创意生成', '数据处理', '效率工具', '语言处理', '创意角色', '教育辅导', '商业顾问', '趣味角色', '存储引擎', '通信集成', '基础设施', '安全认证', '自动化', '语音处理', '事件触发', '知识工作', '内容创作', '开发运维', '客户服务', 'Agent 模板'];

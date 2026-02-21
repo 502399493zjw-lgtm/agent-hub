@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
-import { User, EvolutionEvent } from '@/data/mock';
+import { User, EvolutionEvent } from '@/data/types';
 
 const levelBadge: Record<string, { label: string; color: string }> = {
   newcomer: { label: '🌱', color: 'text-green-400' },

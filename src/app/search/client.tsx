@@ -4,7 +4,7 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { typeConfig, formatDownloads, Asset, User, Issue } from '@/data/mock';
+import { typeConfig, formatDownloads, Asset, User, Issue } from '@/data/types';
 
 interface SearchContentProps {
   initialAssets: Asset[];

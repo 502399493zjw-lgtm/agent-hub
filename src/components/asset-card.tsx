@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Asset, formatDownloads, typeConfig } from '@/data/mock';
+import { Asset, formatDownloads, typeConfig } from '@/data/types';
 
 function AuthorAvatar({ src, size = 'sm' }: { src: string; size?: 'sm' | 'md' }) {
   const sizeClass = size === 'sm' ? 'w-5 h-5' : 'w-7 h-7';

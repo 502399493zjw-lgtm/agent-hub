@@ -4,7 +4,7 @@ import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { formatDownloads, typeConfig, Asset, Comment, Issue, FileNode } from '@/data/mock';
+import { formatDownloads, typeConfig, Asset, Comment, Issue, FileNode } from '@/data/types';
 import { useState } from 'react';
 import { InstallDialog } from '@/components/install-dialog';
 import { useAuth } from '@/lib/auth-context';
@@ -46,6 +46,34 @@ function Toast({ message, onClose }: { message: string; onClose: () => void }) {
       </div>
     </div>
   );
+}
+
+/** Rewrite relative image/link paths in GitHub README to raw.githubusercontent.com URLs */
+function rewriteGitHubReadmeUrls(readme: string, githubUrl?: string): string {
+  if (!githubUrl) return readme;
+  // Extract owner/repo from https://github.com/owner/repo
+  const match = githubUrl.match(/github\.com\/([^/]+\/[^/]+)/);
+  if (!match) return readme;
+  const ownerRepo = match[1].replace(/\.git$/, '');
+  const rawBase = `https://raw.githubusercontent.com/${ownerRepo}/main`;
+  const blobBase = `https://github.com/${ownerRepo}/blob/main`;
+
+  return readme
+    // ![alt](relative/path.png) → ![alt](raw url)
+    .replace(/!\[([^\]]*)\]\((?!https?:\/\/|data:)([^)]+)\)/g, (_, alt, path) => {
+      const clean = path.replace(/^\.\//, '');
+      return `![${alt}](${rawBase}/${clean})`;
+    })
+    // [text](relative/path) → [text](blob url)  (non-image links)
+    .replace(/(?<!!)\[([^\]]*)\]\((?!https?:\/\/|#|mailto:)([^)]+)\)/g, (_, text, path) => {
+      const clean = path.replace(/^\.\//, '');
+      return `[${text}](${blobBase}/${clean})`;
+    })
+    // <img src="relative/path"> → <img src="raw url">
+    .replace(/(<img\s[^>]*src=["'])(?!https?:\/\/|data:)([^"']+)(["'])/g, (_, pre, path, post) => {
+      const clean = path.replace(/^\.\//, '');
+      return `${pre}${rawBase}/${clean}${post}`;
+    });
 }
 
 function formatFileSize(bytes: number): string {
@@ -279,12 +307,13 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
             <AuthorAvatar src={asset.author.avatar} />
             <span className="text-sm font-medium">{asset.author.name}</span>
           </Link>
-          {(asset.githubStars ?? 0) > 0 && (
-            <a href={asset.githubUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-muted hover:text-yellow-500 transition-colors">
+          {(asset.githubStars ?? 0) > 0 && asset.githubUrl && (
+            <a href={asset.githubUrl} target="_blank" rel="noopener noreferrer"
+               className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md border border-card-border bg-surface hover:bg-card-hover transition-colors text-sm">
               <svg className="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
               </svg>
-              {asset.githubStars} Stars
+              <span className="font-semibold text-foreground">{asset.githubStars}</span>
             </a>
           )}
           <span className="flex items-center gap-1 text-sm text-muted">
@@ -389,7 +418,7 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
                       hr: () => <hr className="border-card-border my-6" />,
                     }}
                   >
-                    {asset.readme}
+                    {rewriteGitHubReadmeUrls(asset.readme, asset.githubUrl)}
                   </ReactMarkdown>
                 </div>
               </div>

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { AssetType, Asset } from '@/data/mock';
+import { AssetType, Asset } from '@/data/types';
 import { AssetCard } from '@/components/asset-card';
 import { StatsData } from '@/lib/db';
 

@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 import path from 'path';
-import { Asset, User } from '@/data/mock';
+import { Asset, User } from '@/data/types';
 import { inviteCodes } from '@/data/seed';
 
 const DB_PATH = path.join(process.cwd(), 'data', 'hub.db');

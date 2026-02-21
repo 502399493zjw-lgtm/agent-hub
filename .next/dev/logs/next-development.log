@@ -206,3 +206,178 @@
 [01:54:25.606] Server  LOG     ✓ Compiled in 58ms
 [01:54:36.566] Server  LOG     ✓ Compiled in 24ms
 [02:09:56.676] Server  LOG     ✓ Compiled in 28ms
+[03:27:45.710] Server  ERROR   ⨯ ./src/components/asset-card.tsx:4:1
+Module not found: Can't resolve '@/data/mock'
+  2 |
+  3 | import Link from 'next/link';
+> 4 | import { Asset, formatDownloads, typeConfig } from '@/data/mock';
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  5 |
+  6 | function AuthorAvatar({ src, size = 'sm' }: { src: string; size?: 'sm' | 'md' }) {
+  7 |   const sizeClass = size === 'sm' ? 'w-5 h-5' : 'w-7 h-7';
+
+Import map: aliased to relative './src/data/mock' inside of [project]/
+
+
+Import traces:
+  Client Component Browser:
+    ./src/components/asset-card.tsx [Client Component Browser]
+    ./src/app/client.tsx [Client Component Browser]
+    ./src/app/client.tsx [Server Component]
+    ./src/app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/asset-card.tsx [Client Component SSR]
+    ./src/app/client.tsx [Client Component SSR]
+    ./src/app/client.tsx [Server Component]
+    ./src/app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[03:27:45.713] Server  ERROR   ⨯ ./src/components/asset-card.tsx:4:1
+Module not found: Can't resolve '@/data/mock'
+  2 |
+  3 | import Link from 'next/link';
+> 4 | import { Asset, formatDownloads, typeConfig } from '@/data/mock';
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  5 |
+  6 | function AuthorAvatar({ src, size = 'sm' }: { src: string; size?: 'sm' | 'md' }) {
+  7 |   const sizeClass = size === 'sm' ? 'w-5 h-5' : 'w-7 h-7';
+
+Import map: aliased to relative './src/data/mock' inside of [project]/
+
+
+Import traces:
+  Client Component Browser:
+    ./src/components/asset-card.tsx [Client Component Browser]
+    ./src/app/client.tsx [Client Component Browser]
+    ./src/app/client.tsx [Server Component]
+    ./src/app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/asset-card.tsx [Client Component SSR]
+    ./src/app/client.tsx [Client Component SSR]
+    ./src/app/client.tsx [Server Component]
+    ./src/app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[03:27:45.714] Server  ERROR   ⨯ ./src/components/asset-card.tsx:4:1
+Module not found: Can't resolve '@/data/mock'
+  2 |
+  3 | import Link from 'next/link';
+> 4 | import { Asset, formatDownloads, typeConfig } from '@/data/mock';
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  5 |
+  6 | function AuthorAvatar({ src, size = 'sm' }: { src: string; size?: 'sm' | 'md' }) {
+  7 |   const sizeClass = size === 'sm' ? 'w-5 h-5' : 'w-7 h-7';
+
+Import map: aliased to relative './src/data/mock' inside of [project]/
+
+
+Import traces:
+  Client Component Browser:
+    ./src/components/asset-card.tsx [Client Component Browser]
+    ./src/app/client.tsx [Client Component Browser]
+    ./src/app/client.tsx [Server Component]
+    ./src/app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/asset-card.tsx [Client Component SSR]
+    ./src/app/client.tsx [Client Component SSR]
+    ./src/app/client.tsx [Server Component]
+    ./src/app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[03:27:45.715] Server  ERROR   ⨯ ./src/components/asset-card.tsx:4:1
+Module not found: Can't resolve '@/data/mock'
+  2 |
+  3 | import Link from 'next/link';
+> 4 | import { Asset, formatDownloads, typeConfig } from '@/data/mock';
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  5 |
+  6 | function AuthorAvatar({ src, size = 'sm' }: { src: string; size?: 'sm' | 'md' }) {
+  7 |   const sizeClass = size === 'sm' ? 'w-5 h-5' : 'w-7 h-7';
+
+Import map: aliased to relative './src/data/mock' inside of [project]/
+
+
+Import traces:
+  Client Component Browser:
+    ./src/components/asset-card.tsx [Client Component Browser]
+    ./src/app/client.tsx [Client Component Browser]
+    ./src/app/client.tsx [Server Component]
+    ./src/app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/asset-card.tsx [Client Component SSR]
+    ./src/app/client.tsx [Client Component SSR]
+    ./src/app/client.tsx [Server Component]
+    ./src/app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[03:27:45.718] Server  ERROR   ⨯ ./src/components/asset-card.tsx:4:1
+Module not found: Can't resolve '@/data/mock'
+  2 |
+  3 | import Link from 'next/link';
+> 4 | import { Asset, formatDownloads, typeConfig } from '@/data/mock';
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  5 |
+  6 | function AuthorAvatar({ src, size = 'sm' }: { src: string; size?: 'sm' | 'md' }) {
+  7 |   const sizeClass = size === 'sm' ? 'w-5 h-5' : 'w-7 h-7';
+
+Import map: aliased to relative './src/data/mock' inside of [project]/
+
+
+Import traces:
+  Client Component Browser:
+    ./src/components/asset-card.tsx [Client Component Browser]
+    ./src/app/client.tsx [Client Component Browser]
+    ./src/app/client.tsx [Server Component]
+    ./src/app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/asset-card.tsx [Client Component SSR]
+    ./src/app/client.tsx [Client Component SSR]
+    ./src/app/client.tsx [Server Component]
+    ./src/app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[03:27:45.719] Server  ERROR   ⨯ ./src/components/asset-card.tsx:4:1
+Module not found: Can't resolve '@/data/mock'
+  2 |
+  3 | import Link from 'next/link';
+> 4 | import { Asset, formatDownloads, typeConfig } from '@/data/mock';
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  5 |
+  6 | function AuthorAvatar({ src, size = 'sm' }: { src: string; size?: 'sm' | 'md' }) {
+  7 |   const sizeClass = size === 'sm' ? 'w-5 h-5' : 'w-7 h-7';
+
+Import map: aliased to relative './src/data/mock' inside of [project]/
+
+
+Import traces:
+  Client Component Browser:
+    ./src/components/asset-card.tsx [Client Component Browser]
+    ./src/app/client.tsx [Client Component Browser]
+    ./src/app/client.tsx [Server Component]
+    ./src/app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/asset-card.tsx [Client Component SSR]
+    ./src/app/client.tsx [Client Component SSR]
+    ./src/app/client.tsx [Server Component]
+    ./src/app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[03:27:45.796] Server  LOG     ✓ Compiled in 68ms

@@ -1,6 +1,6 @@
 import NextAuth from 'next-auth';
 import GitHub from 'next-auth/providers/github';
-import Google from 'next-auth/providers/google';
+// Google OAuth removed (ECS in China cannot reach Google servers)
 import Resend from 'next-auth/providers/resend';
 import {
   findUserByProvider, findUserByEmail, createUser, findUserById,
@@ -90,18 +90,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       clientId: process.env.AUTH_GITHUB_ID,
       clientSecret: process.env.AUTH_GITHUB_SECRET,
     }),
-    Google({
-      clientId: process.env.AUTH_GOOGLE_ID,
-      clientSecret: process.env.AUTH_GOOGLE_SECRET,
-      // Manually specify endpoints to avoid OIDC discovery
-      // (ECS in China cannot reach accounts.google.com for .well-known/openid-configuration)
-      authorization: {
-        url: "https://accounts.google.com/o/oauth2/v2/auth",
-        params: { scope: "openid email profile" },
-      },
-      token: "https://oauth2.googleapis.com/token",
-      userinfo: "https://openidconnect.googleapis.com/v1/userinfo",
-    }),
+    // Google OAuth removed — ECS in China cannot reach Google servers
     Resend({
       apiKey: process.env.AUTH_RESEND_KEY,
       from: process.env.AUTH_EMAIL_FROM || 'noreply@openclawmp.cc',

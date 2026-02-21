@@ -3,7 +3,7 @@ import UserProfileClient from './client';
 import type { Metadata } from 'next';
 
 export const dynamic = 'force-dynamic';
-import type { EvolutionEvent, ActivityEvent } from '@/data/mock';
+import type { EvolutionEvent, ActivityEvent } from '@/data/types';
 
 export function generateStaticParams() {
   return listUserProfileIds().map(id => ({ id }));
