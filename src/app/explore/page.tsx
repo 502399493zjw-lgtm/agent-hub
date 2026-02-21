@@ -92,13 +92,13 @@ function ExploreContent() {
   }, [fetchAssets]);
 
   const typeFilters: { value: 'all' | AssetType; label: string; icon: string }[] = [
-    { value: 'all', label: '全部', icon: '🌐' },
-    { value: 'template', label: '合集', icon: '📋' },
-    { value: 'skill', label: '技能', icon: '📦' },
-    { value: 'config', label: '配置', icon: '⚙️' },
-    { value: 'plugin', label: '插件', icon: '🔌' },
-    { value: 'trigger', label: '触发器', icon: '⚡' },
-    { value: 'channel', label: '通信器', icon: '📡' },
+    { value: 'all', label: '全部', icon: '' },
+    { value: 'template', label: '模板', icon: '' },
+    { value: 'skill', label: '技能', icon: '' },
+    { value: 'config', label: '配置', icon: '' },
+    { value: 'plugin', label: '工具', icon: '' },
+    { value: 'trigger', label: '触发器', icon: '' },
+    { value: 'channel', label: '通信器', icon: '' },
   ];
 
   return (

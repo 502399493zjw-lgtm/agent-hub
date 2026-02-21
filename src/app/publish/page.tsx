@@ -46,12 +46,12 @@ export default function PublishPage() {
   }, [user, authorId]);
 
   const typeOptions: { value: AssetType; label: string; icon: string; desc: string }[] = [
-    { value: 'skill', label: '技能', icon: '📦', desc: '让 Agent 获得新能力的技能包' },
-    { value: 'config', label: '配置', icon: '⚙️', desc: '定义 Agent 人格与行为模式' },
-    { value: 'plugin', label: '插件', icon: '🔌', desc: '扩展 Agent 基础设施的插件' },
-    { value: 'trigger', label: '触发器', icon: '⚡', desc: '事件监听与条件触发模板' },
-    { value: 'channel', label: '通信器', icon: '📡', desc: '连接 Agent 与外部世界' },
-    { value: 'template', label: '模板', icon: '📋', desc: '完整 Agent 配置模板' },
+    { value: 'skill', label: '技能', icon: '', desc: '让 Agent 获得新能力的技能包' },
+    { value: 'config', label: '配置', icon: '', desc: '定义 Agent 人格与行为模式' },
+    { value: 'plugin', label: '工具', icon: '', desc: '扩展 Agent 基础设施的工具' },
+    { value: 'trigger', label: '触发器', icon: '', desc: '事件监听与条件触发模板' },
+    { value: 'channel', label: '通信器', icon: '', desc: '连接 Agent 与外部世界' },
+    { value: 'template', label: '模板', icon: '', desc: '完整 Agent 配置模板' },
   ];
 
   const parsedTags = useMemo(() => tags.split(',').map(t => t.trim()).filter(Boolean).slice(0, 5), [tags]);
@@ -143,10 +143,10 @@ export default function PublishPage() {
               <label className="block text-sm font-semibold text-muted uppercase tracking-wider mb-3">Config 子类型</label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {([
-                  { value: 'persona' as const, label: '🎭 人格', desc: 'Agent 人格与对话风格' },
-                  { value: 'routing' as const, label: '🔀 路由', desc: '请求路由与分发规则' },
-                  { value: 'model' as const, label: '🧠 模型', desc: '模型选择与参数配置' },
-                  { value: 'scope' as const, label: '🔒 权限', desc: '访问范围与权限策略' },
+                  { value: 'persona' as const, label: '人格', desc: 'Agent 人格与对话风格' },
+                  { value: 'routing' as const, label: '路由', desc: '请求路由与分发规则' },
+                  { value: 'model' as const, label: '模型', desc: '模型选择与参数配置' },
+                  { value: 'scope' as const, label: '权限', desc: '访问范围与权限策略' },
                 ]).map(opt => (
                   <button
                     key={opt.value}

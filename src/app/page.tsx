@@ -33,10 +33,10 @@ interface StatsData {
 
 /* ── Tab definitions ── */
 const TABS: { key: string; label: string; type?: AssetType }[] = [
-  { key: 'template', label: '合集', type: 'template' },
+  { key: 'template', label: '模板', type: 'template' },
   { key: 'skill', label: '技能', type: 'skill' },
   { key: 'config', label: '配置', type: 'config' },
-  { key: 'plugin', label: '插件', type: 'plugin' },
+  { key: 'plugin', label: '工具', type: 'plugin' },
   { key: 'trigger', label: '触发器', type: 'trigger' },
   { key: 'channel', label: '通信器', type: 'channel' },
 ];

@@ -201,9 +201,8 @@ export default function AssetDetailClient({ id }: { id: string }) {
   }
 
   const config = typeConfig[asset.type];
-  const serverComments = getCommentsByAssetId(asset.id);
   const allComments = [...localComments, ...serverComments];
-  const issuesList = getIssuesByAssetId(asset.id);
+  const issuesList = serverIssues;
   const related = allAssets
     .filter(a => a.id !== asset.id && (a.type === asset.type || a.tags.some(t => asset.tags.includes(t))))
     .slice(0, 4);

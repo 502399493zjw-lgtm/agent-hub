@@ -1,7 +1,8 @@
 import Database from 'better-sqlite3';
 import path from 'path';
+import { Asset, User } from '@/data/mock';
 import {
-  assets as mockAssets, Asset, User,
+  assets as mockAssets,
   users as mockUsers,
   comments as mockComments,
   issues as mockIssues,
@@ -10,7 +11,7 @@ import {
   evolutionEvents as mockEvolutionEvents,
   activityEvents as mockActivityEvents,
   growthData as mockGrowthData,
-} from '@/data/mock';
+} from '@/data/seed';
 
 const DB_PATH = path.join(process.cwd(), 'data', 'hub.db');
 
