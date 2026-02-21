@@ -160,7 +160,6 @@ function AssetResult({ asset }: { asset: Asset }) {
         </div>
         <div className="flex items-center gap-3 text-xs text-muted shrink-0">
           <span>⬇ {formatDownloads(asset.downloads)}</span>
-          <span>⭐ {asset.rating.toFixed(1)}</span>
         </div>
       </div>
     </Link>

@@ -18,6 +18,7 @@ export function Navbar() {
   const links = [
     { href: '/', label: '首页' },
     { href: '/explore', label: '探索' },
+    { href: '/guide', label: '安装' },
     { href: '/publish', label: '发布' },
   ];
 

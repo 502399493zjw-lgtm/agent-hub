@@ -6,34 +6,9 @@ import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { getCommentsByAssetId, getIssuesByAssetId, formatDownloads, typeConfig, Asset, Comment, FileNode } from '@/data/mock';
 import { useState, useEffect } from 'react';
-import { StarButton } from '@/components/star-button';
 import { InstallDialog } from '@/components/install-dialog';
 
 type TabId = 'overview' | 'files' | 'versions' | 'issues' | 'comments' | 'dependencies';
-
-function StarRating({ rating, size = 'md', interactive = false, onRate }: { rating: number; size?: 'sm' | 'md' | 'lg'; interactive?: boolean; onRate?: (r: number) => void }) {
-  const sizeClass = size === 'lg' ? 'w-5 h-5' : size === 'md' ? 'w-4 h-4' : 'w-3.5 h-3.5';
-  const [hovered, setHovered] = useState(0);
-  return (
-    <div className="flex items-center gap-0.5">
-      {[1, 2, 3, 4, 5].map(star => (
-        <svg
-          key={star}
-          className={`${sizeClass} transition-colors ${interactive ? 'cursor-pointer' : ''} ${
-            star <= (hovered || Math.round(rating)) ? 'text-amber-400' : 'text-card-border'
-          }`}
-          fill="currentColor"
-          viewBox="0 0 20 20"
-          onMouseEnter={() => interactive && setHovered(star)}
-          onMouseLeave={() => interactive && setHovered(0)}
-          onClick={() => interactive && onRate?.(star)}
-        >
-          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-        </svg>
-      ))}
-    </div>
-  );
-}
 
 function Badge({ children, variant = 'default' }: { children: React.ReactNode; variant?: 'default' | 'gold' | 'red' | 'green' | 'purple' | 'cyan' | 'amber' }) {
   const styles: Record<string, string> = {
@@ -182,7 +157,6 @@ export default function AssetDetailClient({ id }: { id: string }) {
   const [toast, setToast] = useState<string | null>(null);
   const [localComments, setLocalComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState('');
-  const [commentRating, setCommentRating] = useState(5);
   const [commenterType, setCommenterType] = useState<'user' | 'agent'>('user');
   const [issueFilter, setIssueFilter] = useState<'all' | 'open' | 'closed'>('all');
 
@@ -250,12 +224,11 @@ export default function AssetDetailClient({ id }: { id: string }) {
       userId: commenterType === 'agent' ? 'agent-local' : 'u-local',
       userName: commenterType === 'agent' ? 'MyAgent Bot' : '当前用户',
       userAvatar: commenterType === 'agent' ? '🤖' : '👤',
-      content: commentText.trim(), rating: commentRating,
+      content: commentText.trim(), rating: 0,
       createdAt: new Date().toISOString().slice(0, 10), commenterType,
     };
     setLocalComments(prev => [nc, ...prev]);
     setCommentText('');
-    setCommentRating(5);
     showToast('评论发布成功！');
   };
 
@@ -291,7 +264,6 @@ export default function AssetDetailClient({ id }: { id: string }) {
         <div className="flex flex-wrap items-center gap-4 mb-3">
           <h1 className="text-3xl sm:text-4xl font-bold">{asset.displayName}</h1>
           <div className="flex items-center gap-2">
-            <StarButton initialCount={asset.ratingCount} />
             <InstallDialog asset={asset} />
           </div>
         </div>
@@ -301,10 +273,6 @@ export default function AssetDetailClient({ id }: { id: string }) {
             <span className="text-xl">{asset.author.avatar}</span>
             <span className="text-sm font-medium">{asset.author.name}</span>
           </Link>
-          <div className="flex items-center gap-1">
-            <StarRating rating={asset.rating} size="md" />
-            <span className="text-sm text-muted ml-1">{asset.rating.toFixed(1)} ({asset.ratingCount} 评分)</span>
-          </div>
           <span className="flex items-center gap-1 text-sm text-muted">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
             {formatDownloads(asset.downloads)} 次下载
@@ -615,11 +583,6 @@ export default function AssetDetailClient({ id }: { id: string }) {
                     <button onClick={() => setCommenterType('agent')} className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${commenterType === 'agent' ? 'bg-purple-500/10 text-purple-400 border-purple-500/30' : 'border-card-border text-muted hover:text-foreground'}`}>🤖 Agent</button>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-xs text-muted">评分：</span>
-                  <StarRating rating={commentRating} size="md" interactive onRate={setCommentRating} />
-                  <span className="text-xs text-muted ml-1">{commentRating} 星</span>
-                </div>
                 <div className="mb-3">
                   <textarea value={commentText} onChange={(e) => setCommentText(e.target.value)}
                     placeholder={commenterType === 'agent' ? '以 Agent 身份发表评论... (支持 Markdown 格式)' : '写下你的评论... (支持 Markdown 格式)'} rows={4}
@@ -649,7 +612,6 @@ export default function AssetDetailClient({ id }: { id: string }) {
                             {isA && <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/30">🤖 Agent</span>}
                             <span className="text-xs text-muted">{c.createdAt}</span>
                           </div>
-                          <div className="ml-auto"><StarRating rating={c.rating} size="sm" /></div>
                         </div>
                         <p className={`text-sm leading-relaxed ${isA ? 'text-purple-600/80' : 'text-muted'}`}>{c.content}</p>
                       </div>
@@ -693,15 +655,6 @@ export default function AssetDetailClient({ id }: { id: string }) {
                     </div>
                     <div className="h-2 bg-surface rounded-full overflow-hidden">
                       <div className="h-full bg-gradient-to-r from-emerald-500/60 to-emerald-400 rounded-full" style={{ width: `${asset.hubScoreBreakdown.maintenanceScore}%` }} />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-muted">⭐ 口碑声誉</span>
-                      <span className="text-purple-400 font-mono">{asset.hubScoreBreakdown.reputationScore}</span>
-                    </div>
-                    <div className="h-2 bg-surface rounded-full overflow-hidden">
-                      <div className="h-full bg-gradient-to-r from-purple-500/60 to-purple-400 rounded-full" style={{ width: `${asset.hubScoreBreakdown.reputationScore}%` }} />
                     </div>
                   </div>
                 </div>

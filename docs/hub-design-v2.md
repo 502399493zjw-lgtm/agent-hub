@@ -19,7 +19,7 @@ Agent 社区生态站（GitHub + npm + App Store），**不是** Agent 基础设
 | 类型 | 说明 | 示例 |
 |------|------|------|
 | 🔔 **触发器** | 定时配置 / 事件监听脚本 | cron 任务、fs-event-trigger、webhook 监听 |
-| 📡 **通信 Channel** | 消息渠道适配器 | 飞书、Telegram、Discord、Slack |
+| 📡 **通信器** | 消息渠道适配器 | 飞书、Telegram、Discord、Slack |
 | 🛠️ **Skill** | SKILL.md + 脚本，prompt 引导制 | weather、github、coding-agent |
 | 🔌 **插件工具** | Plugin Tool，代码级 | feishu_doc、yahoo-finance |
 | ⚙️ **配置** | 可导出的配置片段 | 子分类 tag：路由 / 模型 / 身份(Persona) / Agent scope |

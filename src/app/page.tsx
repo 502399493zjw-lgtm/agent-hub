@@ -42,7 +42,7 @@ export default function HomePage() {
     { type: 'config', title: '⚙️ 配置', desc: '定义 Agent 的性格、行为与工作流偏好', count: allAssets.filter(a => a.type === 'config').length },
     { type: 'plugin', title: '🔌 插件', desc: '扩展 Agent 底层能力，接入新的工具与服务', count: allAssets.filter(a => a.type === 'plugin').length },
     { type: 'trigger', title: '🎯 触发器', desc: '监听外部事件，自动唤醒 Agent 执行任务', count: allAssets.filter(a => a.type === 'trigger').length },
-    { type: 'channel', title: '📡 频道', desc: '连接 Agent 与外部世界的通信桥梁', count: allAssets.filter(a => a.type === 'channel').length },
+    { type: 'channel', title: '📡 通信器', desc: '连接 Agent 与外部世界的通信桥梁', count: allAssets.filter(a => a.type === 'channel').length },
   ];
 
   // "Trending this week" — mix downloads + recency
@@ -58,7 +58,6 @@ export default function HomePage() {
     { label: '总资产数', value: allAssets.length, icon: '📦' },
     { label: '总下载量', value: Math.round(allAssets.reduce((s, a) => s + a.downloads, 0) / 1000) + 'k+', icon: '⬇️' },
     { label: '开发者', value: '4', icon: '👥' },
-    { label: '平均评分', value: allAssets.length > 0 ? (allAssets.reduce((s, a) => s + a.rating, 0) / allAssets.length).toFixed(1) : '0', icon: '⭐' },
   ];
 
   const handleSearch = (e: React.FormEvent) => {
@@ -120,6 +119,35 @@ export default function HomePage() {
             </div>
           </div>
         </div>
+      </section>
+
+      {/* Install Guide Banner */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+        <Link href="/guide">
+          <div className="relative rounded-lg border border-blue/20 bg-gradient-to-r from-blue/5 via-white to-blue/5 p-6 md:p-8 card-hover overflow-hidden group">
+            <div className="absolute top-0 right-0 w-48 h-48 rounded-full blur-[80px] opacity-10 bg-blue pointer-events-none" />
+            <div className="relative flex flex-col md:flex-row items-center gap-6">
+              <div className="flex-shrink-0 text-5xl">🐟</div>
+              <div className="flex-1 text-center md:text-left">
+                <h2 className="text-xl md:text-2xl font-bold mb-2">
+                  一行命令，给 Agent 装上新技能
+                </h2>
+                <p className="text-muted text-sm md:text-base">
+                  安装 <code className="px-2 py-0.5 rounded bg-surface border border-card-border text-blue font-mono text-xs">seafood-market</code> CLI，
+                  搜索、安装、管理水产市场的所有资产
+                </p>
+                <div className="mt-3 inline-flex items-center gap-2">
+                  <code className="text-xs md:text-sm bg-[#1e1e2e] text-green-400 px-4 py-2 rounded-lg font-mono">
+                    curl -fsSL http://47.100.235.25:3000/install.sh | bash
+                  </code>
+                </div>
+              </div>
+              <div className="flex-shrink-0 text-blue group-hover:translate-x-1 transition-transform text-lg font-medium hidden md:block">
+                查看安装指南 →
+              </div>
+            </div>
+          </div>
+        </Link>
       </section>
 
       {/* Type Cards - 6 types */}

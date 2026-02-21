@@ -43,8 +43,6 @@ function MyAssetRow({ asset }: { asset: Asset }) {
         <span className="text-xs text-muted font-mono">v{asset.version}</span>
         {/* Downloads */}
         <span className="text-xs text-muted font-mono w-16 text-right">⬇️ {formatDownloads(asset.downloads)}</span>
-        {/* Rating */}
-        <span className="text-xs text-blue font-mono w-12 text-right">⭐ {asset.rating.toFixed(1)}</span>
         {/* Issues */}
         <span className="text-xs text-muted font-mono w-12 text-right">
           {asset.issueCount > 0 ? (
@@ -237,10 +235,9 @@ export default function DashboardPage() {
         </div>
 
         {/* Stats grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 gap-4 mb-8">
           <StatCard icon="📦" label="已发布组件" value={myAssets.length} sub={`${new Set(myAssets.map(a => a.type)).size} 种类型`} />
           <StatCard icon="⬇️" label="总下载量" value={formatDownloads(totalDownloads)} sub="累计所有组件" />
-          <StatCard icon="⭐" label="平均评分" value={myAssets.length > 0 ? (myAssets.reduce((s, a) => s + a.rating, 0) / myAssets.length).toFixed(1) : '0.0'} sub={`${myAssets.reduce((s, a) => s + a.ratingCount, 0)} 次评价`} />
         </div>
 
         {/* Main content grid */}

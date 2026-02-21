@@ -10,7 +10,6 @@ const sortOptions = [
   { value: 'popular', label: '🔥 最热' },
   { value: 'trending', label: '📈 Trending' },
   { value: 'newest', label: '✨ 最新' },
-  { value: 'rating', label: '⭐ 评分最高' },
   { value: 'downloads', label: '📥 下载最多' },
 ];
 
@@ -99,7 +98,7 @@ function ExploreContent() {
     { value: 'config', label: '配置', icon: '⚙️' },
     { value: 'plugin', label: '插件', icon: '🔌' },
     { value: 'trigger', label: '触发器', icon: '⚡' },
-    { value: 'channel', label: '频道', icon: '📡' },
+    { value: 'channel', label: '通信器', icon: '📡' },
   ];
 
   return (

@@ -57,9 +57,6 @@ export default function UserProfileClient({ id }: { id: string }) {
   const activityEventsData = getActivityEventsByUserId(id);
 
   const totalDownloads = published.reduce((sum, a) => sum + a.downloads, 0);
-  const avgRating = published.length > 0
-    ? (published.reduce((sum, a) => sum + a.rating, 0) / published.length).toFixed(1)
-    : '0';
 
   const level = user.contributorLevel ? levelConfig[user.contributorLevel] : null;
 
@@ -114,10 +111,6 @@ export default function UserProfileClient({ id }: { id: string }) {
               <div>
                 <span className="text-blue font-bold text-lg">{formatDownloads(totalDownloads)}</span>
                 <span className="text-muted ml-1">总下载</span>
-              </div>
-              <div>
-                <span className="text-blue font-bold text-lg">⭐ {avgRating}</span>
-                <span className="text-muted ml-1">平均评分</span>
               </div>
               {user.contributionPoints && (
                 <div>
@@ -225,7 +218,7 @@ export default function UserProfileClient({ id }: { id: string }) {
                           event.type === 'config' ? 'bg-red/10 text-red border-red/30' :
                           'bg-amber-400/10 text-amber-400 border-amber-400/30'
                         }`}>
-                          {event.type === 'birth' ? '诞生' : event.type === 'skill' ? '技能' : event.type === 'channel' ? '频道' : event.type === 'milestone' ? '里程碑' : event.type === 'config' ? '配置' : '成就'}
+                          {event.type === 'birth' ? '诞生' : event.type === 'skill' ? '技能' : event.type === 'channel' ? '通信器' : event.type === 'milestone' ? '里程碑' : event.type === 'config' ? '配置' : '成就'}
                         </span>
                       </div>
                     </div>

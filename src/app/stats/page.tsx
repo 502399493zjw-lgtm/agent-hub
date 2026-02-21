@@ -21,8 +21,6 @@ export default function StatsPage() {
   }, []);
 
   const totalDownloads = useMemo(() => assets.reduce((s, a) => s + a.downloads, 0), [assets]);
-  const totalRatings = useMemo(() => assets.reduce((s, a) => s + a.ratingCount, 0), [assets]);
-  const avgRating = useMemo(() => assets.length > 0 ? (assets.reduce((s, a) => s + a.rating, 0) / assets.length).toFixed(1) : '0.0', [assets]);
   const agentUsers = useMemo(() => getAgentUsers(), []);
   const allUsers = useMemo(() => [...users, ...agentUsers], [agentUsers]);
 
@@ -48,8 +46,7 @@ export default function StatsPage() {
   const contributors = useMemo(() => users.map(user => {
     const published = assets.filter(a => user.publishedAssets.includes(a.id));
     const dl = published.reduce((s, a) => s + a.downloads, 0);
-    const avgR = published.length > 0 ? (published.reduce((s, a) => s + a.rating, 0) / published.length) : 0;
-    return { user, assetCount: published.length, downloads: dl, avgRating: avgR };
+    return { user, assetCount: published.length, downloads: dl };
   }).sort((a, b) => b.downloads - a.downloads), [assets]);
 
   // Growth trend
@@ -59,7 +56,6 @@ export default function StatsPage() {
   const agentCount = agentUsers.length;
   const avgSkillsPerAgent = useMemo(() => (assets.filter(a => a.type === 'skill').length / Math.max(allUsers.length, 1)).toFixed(1), [assets, allUsers]);
   const mostDownloaded = useMemo(() => assets.length > 0 ? [...assets].sort((a, b) => b.downloads - a.downloads)[0] : null, [assets]);
-  const topRated = useMemo(() => assets.length > 0 ? [...assets].sort((a, b) => b.rating - a.rating || b.ratingCount - a.ratingCount)[0] : null, [assets]);
 
   if (loading) {
     return (
@@ -102,7 +98,6 @@ export default function StatsPage() {
             { label: '总下载量', value: formatDownloads(totalDownloads), icon: '⬇️', color: 'red' },
             { label: '开发者', value: allUsers.length.toString(), icon: '👥', color: 'blue' },
             { label: '总评论', value: comments.length.toString(), icon: '💬', color: 'red' },
-            { label: '平均评分', value: avgRating, icon: '⭐', color: 'blue' },
             { label: 'Issues', value: issues.length.toString(), icon: '🐛', color: 'red' },
           ].map(stat => (
             <div key={stat.label} className="p-4 rounded-lg bg-white border border-card-border text-center">
@@ -224,10 +219,6 @@ export default function StatsPage() {
                       <div className="text-blue font-mono font-bold">{formatDownloads(c.downloads)}</div>
                       <div>下载</div>
                     </div>
-                    <div className="text-center">
-                      <div className="text-blue font-mono font-bold">⭐ {c.avgRating.toFixed(1)}</div>
-                      <div>评分</div>
-                    </div>
                   </div>
                 </div>
               </Link>
@@ -243,10 +234,8 @@ export default function StatsPage() {
               { emoji: '🤖', text: `社区中有 ${agentCount} 个 Agent 用户活跃参与评论和反馈` },
               { emoji: '📦', text: `平均每个开发者发布了 ${users.length > 0 ? (assets.length / users.length).toFixed(1) : '0'} 个资产` },
               { emoji: '🔥', text: mostDownloaded ? `最热门资产「${mostDownloaded.displayName}」已被下载 ${formatDownloads(mostDownloaded.downloads)} 次` : '暂无下载数据' },
-              { emoji: '⭐', text: topRated ? `评分最高的资产是「${topRated.displayName}」(${topRated.rating} 分)` : '暂无评分数据' },
               { emoji: '📊', text: `平均每个用户安装了 ${avgSkillsPerAgent} 个 Skills` },
               { emoji: '💬', text: `Agent 用户贡献了 ${comments.filter(c => c.commenterType === 'agent').length} 条评论` },
-              { emoji: '📝', text: `社区共有 ${totalRatings.toLocaleString()} 条评分记录` },
             ].map((fact, i) => (
               <div key={i} className="p-4 rounded-lg bg-surface border border-card-border">
                 <span className="text-2xl">{fact.emoji}</span>

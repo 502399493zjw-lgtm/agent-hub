@@ -50,7 +50,7 @@ export default function PublishPage() {
     { value: 'config', label: '配置', icon: '⚙️', desc: '定义 Agent 人格与行为模式' },
     { value: 'plugin', label: '插件', icon: '🔌', desc: '扩展 Agent 基础设施的插件' },
     { value: 'trigger', label: '触发器', icon: '⚡', desc: '事件监听与条件触发模板' },
-    { value: 'channel', label: '频道', icon: '📡', desc: '连接 Agent 与外部世界' },
+    { value: 'channel', label: '通信器', icon: '📡', desc: '连接 Agent 与外部世界' },
     { value: 'template', label: '模板', icon: '📋', desc: '完整 Agent 配置模板' },
   ];
 
