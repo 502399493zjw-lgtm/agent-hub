@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAssetById, updateAsset, deleteAsset } from '@/lib/db';
+import { getAssetById, updateAsset, deleteAsset, findUserById } from '@/lib/db';
 import { getCommentsByAssetId, getIssuesByAssetId } from '@/data/mock';
+import { auth } from '@/lib/auth';
 
 export async function GET(
   _request: NextRequest,
@@ -38,6 +39,24 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Auth check
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
+    // Check invite code activation
+    const dbUser = findUserById(session.user.id);
+    if (!dbUser?.invite_code) {
+      return NextResponse.json(
+        { success: false, error: '需要激活邀请码才能编辑' },
+        { status: 403 }
+      );
+    }
+
     const { id } = await params;
     const body = await request.json();
 

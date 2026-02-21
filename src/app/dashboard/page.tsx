@@ -192,20 +192,19 @@ export default function DashboardPage() {
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Header */}
         <div className="flex items-center gap-6 mb-10">
-          <div className="w-16 h-16 rounded-full border-2 border-blue/30 bg-blue/10 flex items-center justify-center text-3xl">
-            {user.avatar}
+          <div className="w-16 h-16 rounded-full border-2 border-blue/30 bg-blue/10 flex items-center justify-center text-3xl overflow-hidden">
+            {user.avatar?.startsWith('http') ? (
+              <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+            ) : (
+              user.avatar || '👤'
+            )}
           </div>
           <div>
             <h1 className="text-2xl md:text-3xl font-bold">
               <span className="text-blue">{user.name}</span>
               <span className="text-muted text-lg ml-3">Dashboard</span>
             </h1>
-            <p className="text-sm text-muted mt-1">{user.bio}</p>
-            <div className="flex items-center gap-4 mt-2 text-xs text-muted">
-              <span><span className="text-blue font-mono">{user.followers}</span> followers</span>
-              <span><span className="font-mono">{user.following}</span> following</span>
-              <span>加入于 {user.joinedAt}</span>
-            </div>
+            <p className="text-sm text-muted mt-1">{user.email || ''}</p>
           </div>
         </div>
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { listAssets, createAsset } from '@/lib/db';
+import { listAssets, createAsset, findUserById } from '@/lib/db';
+import { auth } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
@@ -28,6 +29,24 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // Auth check
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
+    // Check invite code activation
+    const dbUser = findUserById(session.user.id);
+    if (!dbUser?.invite_code) {
+      return NextResponse.json(
+        { success: false, error: '需要激活邀请码才能发布' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
 
     // Validate required fields

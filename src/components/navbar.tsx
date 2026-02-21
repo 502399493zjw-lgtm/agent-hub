@@ -46,7 +46,22 @@ export function Navbar() {
   const handleLogout = () => {
     logout();
     setDropdownOpen(false);
-    router.push('/');
+  };
+
+  // Render user avatar (img or emoji fallback)
+  const UserAvatar = ({ size = 'sm' }: { size?: 'sm' | 'md' }) => {
+    const sizeClass = size === 'md' ? 'w-8 h-8' : 'w-6 h-6';
+    if (user?.avatar && user.avatar.startsWith('http')) {
+      return (
+        <img
+          src={user.avatar}
+          alt={user.name}
+          className={`${sizeClass} rounded-full object-cover`}
+          referrerPolicy="no-referrer"
+        />
+      );
+    }
+    return <span className={size === 'md' ? 'text-lg' : 'text-sm'}>{user?.avatar || '👤'}</span>;
   };
 
   return (
@@ -104,8 +119,8 @@ export function Navbar() {
                   onClick={() => setDropdownOpen(!dropdownOpen)}
                   className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-card-border hover:border-blue/30 transition-colors"
                 >
-                  <span className="text-lg">{user.avatar}</span>
-                  <span className="text-sm text-muted">{user.name}</span>
+                  <UserAvatar size="sm" />
+                  <span className="text-sm text-muted max-w-[100px] truncate">{user.name}</span>
                   <svg
                     className={`w-3 h-3 text-muted transition-transform ${dropdownOpen ? 'rotate-180' : ''}`}
                     fill="none"
@@ -118,18 +133,14 @@ export function Navbar() {
 
                 {dropdownOpen && (
                   <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-card-border rounded-xl shadow-lg shadow-black/5 overflow-hidden z-50">
-                    <div className="px-4 py-3 border-b border-card-border">
-                      <p className="text-sm font-medium text-foreground">{user.name}</p>
-                      <p className="text-xs text-muted truncate">{user.bio}</p>
+                    <div className="px-4 py-3 border-b border-card-border flex items-center gap-3">
+                      <UserAvatar size="md" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{user.name}</p>
+                        <p className="text-xs text-muted truncate">{user.email}</p>
+                      </div>
                     </div>
                     <div className="py-1">
-                      <Link
-                        href={`/user/${user.id}`}
-                        onClick={() => setDropdownOpen(false)}
-                        className="block px-4 py-2 text-sm text-muted hover:text-foreground hover:bg-surface transition-colors"
-                      >
-                        👤 个人主页
-                      </Link>
                       <Link
                         href="/settings"
                         onClick={() => setDropdownOpen(false)}
@@ -157,21 +168,13 @@ export function Navbar() {
                 )}
               </div>
             ) : (
-              /* Not logged in: Login + Register buttons */
-              <div className="flex items-center gap-2">
-                <Link
-                  href="/login"
-                  className="px-4 py-1.5 rounded-lg text-sm font-medium text-muted hover:text-foreground border border-card-border hover:border-blue/30 transition-colors"
-                >
-                  登录
-                </Link>
-                <Link
-                  href="/register"
-                  className="px-4 py-1.5 rounded-lg text-sm font-medium bg-blue text-white hover:bg-blue-dim transition-colors"
-                >
-                  注册
-                </Link>
-              </div>
+              /* Not logged in: Login button */
+              <Link
+                href="/login"
+                className="px-4 py-1.5 rounded-lg text-sm font-medium bg-blue text-white hover:bg-blue-dim transition-colors"
+              >
+                登录
+              </Link>
             )}
           </div>
 
@@ -223,13 +226,10 @@ export function Navbar() {
             <div className="border-t border-card-border mt-2 pt-2">
               {user ? (
                 <>
-                  <Link
-                    href={`/user/${user.id}`}
-                    onClick={() => setMobileOpen(false)}
-                    className="block px-3 py-2 rounded-lg text-sm text-muted hover:bg-white"
-                  >
-                    {user.avatar} {user.name}
-                  </Link>
+                  <div className="flex items-center gap-2 px-3 py-2">
+                    <UserAvatar size="sm" />
+                    <span className="text-sm text-foreground">{user.name}</span>
+                  </div>
                   <Link
                     href="/settings"
                     onClick={() => setMobileOpen(false)}
@@ -245,20 +245,13 @@ export function Navbar() {
                   </button>
                 </>
               ) : (
-                <div className="flex gap-2 px-3">
+                <div className="px-3">
                   <Link
                     href="/login"
                     onClick={() => setMobileOpen(false)}
-                    className="flex-1 text-center px-4 py-2 rounded-lg text-sm font-medium text-muted border border-card-border hover:border-blue/30 transition-colors"
+                    className="block text-center px-4 py-2 rounded-lg text-sm font-medium bg-blue text-white hover:bg-blue-dim transition-colors"
                   >
                     登录
-                  </Link>
-                  <Link
-                    href="/register"
-                    onClick={() => setMobileOpen(false)}
-                    className="flex-1 text-center px-4 py-2 rounded-lg text-sm font-medium bg-blue text-white hover:bg-blue-dim transition-colors"
-                  >
-                    注册
                   </Link>
                 </div>
               )}

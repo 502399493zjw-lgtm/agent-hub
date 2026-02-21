@@ -49,6 +49,54 @@ function initTables(db: Database.Database): void {
       files TEXT NOT NULL DEFAULT '[]'
     )
   `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      email TEXT UNIQUE,
+      name TEXT NOT NULL,
+      avatar TEXT DEFAULT '',
+      provider TEXT NOT NULL,
+      provider_id TEXT NOT NULL,
+      bio TEXT DEFAULT '',
+      invite_code TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      deleted_at TEXT,
+      UNIQUE(provider, provider_id)
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS invite_codes (
+      code TEXT PRIMARY KEY,
+      created_by TEXT DEFAULT 'system',
+      used_by TEXT,
+      used_at TEXT,
+      max_uses INTEGER DEFAULT 1,
+      use_count INTEGER DEFAULT 0,
+      expires_at TEXT,
+      created_at TEXT NOT NULL
+    )
+  `);
+
+  // Seed invite codes if empty
+  const inviteCount = db.prepare('SELECT COUNT(*) as cnt FROM invite_codes').get() as { cnt: number };
+  if (inviteCount.cnt === 0) {
+    const now = new Date().toISOString();
+    const seedCodes = [
+      { code: 'SEAFOOD-2026', max_uses: 100 },
+      { code: 'CYBERNOVA-VIP', max_uses: 100 },
+      { code: 'AGENT-HUB-BETA', max_uses: 100 },
+    ];
+    const insertCode = db.prepare(
+      `INSERT OR IGNORE INTO invite_codes (code, created_by, max_uses, use_count, created_at)
+       VALUES (?, 'system', ?, 0, ?)`
+    );
+    for (const c of seedCodes) {
+      insertCode.run(c.code, c.max_uses, now);
+    }
+  }
 }
 
 // Convert a DB row to the Asset type used by the frontend
@@ -520,5 +568,95 @@ export function deleteAsset(id: string): boolean {
   const db = getDb();
   const result = db.prepare('DELETE FROM assets WHERE id = ?').run(id);
   return result.changes > 0;
+}
+
+// ── User API ──
+
+export interface DbUser {
+  id: string;
+  email: string | null;
+  name: string;
+  avatar: string;
+  provider: string;
+  provider_id: string;
+  bio: string;
+  invite_code: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+export function findUserByProvider(provider: string, providerId: string): DbUser | null {
+  const db = getDb();
+  const row = db.prepare('SELECT * FROM users WHERE provider = ? AND provider_id = ?').get(provider, providerId) as DbUser | undefined;
+  return row ?? null;
+}
+
+export function findUserById(id: string): DbUser | null {
+  const db = getDb();
+  const row = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as DbUser | undefined;
+  return row ?? null;
+}
+
+export function createUser(data: {
+  id: string;
+  email: string | null;
+  name: string;
+  avatar: string;
+  provider: string;
+  providerId: string;
+}): DbUser {
+  const db = getDb();
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO users (id, email, name, avatar, provider, provider_id, bio, invite_code, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, '', NULL, ?, ?)`
+  ).run(data.id, data.email, data.name, data.avatar, data.provider, data.providerId, now, now);
+  return findUserById(data.id)!;
+}
+
+export function softDeleteUser(id: string): boolean {
+  const db = getDb();
+  const now = new Date().toISOString();
+  const result = db.prepare('UPDATE users SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL').run(now, now, id);
+  return result.changes > 0;
+}
+
+export function activateInviteCode(userId: string, code: string): { success: boolean; error?: string } {
+  const db = getDb();
+  const user = findUserById(userId);
+  if (!user) return { success: false, error: '用户不存在' };
+  if (user.invite_code) return { success: false, error: '已激活邀请码' };
+
+  const invite = db.prepare('SELECT * FROM invite_codes WHERE code = ?').get(code) as {
+    code: string; max_uses: number; use_count: number; expires_at: string | null; created_at: string;
+  } | undefined;
+
+  if (!invite) return { success: false, error: '邀请码不存在' };
+  if (invite.use_count >= invite.max_uses) return { success: false, error: '邀请码已用完' };
+  if (invite.expires_at && new Date(invite.expires_at) < new Date()) return { success: false, error: '邀请码已过期' };
+
+  const now = new Date().toISOString();
+  const updateUser = db.prepare('UPDATE users SET invite_code = ?, updated_at = ? WHERE id = ?');
+  const updateCode = db.prepare('UPDATE invite_codes SET use_count = use_count + 1, used_at = ? WHERE code = ?');
+
+  db.transaction(() => {
+    updateUser.run(code, now, userId);
+    updateCode.run(now, code);
+  })();
+
+  return { success: true };
+}
+
+export function validateInviteCode(code: string): { valid: boolean; error?: string } {
+  const db = getDb();
+  const invite = db.prepare('SELECT * FROM invite_codes WHERE code = ?').get(code) as {
+    code: string; max_uses: number; use_count: number; expires_at: string | null;
+  } | undefined;
+
+  if (!invite) return { valid: false, error: '邀请码不存在' };
+  if (invite.use_count >= invite.max_uses) return { valid: false, error: '邀请码已用完' };
+  if (invite.expires_at && new Date(invite.expires_at) < new Date()) return { valid: false, error: '邀请码已过期' };
+  return { valid: true };
 }
 
