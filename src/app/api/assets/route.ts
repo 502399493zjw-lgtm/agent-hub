@@ -1,22 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { listAssets, createAsset, findUserById, validateApiToken } from '@/lib/db';
+import { listAssets, createAsset, findUserById, validateDevice } from '@/lib/db';
 import { auth } from '@/lib/auth';
 
-// Authenticate via NextAuth session OR per-user API token (Bearer)
+// Authenticate via NextAuth session OR device ID (X-Device-ID header)
 async function authenticateRequest(request: NextRequest): Promise<{ userId: string } | null> {
-  // 1. Try NextAuth session first
+  // 1. Try NextAuth session first (web browser)
   const session = await auth();
   if (session?.user?.id) {
     return { userId: session.user.id };
   }
 
-  // 2. Try Bearer token (per-user API token from DB)
-  const authHeader = request.headers.get('Authorization');
-  if (authHeader?.startsWith('Bearer ')) {
-    const token = authHeader.slice(7);
-    const tokenInfo = validateApiToken(token);
-    if (tokenInfo) {
-      return { userId: tokenInfo.userId };
+  // 2. Try Device ID (CLI / Agent — reads from ~/.openclaw/identity/device.json)
+  const deviceId = request.headers.get('X-Device-ID');
+  if (deviceId) {
+    const deviceInfo = validateDevice(deviceId);
+    if (deviceInfo) {
+      return { userId: deviceInfo.userId };
     }
   }
 

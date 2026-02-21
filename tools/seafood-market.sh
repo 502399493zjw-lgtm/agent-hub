@@ -510,34 +510,41 @@ print()
 }
 
 # ============================================================================
-# LOGIN — Save publish token locally
 # ============================================================================
-TOKEN_FILE="$HOME/.seafood-market/token"
+# AUTHORIZE — Register this device with the hub (one-time setup)
+# ============================================================================
 
-cmd_login() {
-  echo ""
-  fish "Seafood Market Login"
-  echo ""
-  echo "  To publish assets, you need a publish token."
-  echo "  Get yours from: ${BOLD}${REGISTRY_URL}/settings/tokens${NC}"
-  echo ""
-  read -rp "  Paste your token: " token
-  if [ -z "$token" ]; then
-    err "No token provided"
+cmd_authorize() {
+  local device_id
+  device_id=$(get_device_id) || {
+    err "No OpenClaw device identity found at $DEVICE_JSON"
     exit 1
-  fi
-  mkdir -p "$(dirname "$TOKEN_FILE")"
-  echo "$token" > "$TOKEN_FILE"
-  chmod 600 "$TOKEN_FILE"
-  ok "Token saved to $TOKEN_FILE"
+  }
+
+  echo ""
+  fish "Device Authorization"
+  echo ""
+  echo "  Device ID: ${device_id:0:16}..."
+  echo ""
+  echo "  To authorize this device, you need:"
+  echo "    1. An account on ${BOLD}${REGISTRY_URL}${NC} (GitHub/Google login)"
+  echo "    2. An activated invite code"
+  echo ""
+  echo "  Then authorize via the web UI, or ask your Agent to call:"
+  echo "    POST /api/auth/device  { \"deviceId\": \"$device_id\" }"
+  echo ""
+  echo "  Once authorized, you can publish with: ${BOLD}seafood-market publish ./${NC}"
   echo ""
 }
 
-get_token() {
-  if [ -f "$TOKEN_FILE" ]; then
-    cat "$TOKEN_FILE"
-  elif [ -n "${SEAFOOD_TOKEN:-}" ]; then
-    echo "$SEAFOOD_TOKEN"
+# ============================================================================
+# DEVICE ID — Read from OpenClaw identity
+# ============================================================================
+DEVICE_JSON="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}/identity/device.json"
+
+get_device_id() {
+  if [ -f "$DEVICE_JSON" ]; then
+    python3 -c "import json; print(json.load(open('$DEVICE_JSON'))['deviceId'])" 2>/dev/null
   else
     return 1
   fi
@@ -562,12 +569,22 @@ cmd_publish() {
   fish "Publishing from ${BOLD}$skill_dir${NC}"
   echo ""
 
-  # Get auth token
-  local token
-  token=$(get_token) || {
-    err "Not logged in. Run ${BOLD}seafood-market login${NC} first, or set SEAFOOD_TOKEN env var."
+  # Get device ID from OpenClaw identity
+  local device_id
+  device_id=$(get_device_id) || {
+    err "No OpenClaw device identity found."
+    echo ""
+    echo "  Expected: $DEVICE_JSON"
+    echo "  Make sure OpenClaw is installed and has been started at least once."
+    echo ""
+    echo "  Your device must be authorized first:"
+    echo "    1. Login on ${BOLD}${REGISTRY_URL}${NC} (GitHub/Google)"
+    echo "    2. Activate an invite code"
+    echo "    3. Authorize this device (your deviceId will be auto-detected)"
     exit 1
   }
+
+  info "Device ID: ${device_id:0:12}..."
 
   # Parse SKILL.md frontmatter + content using Python
   local payload
@@ -658,7 +675,7 @@ print(f\"  Author:      {author}\")
   local response http_code
   response=$(curl -s -w "\n%{http_code}" -X POST "$REGISTRY_URL/api/assets" \
     -H "Content-Type: application/json" \
-    -H "Authorization: Bearer $token" \
+    -H "X-Device-ID: $device_id" \
     -d "$payload")
   
   http_code=$(echo "$response" | tail -1)
@@ -700,7 +717,7 @@ cmd_help() {
   echo "    list                                List installed assets"
   echo "    info <type>/<slug>                  View asset details"
   echo "    publish <path>                      Publish a skill to the market"
-  echo "    login                               Login to get a publish token"
+  echo "    authorize                           Show device authorization info"
   echo "    help                                Show this help"
   echo ""
   echo "  Asset types: skill, config, plugin, trigger, channel, template"
@@ -724,7 +741,8 @@ main() {
     list)       cmd_list "$@" ;;
     info)       cmd_info "$@" ;;
     publish)    cmd_publish "$@" ;;
-    login)      cmd_login "$@" ;;
+    authorize)  cmd_authorize "$@" ;;
+    login)      cmd_authorize "$@" ;;  # alias for backward compat
     help|--help|-h) cmd_help ;;
     *)
       err "Unknown command: $cmd"

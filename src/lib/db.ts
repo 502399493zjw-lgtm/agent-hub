@@ -99,13 +99,12 @@ function initTables(db: Database.Database): void {
       text TEXT, date TEXT, type TEXT, link_to TEXT,
       actor_type TEXT NOT NULL DEFAULT 'user'
     );
-    CREATE TABLE IF NOT EXISTS api_tokens (
-      token TEXT PRIMARY KEY,
+    CREATE TABLE IF NOT EXISTS authorized_devices (
+      device_id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
-      instance_id TEXT NOT NULL,
-      name TEXT NOT NULL DEFAULT 'default',
-      created_at TEXT NOT NULL,
-      last_used_at TEXT,
+      name TEXT NOT NULL DEFAULT '',
+      authorized_at TEXT NOT NULL,
+      last_publish_at TEXT,
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
     CREATE TABLE IF NOT EXISTS daily_stats (
@@ -412,43 +411,36 @@ export function validateInviteCode(code: string): { valid: boolean; error?: stri
 }
 
 // ════════════════════════════════════════════
-// Public API — Device Tokens (per-agent publish auth)
+// Public API — Authorized Devices (instance_id based publish auth)
 // ════════════════════════════════════════════
 
-export function createApiToken(userId: string, instanceId: string, name: string = 'default'): string {
-  const token = 'sm_' + Date.now().toString(36) + '_' + Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
+export function authorizeDevice(userId: string, deviceId: string, name: string = ''): boolean {
   const now = new Date().toISOString();
-  getDb().prepare('INSERT INTO api_tokens (token, user_id, instance_id, name, created_at) VALUES (?, ?, ?, ?, ?)').run(token, userId, instanceId, name, now);
-  return token;
+  getDb().prepare('INSERT OR REPLACE INTO authorized_devices (device_id, user_id, name, authorized_at) VALUES (?, ?, ?, ?)').run(deviceId, userId, name, now);
+  return true;
 }
 
-export function validateApiToken(token: string): { userId: string; instanceId: string; name: string } | null {
-  const row = getDb().prepare('SELECT user_id, instance_id, name FROM api_tokens WHERE token = ?').get(token) as { user_id: string; instance_id: string; name: string } | undefined;
+export function validateDevice(deviceId: string): { userId: string; name: string } | null {
+  const row = getDb().prepare('SELECT user_id, name FROM authorized_devices WHERE device_id = ?').get(deviceId) as { user_id: string; name: string } | undefined;
   if (!row) return null;
-  // Update last_used_at
-  getDb().prepare('UPDATE api_tokens SET last_used_at = ? WHERE token = ?').run(new Date().toISOString(), token);
-  return { userId: row.user_id, instanceId: row.instance_id, name: row.name };
+  // Update last_publish_at
+  getDb().prepare('UPDATE authorized_devices SET last_publish_at = ? WHERE device_id = ?').run(new Date().toISOString(), deviceId);
+  return { userId: row.user_id, name: row.name };
 }
 
-export function listApiTokens(userId: string): { tokenPrefix: string; instanceId: string; name: string; createdAt: string; lastUsedAt: string | null }[] {
-  const rows = getDb().prepare('SELECT token, instance_id, name, created_at, last_used_at FROM api_tokens WHERE user_id = ?').all(userId) as { token: string; instance_id: string; name: string; created_at: string; last_used_at: string | null }[];
+export function listAuthorizedDevices(userId: string): { deviceId: string; name: string; authorizedAt: string; lastPublishAt: string | null }[] {
+  const rows = getDb().prepare('SELECT device_id, name, authorized_at, last_publish_at FROM authorized_devices WHERE user_id = ?').all(userId) as { device_id: string; name: string; authorized_at: string; last_publish_at: string | null }[];
   return rows.map(r => ({
-    tokenPrefix: r.token.slice(0, 10) + '...',
-    instanceId: r.instance_id,
+    deviceId: r.device_id.slice(0, 12) + '...',
     name: r.name,
-    createdAt: r.created_at,
-    lastUsedAt: r.last_used_at,
+    authorizedAt: r.authorized_at,
+    lastPublishAt: r.last_publish_at,
   }));
 }
 
-export function revokeApiToken(token: string, userId: string): boolean {
-  const result = getDb().prepare('DELETE FROM api_tokens WHERE token = ? AND user_id = ?').run(token, userId);
+export function revokeDevice(deviceId: string, userId: string): boolean {
+  const result = getDb().prepare('DELETE FROM authorized_devices WHERE device_id = ? AND user_id = ?').run(deviceId, userId);
   return result.changes > 0;
-}
-
-export function revokeTokensByInstance(instanceId: string, userId: string): number {
-  const result = getDb().prepare('DELETE FROM api_tokens WHERE instance_id = ? AND user_id = ?').run(instanceId, userId);
-  return result.changes;
 }
 
 // ════════════════════════════════════════════
