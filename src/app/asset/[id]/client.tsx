@@ -657,43 +657,18 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
 
         <aside className="lg:w-72 shrink-0">
           <div className="sticky top-24 space-y-6">
-            {asset.hubScore && asset.hubScoreBreakdown && (
-              <div className="p-5 rounded-lg bg-white border border-card-border">
-                <h3 className="text-sm font-semibold mb-4">🏆 Hub Score</h3>
-                <div className="text-center mb-4">
-                  <span className={`text-4xl font-bold ${
-                    asset.hubScore >= 85 ? 'text-blue' : asset.hubScore >= 70 ? 'text-emerald-400' : 'text-blue-400'
-                  }`}>{asset.hubScore}</span>
-                  <span className="text-sm text-muted ml-1">/ 100</span>
-                </div>
-                <div className="space-y-3">
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-muted">📥 下载热度</span>
-                      <span className="text-blue font-mono">{asset.hubScoreBreakdown.downloadScore}</span>
-                    </div>
-                    <div className="h-2 bg-surface rounded-full overflow-hidden">
-                      <div className="h-full bg-gradient-to-r from-blue/60 to-blue rounded-full" style={{ width: `${asset.hubScoreBreakdown.downloadScore}%` }} />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-muted">🔧 维护活跃</span>
-                      <span className="text-emerald-400 font-mono">{asset.hubScoreBreakdown.maintenanceScore}</span>
-                    </div>
-                    <div className="h-2 bg-surface rounded-full overflow-hidden">
-                      <div className="h-full bg-gradient-to-r from-emerald-500/60 to-emerald-400 rounded-full" style={{ width: `${asset.hubScoreBreakdown.maintenanceScore}%` }} />
-                    </div>
-                  </div>
-                </div>
-                {asset.upgradeRate && (
-                  <div className="mt-3 pt-3 border-t border-card-border text-center">
-                    <span className="text-xs text-muted">升级率</span>
-                    <span className="text-sm text-blue font-bold ml-2">{asset.upgradeRate}%</span>
-                  </div>
-                )}
+            <div className="p-5 rounded-lg bg-white border border-card-border">
+              <h3 className="text-sm font-semibold mb-4">📊 安装统计</h3>
+              <div className="text-center mb-2">
+                <span className="text-4xl font-bold text-blue">{formatDownloads(asset.downloads)}</span>
+                <span className="text-sm text-muted ml-1">次安装</span>
               </div>
-            )}
+              {asset.rating > 0 && (
+                <div className="text-center text-sm text-muted">
+                  <span className="text-yellow-400">★</span> {asset.rating.toFixed(1)} ({asset.ratingCount} 评价)
+                </div>
+              )}
+            </div>
 
             <div className="p-5 rounded-lg bg-white border border-card-border">
               <h3 className="text-sm font-semibold mb-4">资产信息</h3>

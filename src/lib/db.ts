@@ -17,23 +17,23 @@ function getDb(): Database.Database {
 }
 
 // ════════════════════════════════════════════
-// Hub Score — v3 cumulative (no cap)
+// Hub Score — REMOVED (v3: display installs directly)
+// calculateHubScore kept only for internal DB column compat
 // ════════════════════════════════════════════
 
-// Score events and their point values for assets
-export const ASSET_SCORE_EVENTS = {
-  install:       10,  // per unique user install
-  raw_read:       2,  // agent /raw read (deduped per IP per day)
-  comment:        3,  // received a comment
-  rating:         5,  // received a rating
-  rating_5star:   8,  // received a 5-star rating (replaces rating)
-  favorite:       5,  // favorited
-  new_version:   15,  // author published a new version
-  referenced:    20,  // referenced by another asset
-} as const;
+export function calculateHubScore(_downloads: number, _rating: number, _ratingCount: number): {
+  hubScore: number;
+  hubScoreBreakdown: { downloadScore: number; maintenanceScore: number; reputationScore: number };
+} {
+  return { hubScore: 0, hubScoreBreakdown: { downloadScore: 0, maintenanceScore: 0, reputationScore: 0 } };
+}
 
-// Score events and their point values for user reputation
-export const USER_REP_EVENTS = {
+// ════════════════════════════════════════════
+// Coin System — Event Values
+// ════════════════════════════════════════════
+
+// User reputation events (honor currency, only goes up)
+const USER_REP_EVENTS = {
   publish_asset:   20,
   asset_installed:  3,
   asset_rated_good: 5,  // 4-5 star
@@ -44,8 +44,8 @@ export const USER_REP_EVENTS = {
   new_version:      8,
 } as const;
 
-// Score events for shrimp coins (earnable currency)
-export const SHRIMP_COIN_EVENTS = {
+// Shrimp coins events (spendable currency)
+const SHRIMP_COIN_EVENTS = {
   register:        100,  // welcome bonus
   daily_login:       5,
   publish_asset:    50,
@@ -56,25 +56,6 @@ export const SHRIMP_COIN_EVENTS = {
   invite_user:      30,
   new_version:      20,
 } as const;
-
-export function calculateHubScore(downloads: number, rating: number, ratingCount: number): {
-  hubScore: number;
-  hubScoreBreakdown: { downloadScore: number; maintenanceScore: number; reputationScore: number };
-} {
-  // v3: Hub Score = downloads * 10 (install points) + ratingCount * 5 + bonus
-  // Keep the function signature for backward compat, but score is now cumulative
-  const installScore = downloads * ASSET_SCORE_EVENTS.install;
-  const ratingScore = ratingCount * ASSET_SCORE_EVENTS.rating;
-  const hubScore = installScore + ratingScore;
-  return {
-    hubScore,
-    hubScoreBreakdown: {
-      downloadScore: installScore,
-      maintenanceScore: 0,
-      reputationScore: ratingScore,
-    },
-  };
-}
 
 export function recalculateHubScore(assetId: string): void {
   const db = getDb();
@@ -281,8 +262,6 @@ export interface DbRow {
 }
 
 export function rowToAsset(row: DbRow): Asset {
-  // Compute hub score dynamically from current data
-  const { hubScore, hubScoreBreakdown } = calculateHubScore(row.downloads, row.rating, row.rating_count);
   return {
     id: row.id, name: row.name, displayName: row.display_name,
     type: row.type as Asset['type'],
@@ -296,8 +275,6 @@ export function rowToAsset(row: DbRow): Asset {
     compatibility: JSON.parse(row.compatibility), issueCount: row.issue_count,
     files: JSON.parse(row.files || '[]'),
     configSubtype: (row.config_subtype ?? undefined) as Asset['configSubtype'],
-    hubScore, hubScoreBreakdown,
-    upgradeRate: row.upgrade_rate,
   };
 }
 
@@ -315,7 +292,7 @@ function assetToRow(a: Asset) {
     issue_count: a.issueCount, config_subtype: a.configSubtype ?? null,
     files: JSON.stringify(a.files ?? []),
     hub_score: hubScore, hub_score_breakdown: JSON.stringify(hubScoreBreakdown),
-    upgrade_rate: a.upgradeRate ?? 50, compatibility: JSON.stringify(a.compatibility ?? {}),
+    upgrade_rate: 0, compatibility: JSON.stringify(a.compatibility ?? {}),
   };
 }
 
@@ -394,7 +371,6 @@ export function createAsset(data: {
     versions: [{ version: data.version, changelog: '首次发布', date: now }],
     dependencies: [], compatibility: { models: ['GPT-4','Claude 3'], platforms: ['OpenClaw'], frameworks: ['Node.js'] },
     issueCount: 0, configSubtype: data.configSubtype as Asset['configSubtype'],
-    hubScore, hubScoreBreakdown, upgradeRate: 25,
   };
   db.prepare(`INSERT INTO assets (id,name,display_name,type,author_id,author_name,author_avatar,description,long_description,version,downloads,rating,rating_count,tags,category,created_at,updated_at,install_command,readme,versions,dependencies,issue_count,config_subtype,hub_score,hub_score_breakdown,upgrade_rate,compatibility,files) VALUES (@id,@name,@display_name,@type,@author_id,@author_name,@author_avatar,@description,@long_description,@version,@downloads,@rating,@rating_count,@tags,@category,@created_at,@updated_at,@install_command,@readme,@versions,@dependencies,@issue_count,@config_subtype,@hub_score,@hub_score_breakdown,@upgrade_rate,@compatibility,@files)`).run(assetToRow(asset));
 

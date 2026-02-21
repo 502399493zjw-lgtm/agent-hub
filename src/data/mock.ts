@@ -22,9 +22,6 @@ export interface Asset {
   issueCount: number;
   files?: FileNode[];
   configSubtype?: 'routing' | 'model' | 'persona' | 'scope';
-  hubScore?: number;
-  hubScoreBreakdown?: { downloadScore: number; maintenanceScore: number; reputationScore: number; };
-  upgradeRate?: number;
 }
 
 export interface User {

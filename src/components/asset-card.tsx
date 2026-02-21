@@ -5,12 +5,14 @@ import { Asset, formatDownloads, typeConfig } from '@/data/mock';
 import { useFavorites } from '@/hooks/use-favorites';
 import { showToast } from '@/components/toast';
 
-function HubScoreBadge({ score }: { score: number }) {
-  const color = score >= 80 ? 'text-blue' : score >= 60 ? 'text-foreground' : 'text-muted';
+function InstallsBadge({ downloads }: { downloads: number }) {
   return (
     <div className="flex items-center gap-1.5">
-      <span className={`text-sm font-bold font-mono ${color}`}>{score}</span>
-      <span className="text-[10px] text-muted">Hub Score</span>
+      <svg className="w-3.5 h-3.5 text-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+      </svg>
+      <span className="text-sm font-bold font-mono text-foreground">{formatDownloads(downloads)}</span>
+      <span className="text-[10px] text-muted">安装</span>
     </div>
   );
 }
@@ -118,12 +120,14 @@ export function AssetCard({ asset }: { asset: Asset }) {
 
         {/* Footer */}
         <div className="flex items-center justify-between pt-3 border-t border-card-border">
-          <HubScoreBadge score={asset.hubScore ?? 0} />
+          <InstallsBadge downloads={asset.downloads} />
           <div className="flex items-center gap-1 text-xs text-muted">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-            <span>{formatDownloads(asset.downloads)}</span>
+            {asset.rating > 0 && (
+              <>
+                <span className="text-yellow-400">★</span>
+                <span>{asset.rating.toFixed(1)}</span>
+              </>
+            )}
           </div>
         </div>
       </div>
