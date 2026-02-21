@@ -1,6 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAssetById, updateAsset, deleteAsset, findUserById, getCommentsByAssetId, getIssuesByAssetId } from '@/lib/db';
+import { getAssetById, updateAsset, deleteAsset, findUserById, validateDevice, getCommentsByAssetId, getIssuesByAssetId } from '@/lib/db';
 import { auth } from '@/lib/auth';
+
+// Authenticate via NextAuth session OR device ID
+async function authenticateRequest(request: NextRequest): Promise<{ userId: string } | null> {
+  const session = await auth();
+  if (session?.user?.id) return { userId: session.user.id };
+  const deviceId = request.headers.get('X-Device-ID');
+  if (deviceId) {
+    const deviceInfo = validateDevice(deviceId);
+    if (deviceInfo) return { userId: deviceInfo.userId };
+  }
+  return null;
+}
 
 export async function GET(
   _request: NextRequest,
@@ -37,9 +49,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Auth check
-    const session = await auth();
-    if (!session?.user?.id) {
+    // Auth check: session or device token
+    const authResult = await authenticateRequest(request);
+    if (!authResult) {
       return NextResponse.json(
         { success: false, error: 'Authentication required' },
         { status: 401 }
@@ -47,7 +59,7 @@ export async function PUT(
     }
 
     // Check invite code activation
-    const dbUser = findUserById(session.user.id);
+    const dbUser = findUserById(authResult.userId);
     if (!dbUser?.invite_code) {
       return NextResponse.json(
         { success: false, error: '需要激活邀请码才能编辑' },
