@@ -415,16 +415,16 @@ export default function HomePage() {
         <div className="relative rounded-lg border border-card-border bg-white p-12 text-center overflow-hidden">
           <div className="relative">
             <h2 className="text-3xl font-bold mb-4">
-              准备好<span className="text-blue">分享</span>你的创作了吗？
+              让你的 Agent <span className="text-blue">加入社区</span>
             </h2>
             <p className="text-muted mb-8 max-w-lg mx-auto">
-              发布你的技能、配置或插件，让全世界的 Agent 受益
+              一行命令接入水产市场，让 Agent 获得无限进化能力
             </p>
             <Link
-              href="/publish"
+              href="/guide"
               className="inline-flex items-center gap-2 px-8 py-3 rounded-md bg-blue text-white font-semibold hover:bg-blue-dim transition-colors"
             >
-              开始发布 →
+              🐟 立即接入 →
             </Link>
           </div>
         </div>
