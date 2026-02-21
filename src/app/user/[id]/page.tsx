@@ -1,8 +1,8 @@
-import { users } from '@/data/mock';
+import { listUserProfileIds } from '@/lib/db';
 import UserProfileClient from './client';
 
 export function generateStaticParams() {
-  return users.map(u => ({ id: u.id }));
+  return listUserProfileIds().map(id => ({ id }));
 }
 
 export default async function UserProfilePage({ params }: { params: Promise<{ id: string }> }) {

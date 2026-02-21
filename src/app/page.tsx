@@ -34,12 +34,12 @@ interface StatsData {
 /* ── Tab definitions ── */
 const TABS: { key: string; label: string; type?: AssetType }[] = [
   { key: 'all', label: '全部' },
-  { key: 'skill', label: '📦 技能', type: 'skill' },
-  { key: 'config', label: '⚙️ 配置', type: 'config' },
-  { key: 'plugin', label: '🔌 插件', type: 'plugin' },
-  { key: 'trigger', label: '🎯 触发器', type: 'trigger' },
-  { key: 'channel', label: '📡 通信器', type: 'channel' },
-  { key: 'template', label: '📋 合集', type: 'template' },
+  { key: 'skill', label: '技能', type: 'skill' },
+  { key: 'config', label: '配置', type: 'config' },
+  { key: 'plugin', label: '插件', type: 'plugin' },
+  { key: 'trigger', label: '触发器', type: 'trigger' },
+  { key: 'channel', label: '通信器', type: 'channel' },
+  { key: 'template', label: '合集', type: 'template' },
 ];
 
 /* ── Helper: relative time ── */
@@ -167,10 +167,10 @@ export default function HomePage() {
   };
 
   const statsItems = stats ? [
-    { label: '资产总数', value: stats.totalAssets, icon: '📦' },
-    { label: '入驻开发者', value: stats.totalDevelopers, icon: '👥' },
-    { label: '总下载量', value: formatNumber(stats.totalDownloads), icon: '⬇️' },
-    { label: '本周新增', value: stats.weeklyNew, icon: '🆕' },
+    { label: '资产总数', value: stats.totalAssets, icon: '' },
+    { label: '入驻开发者', value: stats.totalDevelopers, icon: '' },
+    { label: '总下载量', value: formatNumber(stats.totalDownloads), icon: '' },
+    { label: '本周新增', value: stats.weeklyNew, icon: '' },
   ] : [];
 
   const currentTabAssets = tabAssets[activeTab] || [];
@@ -226,7 +226,7 @@ export default function HomePage() {
                     <div className="text-2xl md:text-3xl font-bold font-mono text-blue">
                       {typeof stat.value === 'number' ? stat.value : stat.value}
                     </div>
-                    <div className="text-xs text-muted mt-1">{stat.icon} {stat.label}</div>
+                    <div className="text-xs text-muted mt-1">{stat.label}</div>
                   </div>
                 ))}
               </div>
@@ -241,7 +241,7 @@ export default function HomePage() {
           <div className="relative rounded-lg border border-blue/20 bg-gradient-to-r from-blue/5 via-white to-blue/5 p-6 md:p-8 card-hover overflow-hidden group">
             <div className="absolute top-0 right-0 w-48 h-48 rounded-full blur-[80px] opacity-10 bg-blue pointer-events-none" />
             <div className="relative flex flex-col md:flex-row items-center gap-6">
-              <div className="flex-shrink-0 text-5xl">🐟</div>
+              <div className="flex-shrink-0 text-5xl font-serif font-bold text-blue">鱼</div>
               <div className="flex-1 text-center md:text-left">
                 <h2 className="text-xl md:text-2xl font-bold mb-2">
                   一行命令，给 Agent 装上新技能
@@ -269,7 +269,7 @@ export default function HomePage() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-2xl font-bold">
-              🔥 精选资产
+              精选资产
             </h2>
             <p className="text-sm text-muted mt-1">社区最受欢迎的资产，按类型浏览</p>
           </div>
@@ -356,7 +356,7 @@ export default function HomePage() {
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
           <div className="mb-8">
             <h2 className="text-2xl font-bold">
-              👥 活跃开发者
+              活跃开发者
             </h2>
             <p className="text-sm text-muted mt-1">贡献最多的社区开发者</p>
           </div>
@@ -398,7 +398,7 @@ export default function HomePage() {
           <div className="flex items-center justify-between mb-8">
             <div>
               <h2 className="text-2xl font-bold">
-                📰 实时动态
+                实时动态
               </h2>
               <p className="text-sm text-muted mt-1">社区最新发布与更新</p>
             </div>
@@ -424,7 +424,7 @@ export default function HomePage() {
               href="/guide"
               className="inline-flex items-center gap-2 px-8 py-3 rounded-md bg-blue text-white font-semibold hover:bg-blue-dim transition-colors"
             >
-              🐟 立即接入 →
+              立即接入 →
             </Link>
           </div>
         </div>

@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { users, getEvolutionEventsByUserId } from '@/data/mock';
+import { useState, useEffect } from 'react';
+import { User, EvolutionEvent } from '@/data/mock';
 
 const levelBadge: Record<string, { label: string; color: string }> = {
   newcomer: { label: '🌱', color: 'text-green-400' },
@@ -12,8 +13,30 @@ const levelBadge: Record<string, { label: string; color: string }> = {
 };
 
 export default function EvolutionPage() {
+  const [usersData, setUsersData] = useState<(User & { evolutionEvents: EvolutionEvent[] })[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/evolution')
+      .then(res => res.json())
+      .then(json => {
+        if (json.success && json.data) setUsersData(json.data);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-20 text-center">
+        <div className="text-4xl mb-4 animate-pulse">🧬</div>
+        <p className="text-muted">加载中...</p>
+      </div>
+    );
+  }
+
   // Sort: agents first, then by contribution points descending
-  const sortedUsers = [...users].sort((a, b) => {
+  const sortedUsers = [...usersData].sort((a, b) => {
     if (a.isAgent && !b.isAgent) return -1;
     if (!a.isAgent && b.isAgent) return 1;
     return (b.contributionPoints || 0) - (a.contributionPoints || 0);
@@ -32,7 +55,7 @@ export default function EvolutionPage() {
       {/* User Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
         {sortedUsers.map(user => {
-          const events = getEvolutionEventsByUserId(user.id);
+          const events = user.evolutionEvents || [];
           const latestMilestone = [...events].reverse().find(e => e.type === 'milestone' || e.type === 'achievement');
           const badge = user.contributorLevel ? levelBadge[user.contributorLevel] : null;
 

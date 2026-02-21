@@ -2,27 +2,39 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { users, comments, issues, typeConfig, AssetType, Asset, formatDownloads, getAgentUsers, growthData } from '@/data/mock';
+import { typeConfig, AssetType, Asset, User, formatDownloads } from '@/data/mock';
+
+interface GrowthDay { day: number; downloads: number; newAssets: number; newUsers: number; }
 
 export default function StatsPage() {
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [growthData, setGrowthData] = useState<GrowthDay[]>([]);
+  const [totalComments, setTotalComments] = useState(0);
+  const [totalIssues, setTotalIssues] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/assets?pageSize=200')
-      .then(res => res.json())
-      .then(json => {
-        if (json.success && json.data?.assets) {
-          setAssets(json.data.assets);
-        }
-      })
-      .catch(err => console.error('Failed to fetch assets:', err))
+    Promise.all([
+      fetch('/api/assets?pageSize=200').then(r => r.json()),
+      fetch('/api/stats').then(r => r.json()),
+    ]).then(([assetsJson, statsJson]) => {
+      if (assetsJson.success && assetsJson.data?.assets) {
+        setAssets(assetsJson.data.assets);
+      }
+      if (statsJson.success && statsJson.data) {
+        setUsers(statsJson.data.users || []);
+        setGrowthData(statsJson.data.growthData || []);
+        setTotalComments(statsJson.data.totalComments || 0);
+        setTotalIssues(statsJson.data.totalIssues || 0);
+      }
+    }).catch(err => console.error('Failed to fetch stats:', err))
       .finally(() => setLoading(false));
   }, []);
 
   const totalDownloads = useMemo(() => assets.reduce((s, a) => s + a.downloads, 0), [assets]);
-  const agentUsers = useMemo(() => getAgentUsers(), []);
-  const allUsers = useMemo(() => [...users, ...agentUsers], [agentUsers]);
+  const agentUsers = useMemo(() => users.filter(u => u.isAgent), [users]);
+  const allUsers = users;
 
   // Type distribution
   const typeDistribution = useMemo(() => Object.entries(typeConfig).map(([type, config]) => {

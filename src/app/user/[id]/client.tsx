@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { getUserById, formatDownloads, getEvolutionEventsByUserId, getActivityEventsByUserId, Asset } from '@/data/mock';
+import { formatDownloads, Asset, User, EvolutionEvent, ActivityEvent } from '@/data/mock';
 import { AssetCard } from '@/components/asset-card';
 import { useState, useEffect } from 'react';
 
@@ -23,23 +23,40 @@ const evolutionTypeColors: Record<string, string> = {
 };
 
 export default function UserProfileClient({ id }: { id: string }) {
-  const user = getUserById(id);
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'evolution' | 'activity' | 'published'>('evolution');
   const [isFollowing, setIsFollowing] = useState(false);
   const [published, setPublished] = useState<Asset[]>([]);
+  const [evolutionEvents, setEvolutionEvents] = useState<EvolutionEvent[]>([]);
+  const [activityEventsData, setActivityEventsData] = useState<ActivityEvent[]>([]);
 
-  // Fetch published assets from API (DB-backed)
+  // Fetch all user data from API (DB-backed)
   useEffect(() => {
-    if (!user) return;
     fetch(`/api/users/${id}`)
       .then(res => res.json())
       .then(data => {
-        if (data.publishedAssets) {
-          setPublished(data.publishedAssets);
+        if (data.error) {
+          setUser(null);
+        } else {
+          setUser(data.user);
+          if (data.publishedAssets) setPublished(data.publishedAssets);
+          if (data.evolutionEvents) setEvolutionEvents(data.evolutionEvents);
+          if (data.activityEvents) setActivityEventsData(data.activityEvents);
         }
+        setLoading(false);
       })
-      .catch(() => {});
-  }, [id, user]);
+      .catch(() => { setLoading(false); });
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-20 text-center">
+        <div className="text-6xl mb-4 animate-pulse">⏳</div>
+        <h1 className="text-2xl font-bold mb-2">加载中...</h1>
+      </div>
+    );
+  }
 
   if (!user) {
     return (
@@ -52,9 +69,6 @@ export default function UserProfileClient({ id }: { id: string }) {
       </div>
     );
   }
-
-  const evolutionEvents = getEvolutionEventsByUserId(id);
-  const activityEventsData = getActivityEventsByUserId(id);
 
   const totalDownloads = published.reduce((sum, a) => sum + a.downloads, 0);
 

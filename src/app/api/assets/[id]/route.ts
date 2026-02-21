@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAssetById, updateAsset, deleteAsset, findUserById } from '@/lib/db';
-import { getCommentsByAssetId, getIssuesByAssetId } from '@/data/mock';
+import { getAssetById, updateAsset, deleteAsset, findUserById, getCommentsByAssetId, getIssuesByAssetId } from '@/lib/db';
 import { auth } from '@/lib/auth';
 
 export async function GET(
@@ -17,7 +16,6 @@ export async function GET(
       );
     }
 
-    // Comments and issues still from mock for now
     const comments = getCommentsByAssetId(id);
     const issues = getIssuesByAssetId(id);
 

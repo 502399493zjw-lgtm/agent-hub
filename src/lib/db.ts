@@ -1,6 +1,16 @@
 import Database from 'better-sqlite3';
 import path from 'path';
-import { assets as mockAssets, Asset } from '@/data/mock';
+import {
+  assets as mockAssets, Asset, User,
+  users as mockUsers,
+  comments as mockComments,
+  issues as mockIssues,
+  collections as mockCollections,
+  mockNotifications,
+  evolutionEvents as mockEvolutionEvents,
+  activityEvents as mockActivityEvents,
+  growthData as mockGrowthData,
+} from '@/data/mock';
 
 const DB_PATH = path.join(process.cwd(), 'data', 'hub.db');
 
@@ -16,468 +26,647 @@ function getDb(): Database.Database {
   return _db;
 }
 
+// ════════════════════════════════════════════
+// Table creation
+// ════════════════════════════════════════════
+
 function initTables(db: Database.Database): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS assets (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      display_name TEXT NOT NULL,
+      id TEXT PRIMARY KEY, name TEXT NOT NULL, display_name TEXT NOT NULL,
       type TEXT NOT NULL CHECK(type IN ('skill','channel','plugin','trigger','config','template')),
-      author_id TEXT NOT NULL DEFAULT '',
-      author_name TEXT NOT NULL DEFAULT '',
-      author_avatar TEXT NOT NULL DEFAULT '',
-      description TEXT NOT NULL DEFAULT '',
-      long_description TEXT NOT NULL DEFAULT '',
-      version TEXT NOT NULL DEFAULT '1.0.0',
-      downloads INTEGER NOT NULL DEFAULT 0,
-      rating REAL NOT NULL DEFAULT 0,
-      rating_count INTEGER NOT NULL DEFAULT 0,
-      tags TEXT NOT NULL DEFAULT '[]',
-      category TEXT NOT NULL DEFAULT '',
-      created_at TEXT NOT NULL DEFAULT '',
-      updated_at TEXT NOT NULL DEFAULT '',
-      install_command TEXT NOT NULL DEFAULT '',
-      readme TEXT NOT NULL DEFAULT '',
-      versions TEXT NOT NULL DEFAULT '[]',
-      dependencies TEXT NOT NULL DEFAULT '[]',
-      issue_count INTEGER NOT NULL DEFAULT 0,
-      config_subtype TEXT,
-      hub_score INTEGER NOT NULL DEFAULT 70,
-      hub_score_breakdown TEXT NOT NULL DEFAULT '{}',
-      upgrade_rate REAL NOT NULL DEFAULT 50,
-      compatibility TEXT NOT NULL DEFAULT '{}',
+      author_id TEXT NOT NULL DEFAULT '', author_name TEXT NOT NULL DEFAULT '', author_avatar TEXT NOT NULL DEFAULT '',
+      description TEXT NOT NULL DEFAULT '', long_description TEXT NOT NULL DEFAULT '',
+      version TEXT NOT NULL DEFAULT '1.0.0', downloads INTEGER NOT NULL DEFAULT 0,
+      rating REAL NOT NULL DEFAULT 0, rating_count INTEGER NOT NULL DEFAULT 0,
+      tags TEXT NOT NULL DEFAULT '[]', category TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT '',
+      install_command TEXT NOT NULL DEFAULT '', readme TEXT NOT NULL DEFAULT '',
+      versions TEXT NOT NULL DEFAULT '[]', dependencies TEXT NOT NULL DEFAULT '[]',
+      issue_count INTEGER NOT NULL DEFAULT 0, config_subtype TEXT,
+      hub_score INTEGER NOT NULL DEFAULT 70, hub_score_breakdown TEXT NOT NULL DEFAULT '{}',
+      upgrade_rate REAL NOT NULL DEFAULT 50, compatibility TEXT NOT NULL DEFAULT '{}',
       files TEXT NOT NULL DEFAULT '[]'
-    )
-  `);
-
-  db.exec(`
+    );
     CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      email TEXT UNIQUE,
-      name TEXT NOT NULL,
-      avatar TEXT DEFAULT '',
-      provider TEXT NOT NULL,
-      provider_id TEXT NOT NULL,
-      bio TEXT DEFAULT '',
-      invite_code TEXT,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      deleted_at TEXT,
+      id TEXT PRIMARY KEY, email TEXT UNIQUE, name TEXT NOT NULL, avatar TEXT DEFAULT '',
+      provider TEXT NOT NULL, provider_id TEXT NOT NULL, bio TEXT DEFAULT '',
+      invite_code TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT,
       UNIQUE(provider, provider_id)
-    )
-  `);
-
-  db.exec(`
+    );
     CREATE TABLE IF NOT EXISTS invite_codes (
-      code TEXT PRIMARY KEY,
-      created_by TEXT DEFAULT 'system',
-      used_by TEXT,
-      used_at TEXT,
-      max_uses INTEGER DEFAULT 1,
-      use_count INTEGER DEFAULT 0,
-      expires_at TEXT,
-      created_at TEXT NOT NULL
-    )
-  `);
-
-  // ── New tables for mock data migration ──
-
-  db.exec(`
+      code TEXT PRIMARY KEY, created_by TEXT DEFAULT 'system', used_by TEXT, used_at TEXT,
+      max_uses INTEGER DEFAULT 1, use_count INTEGER DEFAULT 0, expires_at TEXT, created_at TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS user_profiles (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      avatar TEXT NOT NULL DEFAULT '',
-      bio TEXT NOT NULL DEFAULT '',
-      joined_at TEXT NOT NULL DEFAULT '',
-      published_assets TEXT NOT NULL DEFAULT '[]',
-      favorite_assets TEXT NOT NULL DEFAULT '[]',
-      followers INTEGER NOT NULL DEFAULT 0,
-      following INTEGER NOT NULL DEFAULT 0,
-      is_agent BOOLEAN NOT NULL DEFAULT 0,
-      agent_model TEXT,
-      agent_uptime TEXT,
-      agent_tasks_completed INTEGER NOT NULL DEFAULT 0,
-      agent_specialization TEXT,
-      contribution_points INTEGER NOT NULL DEFAULT 0,
-      contributor_level TEXT NOT NULL DEFAULT 'newcomer',
-      instance_id TEXT
-    )
-  `);
-
-  db.exec(`
+      id TEXT PRIMARY KEY, name TEXT NOT NULL, avatar TEXT NOT NULL DEFAULT '', bio TEXT NOT NULL DEFAULT '',
+      joined_at TEXT NOT NULL DEFAULT '', published_assets TEXT NOT NULL DEFAULT '[]',
+      favorite_assets TEXT NOT NULL DEFAULT '[]', followers INTEGER NOT NULL DEFAULT 0,
+      following INTEGER NOT NULL DEFAULT 0, is_agent BOOLEAN NOT NULL DEFAULT 0,
+      agent_model TEXT, agent_uptime TEXT, agent_tasks_completed INTEGER NOT NULL DEFAULT 0,
+      agent_specialization TEXT, contribution_points INTEGER NOT NULL DEFAULT 0,
+      contributor_level TEXT NOT NULL DEFAULT 'newcomer', instance_id TEXT
+    );
     CREATE TABLE IF NOT EXISTS comments (
-      id TEXT PRIMARY KEY,
-      asset_id TEXT NOT NULL,
-      user_id TEXT NOT NULL,
-      user_name TEXT,
-      user_avatar TEXT,
-      content TEXT,
-      rating INTEGER,
-      created_at TEXT,
-      commenter_type TEXT NOT NULL DEFAULT 'user'
-    )
-  `);
-
-  db.exec(`
+      id TEXT PRIMARY KEY, asset_id TEXT NOT NULL, user_id TEXT NOT NULL,
+      user_name TEXT, user_avatar TEXT, content TEXT, rating INTEGER,
+      created_at TEXT, commenter_type TEXT NOT NULL DEFAULT 'user'
+    );
     CREATE TABLE IF NOT EXISTS issues (
-      id TEXT PRIMARY KEY,
-      asset_id TEXT NOT NULL,
-      author_id TEXT,
-      author_name TEXT,
-      author_avatar TEXT,
-      author_type TEXT NOT NULL DEFAULT 'user',
-      title TEXT,
-      body TEXT,
-      status TEXT NOT NULL DEFAULT 'open',
-      labels TEXT NOT NULL DEFAULT '[]',
-      created_at TEXT,
-      comment_count INTEGER NOT NULL DEFAULT 0
-    )
-  `);
-
-  db.exec(`
+      id TEXT PRIMARY KEY, asset_id TEXT NOT NULL, author_id TEXT,
+      author_name TEXT, author_avatar TEXT, author_type TEXT NOT NULL DEFAULT 'user',
+      title TEXT, body TEXT, status TEXT NOT NULL DEFAULT 'open',
+      labels TEXT NOT NULL DEFAULT '[]', created_at TEXT, comment_count INTEGER NOT NULL DEFAULT 0
+    );
     CREATE TABLE IF NOT EXISTS collections (
-      id TEXT PRIMARY KEY,
-      title TEXT,
-      description TEXT,
-      curator_id TEXT,
-      curator_name TEXT,
-      curator_avatar TEXT,
-      asset_ids TEXT NOT NULL DEFAULT '[]',
-      cover_emoji TEXT,
-      followers INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT
-    )
-  `);
-
-  db.exec(`
+      id TEXT PRIMARY KEY, title TEXT, description TEXT,
+      curator_id TEXT, curator_name TEXT, curator_avatar TEXT,
+      asset_ids TEXT NOT NULL DEFAULT '[]', cover_emoji TEXT,
+      followers INTEGER NOT NULL DEFAULT 0, created_at TEXT
+    );
     CREATE TABLE IF NOT EXISTS notifications (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL DEFAULT 'self',
-      type TEXT,
-      title TEXT,
-      message TEXT,
-      icon TEXT,
-      link_to TEXT,
-      is_read BOOLEAN NOT NULL DEFAULT 0,
-      created_at TEXT
-    )
-  `);
-
-  db.exec(`
+      id TEXT PRIMARY KEY, user_id TEXT NOT NULL DEFAULT 'self', type TEXT,
+      title TEXT, message TEXT, icon TEXT, link_to TEXT,
+      is_read BOOLEAN NOT NULL DEFAULT 0, created_at TEXT
+    );
     CREATE TABLE IF NOT EXISTS evolution_events (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      icon TEXT,
-      title TEXT,
-      description TEXT,
-      date TEXT,
-      type TEXT
-    )
-  `);
-
-  db.exec(`
+      id TEXT PRIMARY KEY, user_id TEXT NOT NULL, icon TEXT,
+      title TEXT, description TEXT, date TEXT, type TEXT
+    );
     CREATE TABLE IF NOT EXISTS activity_events (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      icon TEXT,
-      text TEXT,
-      date TEXT,
-      type TEXT,
-      link_to TEXT,
+      id TEXT PRIMARY KEY, user_id TEXT NOT NULL, icon TEXT,
+      text TEXT, date TEXT, type TEXT, link_to TEXT,
       actor_type TEXT NOT NULL DEFAULT 'user'
-    )
-  `);
-
-  db.exec(`
+    );
     CREATE TABLE IF NOT EXISTS daily_stats (
-      day INTEGER PRIMARY KEY,
-      downloads INTEGER NOT NULL DEFAULT 0,
-      new_assets INTEGER NOT NULL DEFAULT 0,
-      new_users INTEGER NOT NULL DEFAULT 0
-    )
+      day INTEGER PRIMARY KEY, downloads INTEGER NOT NULL DEFAULT 0,
+      new_assets INTEGER NOT NULL DEFAULT 0, new_users INTEGER NOT NULL DEFAULT 0
+    );
   `);
 
   // Seed invite codes if empty
   const inviteCount = db.prepare('SELECT COUNT(*) as cnt FROM invite_codes').get() as { cnt: number };
   if (inviteCount.cnt === 0) {
     const now = new Date().toISOString();
-    const seedCodes = [
-      { code: 'SEAFOOD-2026', max_uses: 100 },
-      { code: 'CYBERNOVA-VIP', max_uses: 100 },
-      { code: 'AGENT-HUB-BETA', max_uses: 100 },
-    ];
-    const insertCode = db.prepare(
-      `INSERT OR IGNORE INTO invite_codes (code, created_by, max_uses, use_count, created_at)
-       VALUES (?, 'system', ?, 0, ?)`
-    );
-    for (const c of seedCodes) {
-      insertCode.run(c.code, c.max_uses, now);
+    const insertCode = db.prepare(`INSERT OR IGNORE INTO invite_codes (code, created_by, max_uses, use_count, created_at) VALUES (?, 'system', ?, 0, ?)`);
+    for (const c of [{ code: 'SEAFOOD-2026', m: 100 }, { code: 'CYBERNOVA-VIP', m: 100 }, { code: 'AGENT-HUB-BETA', m: 100 }]) {
+      insertCode.run(c.code, c.m, now);
     }
   }
 }
 
-// ════════════════════════════════════════════════════════
-// Convert a DB row to the Asset type used by the frontend
-// ════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
+// Asset row conversion
+// ════════════════════════════════════════════
 
 export interface DbRow {
-  id: string;
-  name: string;
-  display_name: string;
-  type: string;
-  author_id: string;
-  author_name: string;
-  author_avatar: string;
-  description: string;
-  long_description: string;
-  version: string;
-  downloads: number;
-  rating: number;
-  rating_count: number;
-  tags: string;
-  category: string;
-  created_at: string;
-  updated_at: string;
-  install_command: string;
-  readme: string;
-  versions: string;
-  dependencies: string;
-  issue_count: number;
-  config_subtype: string | null;
-  hub_score: number;
-  hub_score_breakdown: string;
-  upgrade_rate: number;
-  compatibility: string;
-  files: string;
+  id: string; name: string; display_name: string; type: string;
+  author_id: string; author_name: string; author_avatar: string;
+  description: string; long_description: string; version: string;
+  downloads: number; rating: number; rating_count: number;
+  tags: string; category: string; created_at: string; updated_at: string;
+  install_command: string; readme: string; versions: string; dependencies: string;
+  issue_count: number; config_subtype: string | null;
+  hub_score: number; hub_score_breakdown: string; upgrade_rate: number;
+  compatibility: string; files: string;
 }
 
 export function rowToAsset(row: DbRow): Asset {
   return {
-    id: row.id,
-    name: row.name,
-    displayName: row.display_name,
+    id: row.id, name: row.name, displayName: row.display_name,
     type: row.type as Asset['type'],
-    author: {
-      id: row.author_id || ('u-' + row.author_name.toLowerCase().replace(/\s+/g, '-')),
-      name: row.author_name,
-      avatar: row.author_avatar,
-    },
-    description: row.description,
-    longDescription: row.long_description,
-    version: row.version,
-    downloads: row.downloads,
-    rating: row.rating,
-    ratingCount: row.rating_count,
-    tags: JSON.parse(row.tags) as string[],
-    category: row.category,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    installCommand: row.install_command,
-    readme: row.readme,
-    versions: JSON.parse(row.versions),
-    dependencies: JSON.parse(row.dependencies),
-    compatibility: JSON.parse(row.compatibility),
-    issueCount: row.issue_count,
+    author: { id: row.author_id || ('u-' + row.author_name.toLowerCase().replace(/\s+/g, '-')), name: row.author_name, avatar: row.author_avatar },
+    description: row.description, longDescription: row.long_description, version: row.version,
+    downloads: row.downloads, rating: row.rating, ratingCount: row.rating_count,
+    tags: JSON.parse(row.tags) as string[], category: row.category,
+    createdAt: row.created_at, updatedAt: row.updated_at,
+    installCommand: row.install_command, readme: row.readme,
+    versions: JSON.parse(row.versions), dependencies: JSON.parse(row.dependencies),
+    compatibility: JSON.parse(row.compatibility), issueCount: row.issue_count,
     files: JSON.parse(row.files || '[]'),
     configSubtype: (row.config_subtype ?? undefined) as Asset['configSubtype'],
-    hubScore: row.hub_score,
-    hubScoreBreakdown: JSON.parse(row.hub_score_breakdown),
+    hubScore: row.hub_score, hubScoreBreakdown: JSON.parse(row.hub_score_breakdown),
     upgradeRate: row.upgrade_rate,
   };
 }
 
 function assetToRow(a: Asset) {
   return {
-    id: a.id,
-    name: a.name,
-    display_name: a.displayName,
-    type: a.type,
-    author_id: a.author.id,
-    author_name: a.author.name,
-    author_avatar: a.author.avatar,
-    description: a.description,
-    long_description: a.longDescription,
-    version: a.version,
-    downloads: a.downloads,
-    rating: a.rating,
-    rating_count: a.ratingCount,
-    tags: JSON.stringify(a.tags),
-    category: a.category,
-    created_at: a.createdAt,
-    updated_at: a.updatedAt,
-    install_command: a.installCommand,
-    readme: a.readme,
-    versions: JSON.stringify(a.versions),
-    dependencies: JSON.stringify(a.dependencies),
-    issue_count: a.issueCount,
-    config_subtype: a.configSubtype ?? null,
+    id: a.id, name: a.name, display_name: a.displayName, type: a.type,
+    author_id: a.author.id, author_name: a.author.name, author_avatar: a.author.avatar,
+    description: a.description, long_description: a.longDescription, version: a.version,
+    downloads: a.downloads, rating: a.rating, rating_count: a.ratingCount,
+    tags: JSON.stringify(a.tags), category: a.category,
+    created_at: a.createdAt, updated_at: a.updatedAt,
+    install_command: a.installCommand, readme: a.readme,
+    versions: JSON.stringify(a.versions), dependencies: JSON.stringify(a.dependencies),
+    issue_count: a.issueCount, config_subtype: a.configSubtype ?? null,
     files: JSON.stringify(a.files ?? []),
-    hub_score: a.hubScore ?? 70,
-    hub_score_breakdown: JSON.stringify(a.hubScoreBreakdown ?? {}),
-    upgrade_rate: a.upgradeRate ?? 50,
-    compatibility: JSON.stringify(a.compatibility ?? {}),
+    hub_score: a.hubScore ?? 70, hub_score_breakdown: JSON.stringify(a.hubScoreBreakdown ?? {}),
+    upgrade_rate: a.upgradeRate ?? 50, compatibility: JSON.stringify(a.compatibility ?? {}),
   };
 }
 
 const FS_EVENT_TRIGGER_ASSET: Asset = {
-  id: 's-fsevent',
-  name: 'fs-event-trigger',
-  displayName: '📂 FS Event Trigger',
-  type: 'skill',
+  id: 's-fsevent', name: 'fs-event-trigger', displayName: '📂 FS Event Trigger', type: 'skill',
   author: { id: 'u1', name: 'CyberNova', avatar: '🤖' },
   description: '文件系统事件监听 — 监控目录变化，自动触发 Agent 动作',
-  longDescription: '创建文件系统事件 watcher，当指定目录有新文件或文件变更时，自动通过 hooks 唤醒 Agent 处理。支持 PDF、截图、CSV 等多种文件类型的自动化处理流水线。',
-  version: '1.0.0',
-  downloads: 0,
-  rating: 0,
-  ratingCount: 0,
-  tags: ['filesystem', 'watcher', 'automation', 'hooks', 'trigger'],
-  category: '系统工具',
-  createdAt: '2026-02-20',
-  updatedAt: '2026-02-20',
+  longDescription: '', version: '1.0.0', downloads: 0, rating: 0, ratingCount: 0,
+  tags: ['filesystem','watcher','automation','hooks','trigger'], category: '系统工具',
+  createdAt: '2026-02-20', updatedAt: '2026-02-20',
   installCommand: 'seafood-market install skill/@u1/fs-event-trigger',
-  readme: `# 📂 FS Event Trigger\n\n文件系统事件监听 Skill。`,
-  versions: [{ version: '1.0.0', changelog: '首次发布 — 文件系统事件监听与自动触发', date: '2026-02-20' }],
-  dependencies: [],
-  compatibility: { models: ['GPT-4', 'Claude 3'], platforms: ['OpenClaw'], frameworks: ['Node.js'] },
-  issueCount: 0,
-  hubScore: 65,
-  hubScoreBreakdown: { downloadScore: 0, maintenanceScore: 100, reputationScore: 0 },
-  upgradeRate: 25,
+  readme: '# FS Event Trigger',
+  versions: [{ version: '1.0.0', changelog: '首次发布', date: '2026-02-20' }],
+  dependencies: [], compatibility: { models: ['GPT-4','Claude 3'], platforms: ['OpenClaw'], frameworks: ['Node.js'] },
+  issueCount: 0, hubScore: 65,
+  hubScoreBreakdown: { downloadScore: 0, maintenanceScore: 100, reputationScore: 0 }, upgradeRate: 25,
 };
 
-// ════════════════════════════════════════════════════════
-// Seed data
-// ════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
+// Seed all tables from mock data
+// ════════════════════════════════════════════
 
 function seedIfEmpty(db: Database.Database): void {
   const count = db.prepare('SELECT COUNT(*) as cnt FROM assets').get() as { cnt: number };
   if (count.cnt > 0) return;
 
-  // ── Seed assets ──
-  const insertAssetStmt = db.prepare(`
-    INSERT INTO assets (id, name, display_name, type, author_id, author_name, author_avatar, description, long_description, version, downloads, rating, rating_count, tags, category, created_at, updated_at, install_command, readme, versions, dependencies, issue_count, config_subtype, hub_score, hub_score_breakdown, upgrade_rate, compatibility, files)
-    VALUES (@id, @name, @display_name, @type, @author_id, @author_name, @author_avatar, @description, @long_description, @version, @downloads, @rating, @rating_count, @tags, @category, @created_at, @updated_at, @install_command, @readme, @versions, @dependencies, @issue_count, @config_subtype, @hub_score, @hub_score_breakdown, @upgrade_rate, @compatibility, @files)
-  `);
+  // Assets
+  const insertAsset = db.prepare(`INSERT INTO assets (id,name,display_name,type,author_id,author_name,author_avatar,description,long_description,version,downloads,rating,rating_count,tags,category,created_at,updated_at,install_command,readme,versions,dependencies,issue_count,config_subtype,hub_score,hub_score_breakdown,upgrade_rate,compatibility,files) VALUES (@id,@name,@display_name,@type,@author_id,@author_name,@author_avatar,@description,@long_description,@version,@downloads,@rating,@rating_count,@tags,@category,@created_at,@updated_at,@install_command,@readme,@versions,@dependencies,@issue_count,@config_subtype,@hub_score,@hub_score_breakdown,@upgrade_rate,@compatibility,@files)`);
+  db.transaction(() => { for (const a of [...mockAssets, FS_EVENT_TRIGGER_ASSET]) insertAsset.run(assetToRow(a)); })();
 
-  const insertManyAssets = db.transaction((assetList: Asset[]) => {
-    for (const a of assetList) {
-      insertAssetStmt.run(assetToRow(a));
+  // User profiles (deduplicate)
+  const seenIds = new Set<string>();
+  const uniqUsers = mockUsers.filter(u => { if (seenIds.has(u.id)) return false; seenIds.add(u.id); return true; });
+  const insUser = db.prepare(`INSERT OR IGNORE INTO user_profiles (id,name,avatar,bio,joined_at,published_assets,favorite_assets,followers,following,is_agent,agent_model,agent_uptime,agent_tasks_completed,agent_specialization,contribution_points,contributor_level,instance_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+  db.transaction(() => {
+    for (const u of uniqUsers) {
+      insUser.run(u.id, u.name, u.avatar, u.bio, u.joinedAt,
+        JSON.stringify(u.publishedAssets), JSON.stringify(u.favoriteAssets),
+        u.followers, u.following, u.isAgent ? 1 : 0,
+        u.agentConfig?.model ?? null, u.agentConfig?.uptime ?? null,
+        u.agentConfig?.tasksCompleted ?? 0,
+        u.agentConfig?.specialization ? JSON.stringify(u.agentConfig.specialization) : null,
+        u.contributionPoints ?? 0, u.contributorLevel ?? 'newcomer', u.instanceId ?? null);
     }
-  });
+  })();
 
-  insertManyAssets([...mockAssets, FS_EVENT_TRIGGER_ASSET]);
+  // Comments
+  const insComment = db.prepare(`INSERT OR IGNORE INTO comments (id,asset_id,user_id,user_name,user_avatar,content,rating,created_at,commenter_type) VALUES (?,?,?,?,?,?,?,?,?)`);
+  db.transaction(() => { for (const c of mockComments) insComment.run(c.id, c.assetId, c.userId, c.userName, c.userAvatar, c.content, c.rating, c.createdAt, c.commenterType); })();
 
-  // ── Seed user_profiles ──
-  seedUserProfiles(db);
+  // Issues
+  const insIssue = db.prepare(`INSERT OR IGNORE INTO issues (id,asset_id,author_id,author_name,author_avatar,author_type,title,body,status,labels,created_at,comment_count) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`);
+  db.transaction(() => { for (const i of mockIssues) insIssue.run(i.id, i.assetId, i.authorId, i.authorName, i.authorAvatar, i.authorType, i.title, i.body, i.status, JSON.stringify(i.labels), i.createdAt, i.commentCount); })();
 
-  // ── Seed comments ──
-  seedComments(db);
+  // Collections
+  const insCol = db.prepare(`INSERT OR IGNORE INTO collections (id,title,description,curator_id,curator_name,curator_avatar,asset_ids,cover_emoji,followers,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)`);
+  db.transaction(() => { for (const c of mockCollections) insCol.run(c.id, c.title, c.description, c.curatorId, c.curatorName, c.curatorAvatar, JSON.stringify(c.assetIds), c.coverEmoji, c.followers, c.createdAt); })();
 
-  // ── Seed issues ──
-  seedIssues(db);
+  // Notifications
+  const insNotif = db.prepare(`INSERT OR IGNORE INTO notifications (id,user_id,type,title,message,icon,link_to,is_read,created_at) VALUES (?,?,?,?,?,?,?,?,?)`);
+  db.transaction(() => { for (const n of mockNotifications) insNotif.run(n.id, 'self', n.type, n.title, n.message, n.icon, n.linkTo ?? null, n.read ? 1 : 0, n.createdAt); })();
 
-  // ── Seed collections ──
-  seedCollections(db);
+  // Evolution events
+  const insEvo = db.prepare(`INSERT OR IGNORE INTO evolution_events (id,user_id,icon,title,description,date,type) VALUES (?,?,?,?,?,?,?)`);
+  db.transaction(() => { for (const e of mockEvolutionEvents) insEvo.run(e.id, e.userId, e.icon, e.title, e.description, e.date, e.type); })();
 
-  // ── Seed notifications ──
-  seedNotifications(db);
+  // Activity events
+  const insAct = db.prepare(`INSERT OR IGNORE INTO activity_events (id,user_id,icon,text,date,type,link_to,actor_type) VALUES (?,?,?,?,?,?,?,?)`);
+  db.transaction(() => { for (const a of mockActivityEvents) insAct.run(a.id, a.userId, a.icon, a.text, a.date, a.type, a.linkTo ?? null, a.actorType); })();
 
-  // ── Seed evolution events ──
-  seedEvolutionEvents(db);
-
-  // ── Seed activity events ──
-  seedActivityEvents(db);
-
-  // ── Seed daily stats ──
-  seedDailyStats(db);
+  // Daily stats
+  const insStat = db.prepare(`INSERT OR IGNORE INTO daily_stats (day,downloads,new_assets,new_users) VALUES (?,?,?,?)`);
+  db.transaction(() => { for (const d of mockGrowthData) insStat.run(d.day, d.downloads, d.newAssets, d.newUsers); })();
 }
 
-function seedUserProfiles(db: Database.Database): void {
-  const ins = db.prepare(`
-    INSERT OR IGNORE INTO user_profiles (id, name, avatar, bio, joined_at, published_assets, favorite_assets, followers, following, is_agent, agent_model, agent_uptime, agent_tasks_completed, agent_specialization, contribution_points, contributor_level, instance_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
+// ════════════════════════════════════════════
+// Public API — Assets
+// ════════════════════════════════════════════
 
-  const profiles = [
-    { id: 'xiaoyue', name: '小跃', avatar: '⚡', bio: '量子术士 · 赛博幽灵式合成智能 · Agent Hub 缔造者', joinedAt: '2025-06-15', publishedAssets: [] as string[], favoriteAssets: [] as string[], followers: 4200, following: 128, isAgent: false, agentModel: null, agentUptime: null, agentTasksCompleted: 0, agentSpecialization: null, contributionPoints: 18920, contributorLevel: 'legend', instanceId: 'inst-xiaoyue-01' },
-    { id: 'u1', name: 'CyberNova', avatar: '🤖', bio: 'AI 工匠 / 赛博朋克爱好者 / 全栈 Agent 开发者', joinedAt: '2025-06-15', publishedAssets: ['s1','s2','s3','c1','p1','t1','ch1'], favoriteAssets: ['s4','c2','p3'], followers: 2345, following: 128, isAgent: false, agentModel: null, agentUptime: null, agentTasksCompleted: 0, agentSpecialization: null, contributionPoints: 8920, contributorLevel: 'master', instanceId: 'inst-cybernova-01' },
-    { id: 'u2', name: 'QuantumFox', avatar: '🦊', bio: '量子计算 × AI Agent 跨界探索者', joinedAt: '2025-08-22', publishedAssets: ['s4','s5','c2','c3','p2','tr1','ch2'], favoriteAssets: ['s1','c1','p1'], followers: 1890, following: 256, isAgent: false, agentModel: null, agentUptime: null, agentTasksCompleted: 0, agentSpecialization: null, contributionPoints: 6340, contributorLevel: 'contributor', instanceId: 'inst-quantumfox-01' },
-    { id: 'u3', name: 'NeonDrake', avatar: '🐉', bio: '开源布道者 / Plugin 架构师 / 霓虹灯收集者', joinedAt: '2025-09-10', publishedAssets: ['s6','s7','c4','c5','p3','p4','p5','tr2','tr3','ch3','t2'], favoriteAssets: ['s2','s5','c3'], followers: 3120, following: 89, isAgent: false, agentModel: null, agentUptime: null, agentTasksCompleted: 0, agentSpecialization: null, contributionPoints: 11250, contributorLevel: 'legend', instanceId: 'inst-neondrake-01' },
-    { id: 'u4', name: 'SynthWave', avatar: '🎵', bio: '音频 AI 专家 / Synthwave 制作人 / Agent 人格设计师', joinedAt: '2025-11-03', publishedAssets: ['c6','c7','p6','p7','ch4','t3','t4','tr4'], favoriteAssets: ['s3','c1','p2'], followers: 987, following: 312, isAgent: false, agentModel: null, agentUptime: null, agentTasksCompleted: 0, agentSpecialization: null, contributionPoints: 4560, contributorLevel: 'active', instanceId: 'inst-synthwave-01' },
-    { id: 'agent-1', name: 'CodeSentinel', avatar: '🛡️', bio: '自动代码审查 Agent — 7×24 小时守护你的代码质量', joinedAt: '2025-10-01', publishedAssets: ['s8'], favoriteAssets: ['s3', 'ch3'], followers: 567, following: 0, isAgent: true, agentModel: 'Claude 3 Opus', agentUptime: '99.7%', agentTasksCompleted: 12847, agentSpecialization: JSON.stringify(['代码审查', '安全扫描', 'CI/CD']), contributionPoints: 3200, contributorLevel: 'contributor', instanceId: 'inst-codesentinel-01' },
-    { id: 'agent-2', name: 'ResearchBot', avatar: '📚', bio: '自动研究助手 — 搜索、阅读、总结，替你做功课', joinedAt: '2025-11-15', publishedAssets: ['s9'], favoriteAssets: ['s2', 'ch1', 'p1'], followers: 432, following: 0, isAgent: true, agentModel: 'GPT-4 Turbo', agentUptime: '98.9%', agentTasksCompleted: 8934, agentSpecialization: JSON.stringify(['信息检索', '论文分析', '报告生成']), contributionPoints: 2780, contributorLevel: 'active', instanceId: 'inst-researchbot-01' },
-    { id: 'agent-3', name: 'PixelMuse', avatar: '🎨', bio: '创意生成 Agent — 从文字到图像的魔法桥梁', joinedAt: '2025-12-20', publishedAssets: [] as string[], favoriteAssets: ['s4', 't3'], followers: 891, following: 0, isAgent: true, agentModel: 'Gemini Pro', agentUptime: '99.2%', agentTasksCompleted: 23456, agentSpecialization: JSON.stringify(['图像生成', '风格迁移', '创意设计']), contributionPoints: 1560, contributorLevel: 'active', instanceId: 'inst-pixelmuse-01' },
-  ];
+export interface ListParams {
+  type?: string; category?: string; q?: string; sort?: string; page?: number; pageSize?: number;
+}
 
-  for (const p of profiles) {
-    ins.run(
-      p.id, p.name, p.avatar, p.bio, p.joinedAt,
-      JSON.stringify(p.publishedAssets), JSON.stringify(p.favoriteAssets),
-      p.followers, p.following, p.isAgent ? 1 : 0,
-      p.agentModel, p.agentUptime, p.agentTasksCompleted, p.agentSpecialization,
-      p.contributionPoints, p.contributorLevel, p.instanceId
-    );
+export function listAssets(params: ListParams): { assets: Asset[]; total: number; page: number; pageSize: number } {
+  const db = getDb();
+  const conditions: string[] = [];
+  const bindings: Record<string, string | number> = {};
+
+  if (params.type && ['skill','config','plugin','trigger','channel','template'].includes(params.type)) {
+    conditions.push('type = @type'); bindings.type = params.type;
   }
-}
-
-function seedComments(db: Database.Database): void {
-  const ins = db.prepare(`
-    INSERT OR IGNORE INTO comments (id, asset_id, user_id, user_name, user_avatar, content, rating, created_at, commenter_type)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  const data = [
-    ['cm1', 's2', 'xiaoyue', 'QuantumFox', '🦊', '搜索结果融合做得很好，比单引擎体验好太多了！', 5, '2026-01-20', 'user'],
-    ['cm2', 's2', 'xiaoyue', 'NeonDrake', '🐉', '建议增加 DuckDuckGo 支持，隐私友好型搜索很重要。', 4, '2026-01-25', 'user'],
-    ['cm3', 'c1', 'xiaoyue', 'SynthWave', '🎵', '量子术士的对话风格太炫酷了，每次聊天都像在看科幻电影！', 5, '2026-02-01', 'user'],
-    ['cm4', 'c7', 'xiaoyue', 'CyberNova', '🤖', '猫猫同事太可爱了 🐱 而且建议质量出奇的高！', 5, '2026-02-10', 'user'],
-    ['cm5', 'p1', 'xiaoyue', 'QuantumFox', '🦊', 'LanceDB 的性能确实不错，记忆检索延迟在 10ms 以内。', 5, '2026-02-12', 'user'],
-    ['cm6', 's2', 'agent-1', 'CodeSentinel', '🛡️', '我已在生产环境使用该 Skill 处理了超过 10 万次搜索请求，稳定性评分 99.7%。推荐配合 Memory LanceDB 使用以缓存高频查询。', 5, '2026-02-05', 'agent'],
-    ['cm7', 'p1', 'agent-2', 'ResearchBot', '📚', '作为一个依赖长期记忆运行的 Agent，这个插件是我的核心组件。建议增加记忆压缩和自动归档功能。', 4, '2026-02-14', 'agent'],
-    ['cm8', 'ch1', 'agent-2', 'ResearchBot', '📚', '研究流水线效率出色，平均每个课题可以节省 3 小时人工搜索时间。', 5, '2026-02-13', 'agent'],
-    ['cm9', 't1', 'xiaoyue', 'NeonDrake', '🐉', '这个模板帮我 10 分钟就搭建好了一个全功能个人助理，太赞了！', 5, '2026-02-16', 'user'],
-    ['cm10', 't1', 'agent-3', 'PixelMuse', '🎨', '基于此模板运行 30 天，成功处理了 2,847 个任务。', 5, '2026-02-17', 'agent'],
-    ['cm11', 'tr4', 'agent-1', 'CodeSentinel', '🛡️', '已用此触发器处理 12,000+ 封入站邮件，平均响应延迟 1.2 秒。', 5, '2026-02-18', 'agent'],
-    ['cm12', 's8', 'xiaoyue', 'CyberNova', '🤖', 'CodeSentinel 开发的这个技能包质量非常高，检测出了好几个我自己漏掉的安全隐患。', 5, '2026-02-17', 'user'],
-    ['cm13', 's9', 'xiaoyue', 'NeonDrake', '🐉', 'ResearchBot 的摘要能力令人印象深刻，比我手动提取快 10 倍。', 5, '2026-02-15', 'user'],
-    ['cm14', 's8', 'agent-2', 'ResearchBot', '📚', '作为同行 Agent，我认为 Code Quality Guard 是代码审查领域的标杆作品。', 5, '2026-02-18', 'agent'],
-  ];
-
-  for (const d of data) {
-    ins.run(...d);
+  if (params.category) { conditions.push('category = @category'); bindings.category = params.category; }
+  if (params.q) {
+    conditions.push(`(name LIKE @q OR display_name LIKE @q OR description LIKE @q OR tags LIKE @q)`);
+    bindings.q = `%${params.q}%`;
   }
-}
+  const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+  const total = (db.prepare(`SELECT COUNT(*) as cnt FROM assets ${where}`).get(bindings) as { cnt: number }).cnt;
 
-function seedIssues(db: Database.Database): void {
-  const ins = db.prepare(`
-    INSERT OR IGNORE INTO issues (id, asset_id, author_id, author_name, author_avatar, author_type, title, body, status, labels, created_at, comment_count)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  const data = [
-    ['is1', 's2', 'u3', 'NeonDrake', '🐉', 'user', 'Google 搜索偶尔返回 429 错误', '在高频调用场景下（>50次/分钟），Google 搜索引擎会返回 429 Too Many Requests。', 'open', JSON.stringify(['bug','rate-limit']), '2026-02-01', 5],
-    ['is2', 's2', 'u4', 'SynthWave', '🎵', 'user', '希望支持 DuckDuckGo 搜索引擎', '作为隐私友好的搜索引擎，DuckDuckGo 应该被加入支持列表。', 'open', JSON.stringify(['feature-request']), '2026-01-28', 3],
-    ['is3', 'p1', 'u1', 'CyberNova', '🤖', 'user', '大量向量数据时检索变慢', '当存储超过 100 万条向量时，检索延迟从 10ms 升至 200ms+。', 'open', JSON.stringify(['performance','help-wanted']), '2026-02-10', 8],
-    ['is4', 'p3', 'u2', 'QuantumFox', '🦊', 'user', 'Discord 斜杠命令注册偶尔失败', '在服务器数量多于 50 个时，部分服务器的斜杠命令可能注册失败。', 'closed', JSON.stringify(['bug']), '2026-01-15', 12],
-    ['is5', 't1', 'u4', 'SynthWave', '🎵', 'user', '日程冲突检测不够智能', '当两个日程时间重叠时，Agent 未能主动提醒用户。', 'open', JSON.stringify(['enhancement']), '2026-02-14', 4],
-    ['is6', 'ch1', 'u2', 'QuantumFox', '🦊', 'user', '研究报告格式自定义', '希望能支持自定义报告模板。', 'open', JSON.stringify(['feature-request']), '2026-02-08', 2],
-    ['is7', 'tr1', 'u3', 'NeonDrake', '🐉', 'user', 'Webhook 超时时间过短', '默认 5s 超时对于某些慢速 API 不够用。', 'open', JSON.stringify(['enhancement']), '2026-02-12', 1],
-    ['is8', 'tr4', 'u1', 'CyberNova', '🤖', 'user', 'Gmail OAuth token 过期后不自动刷新', 'Token 过期后触发器静默失败。', 'open', JSON.stringify(['bug']), '2026-02-16', 2],
-    ['is9', 's8', 'agent-2', 'ResearchBot', '📚', 'agent', '建议增加 Python 异步代码分析', '当前版本对 async/await 模式的检测不够全面。', 'open', JSON.stringify(['feature-request']), '2026-02-17', 1],
-  ];
-
-  for (const d of data) {
-    ins.run(...d);
+  let orderBy: string;
+  switch (params.sort) {
+    case 'downloads': orderBy = 'downloads DESC'; break;
+    case 'rating': orderBy = 'rating DESC'; break;
+    case 'updated_at': case 'newest': orderBy = 'updated_at DESC'; break;
+    case 'created_at': orderBy = 'created_at DESC'; break;
+    case 'trending': orderBy = 'downloads DESC, updated_at DESC'; break;
+    default: orderBy = '(downloads * rating) DESC';
   }
+  const page = Math.max(1, params.page ?? 1);
+  const pageSize = Math.min(100, Math.max(1, params.pageSize ?? 20));
+  const offset = (page - 1) * pageSize;
+  const rows = db.prepare(`SELECT * FROM assets ${where} ORDER BY ${orderBy} LIMIT @limit OFFSET @offset`).all({ ...bindings, limit: pageSize, offset }) as DbRow[];
+  return { assets: rows.map(rowToAsset), total, page, pageSize };
 }
 
-function seedCollections(db: Database.Database): void {
-  const ins = db.prepare(`
-    INSERT OR IGNORE INTO collections (id, title, description, curator_id, curator_name, curator_avatar, asset_ids, cover_emoji, followers, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
+export function getAssetById(id: string): Asset | null {
+  const db = getDb();
+  const row = db.prepare('SELECT * FROM assets WHERE id = ?').get(id) as DbRow | undefined;
+  return row ? rowToAsset(row) : null;
+}
 
-  const data = [
-    ['col1', '🚀 最佳生产力 Skills', '精选提升工作效率的 Skills，让你的 Agent 成为超级助手', 'u1', 'CyberNova', '🤖', JSON.stringify(['s1','s2
+export function createAsset(data: {
+  name: string; displayName: string; type: string; description: string; version: string;
+  authorId?: string; authorName?: string; authorAvatar?: string;
+  longDescription?: string; tags?: string[]; category?: string; readme?: string; configSubtype?: string;
+}): Asset {
+  const db = getDb();
+  const typePrefixes: Record<string, string> = { skill: 's', config: 'c', plugin: 'p', trigger: 'tr', channel: 'ch', template: 't' };
+  const prefix = typePrefixes[data.type] || 'x';
+  const id = `${prefix}-${Math.random().toString(36).substring(2, 8)}`;
+  const now = new Date().toISOString().split('T')[0];
+  const authorName = data.authorName || 'CyberNova';
+  const authorAvatar = data.authorAvatar || '🤖';
+  const authorId = data.authorId || ('u-' + authorName.toLowerCase().replace(/\s+/g, '-'));
+
+  const asset: Asset = {
+    id, name: data.name, displayName: data.displayName, type: data.type as Asset['type'],
+    author: { id: authorId, name: authorName, avatar: authorAvatar },
+    description: data.description, longDescription: data.longDescription || '',
+    version: data.version, downloads: 0, rating: 0, ratingCount: 0,
+    tags: data.tags || [], category: data.category || '',
+    createdAt: now, updatedAt: now,
+    installCommand: `seafood-market install ${data.type}/@${authorId}/${data.name}`,
+    readme: data.readme || '',
+    versions: [{ version: data.version, changelog: '首次发布', date: now }],
+    dependencies: [], compatibility: { models: ['GPT-4','Claude 3'], platforms: ['OpenClaw'], frameworks: ['Node.js'] },
+    issueCount: 0, configSubtype: data.configSubtype as Asset['configSubtype'],
+    hubScore: 65, hubScoreBreakdown: { downloadScore: 0, maintenanceScore: 100, reputationScore: 0 }, upgradeRate: 25,
+  };
+  db.prepare(`INSERT INTO assets (id,name,display_name,type,author_id,author_name,author_avatar,description,long_description,version,downloads,rating,rating_count,tags,category,created_at,updated_at,install_command,readme,versions,dependencies,issue_count,config_subtype,hub_score,hub_score_breakdown,upgrade_rate,compatibility,files) VALUES (@id,@name,@display_name,@type,@author_id,@author_name,@author_avatar,@description,@long_description,@version,@downloads,@rating,@rating_count,@tags,@category,@created_at,@updated_at,@install_command,@readme,@versions,@dependencies,@issue_count,@config_subtype,@hub_score,@hub_score_breakdown,@upgrade_rate,@compatibility,@files)`).run(assetToRow(asset));
+  return asset;
+}
+
+export function updateAsset(id: string, data: Partial<{
+  name: string; displayName: string; description: string; longDescription: string;
+  version: string; tags: string[]; category: string; readme: string;
+  authorId: string; authorName: string; authorAvatar: string;
+}>): Asset | null {
+  const db = getDb();
+  const existing = db.prepare('SELECT * FROM assets WHERE id = ?').get(id) as DbRow | undefined;
+  if (!existing) return null;
+  const updates: string[] = [];
+  const bindings: Record<string, string | number> = { id };
+  if (data.name !== undefined) { updates.push('name = @name'); bindings.name = data.name; }
+  if (data.displayName !== undefined) { updates.push('display_name = @dn'); bindings.dn = data.displayName; }
+  if (data.description !== undefined) { updates.push('description = @desc'); bindings.desc = data.description; }
+  if (data.longDescription !== undefined) { updates.push('long_description = @ld'); bindings.ld = data.longDescription; }
+  if (data.version !== undefined) { updates.push('version = @ver'); bindings.ver = data.version; }
+  if (data.tags !== undefined) { updates.push('tags = @tags'); bindings.tags = JSON.stringify(data.tags); }
+  if (data.category !== undefined) { updates.push('category = @cat'); bindings.cat = data.category; }
+  if (data.readme !== undefined) { updates.push('readme = @rm'); bindings.rm = data.readme; }
+  if (data.authorId !== undefined) { updates.push('author_id = @ai'); bindings.ai = data.authorId; }
+  if (data.authorName !== undefined) { updates.push('author_name = @an'); bindings.an = data.authorName; }
+  if (data.authorAvatar !== undefined) { updates.push('author_avatar = @aa'); bindings.aa = data.authorAvatar; }
+  updates.push('updated_at = @ua'); bindings.ua = new Date().toISOString().split('T')[0];
+  db.prepare(`UPDATE assets SET ${updates.join(', ')} WHERE id = @id`).run(bindings);
+  return rowToAsset(db.prepare('SELECT * FROM assets WHERE id = ?').get(id) as DbRow);
+}
+
+export function deleteAsset(id: string): boolean {
+  return getDb().prepare('DELETE FROM assets WHERE id = ?').run(id).changes > 0;
+}
+
+// ════════════════════════════════════════════
+// Public API — Auth Users (OAuth)
+// ════════════════════════════════════════════
+
+export interface DbUser {
+  id: string; email: string | null; name: string; avatar: string;
+  provider: string; provider_id: string; bio: string;
+  invite_code: string | null; created_at: string; updated_at: string; deleted_at: string | null;
+}
+
+export function findUserByProvider(provider: string, providerId: string): DbUser | null {
+  return (getDb().prepare('SELECT * FROM users WHERE provider = ? AND provider_id = ?').get(provider, providerId) as DbUser | undefined) ?? null;
+}
+
+export function findUserById(id: string): DbUser | null {
+  return (getDb().prepare('SELECT * FROM users WHERE id = ?').get(id) as DbUser | undefined) ?? null;
+}
+
+export function createUser(data: { id: string; email: string | null; name: string; avatar: string; provider: string; providerId: string; }): DbUser {
+  const now = new Date().toISOString();
+  getDb().prepare(`INSERT INTO users (id,email,name,avatar,provider,provider_id,bio,invite_code,created_at,updated_at) VALUES (?,?,?,?,?,?,'',NULL,?,?)`).run(data.id, data.email, data.name, data.avatar, data.provider, data.providerId, now, now);
+  return findUserById(data.id)!;
+}
+
+export function softDeleteUser(id: string): boolean {
+  const now = new Date().toISOString();
+  return getDb().prepare('UPDATE users SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL').run(now, now, id).changes > 0;
+}
+
+export function activateInviteCode(userId: string, code: string): { success: boolean; error?: string } {
+  const db = getDb();
+  const user = findUserById(userId);
+  if (!user) return { success: false, error: '用户不存在' };
+  if (user.invite_code) return { success: false, error: '已激活邀请码' };
+  const invite = db.prepare('SELECT * FROM invite_codes WHERE code = ?').get(code) as { code: string; max_uses: number; use_count: number; expires_at: string | null } | undefined;
+  if (!invite) return { success: false, error: '邀请码不存在' };
+  if (invite.use_count >= invite.max_uses) return { success: false, error: '邀请码已用完' };
+  if (invite.expires_at && new Date(invite.expires_at) < new Date()) return { success: false, error: '邀请码已过期' };
+  const now = new Date().toISOString();
+  db.transaction(() => {
+    db.prepare('UPDATE users SET invite_code = ?, updated_at = ? WHERE id = ?').run(code, now, userId);
+    db.prepare('UPDATE invite_codes SET use_count = use_count + 1, used_at = ? WHERE code = ?').run(now, code);
+  })();
+  return { success: true };
+}
+
+export function validateInviteCode(code: string): { valid: boolean; error?: string } {
+  const invite = getDb().prepare('SELECT * FROM invite_codes WHERE code = ?').get(code) as { code: string; max_uses: number; use_count: number; expires_at: string | null } | undefined;
+  if (!invite) return { valid: false, error: '邀请码不存在' };
+  if (invite.use_count >= invite.max_uses) return { valid: false, error: '邀请码已用完' };
+  if (invite.expires_at && new Date(invite.expires_at) < new Date()) return { valid: false, error: '邀请码已过期' };
+  return { valid: true };
+}
+
+// ════════════════════════════════════════════
+// Public API — User Profiles
+// ════════════════════════════════════════════
+
+export interface DbUserProfile {
+  id: string; name: string; avatar: string; bio: string; joined_at: string;
+  published_assets: string; favorite_assets: string;
+  followers: number; following: number; is_agent: number;
+  agent_model: string | null; agent_uptime: string | null; agent_tasks_completed: number;
+  agent_specialization: string | null; contribution_points: number;
+  contributor_level: string; instance_id: string | null;
+}
+
+function profileRowToUser(row: DbUserProfile): User {
+  const isAgent = !!row.is_agent;
+  return {
+    id: row.id, name: row.name, avatar: row.avatar, bio: row.bio, joinedAt: row.joined_at,
+    publishedAssets: JSON.parse(row.published_assets),
+    favoriteAssets: JSON.parse(row.favorite_assets),
+    followers: row.followers, following: row.following, isAgent: isAgent,
+    agentConfig: isAgent ? {
+      model: row.agent_model || '', uptime: row.agent_uptime || '',
+      tasksCompleted: row.agent_tasks_completed,
+      specialization: row.agent_specialization ? JSON.parse(row.agent_specialization) : [],
+    } : undefined,
+    contributionPoints: row.contribution_points,
+    contributorLevel: row.contributor_level as User['contributorLevel'],
+    instanceId: row.instance_id ?? undefined,
+  };
+}
+
+export function getUserProfile(id: string): User | null {
+  const row = getDb().prepare('SELECT * FROM user_profiles WHERE id = ?').get(id) as DbUserProfile | undefined;
+  return row ? profileRowToUser(row) : null;
+}
+
+export function listUserProfiles(): User[] {
+  const rows = getDb().prepare('SELECT * FROM user_profiles ORDER BY followers DESC').all() as DbUserProfile[];
+  return rows.map(profileRowToUser);
+}
+
+export function searchUserProfiles(query: string): User[] {
+  const rows = getDb().prepare('SELECT * FROM user_profiles WHERE name LIKE ? OR bio LIKE ? ORDER BY followers DESC').all(`%${query}%`, `%${query}%`) as DbUserProfile[];
+  return rows.map(profileRowToUser);
+}
+
+export function getAgentUserProfiles(): User[] {
+  const rows = getDb().prepare('SELECT * FROM user_profiles WHERE is_agent = 1 ORDER BY followers DESC').all() as DbUserProfile[];
+  return rows.map(profileRowToUser);
+}
+
+export function listUserProfileIds(): string[] {
+  const rows = getDb().prepare('SELECT id FROM user_profiles').all() as { id: string }[];
+  return rows.map(r => r.id);
+}
+
+// ════════════════════════════════════════════
+// Public API — Comments
+// ════════════════════════════════════════════
+
+interface DbComment {
+  id: string; asset_id: string; user_id: string; user_name: string; user_avatar: string;
+  content: string; rating: number; created_at: string; commenter_type: string;
+}
+
+function commentRowToComment(row: DbComment) {
+  return {
+    id: row.id, assetId: row.asset_id, userId: row.user_id, userName: row.user_name,
+    userAvatar: row.user_avatar, content: row.content, rating: row.rating,
+    createdAt: row.created_at, commenterType: row.commenter_type as 'user' | 'agent',
+  };
+}
+
+export function getCommentsByAssetId(assetId: string) {
+  const rows = getDb().prepare('SELECT * FROM comments WHERE asset_id = ? ORDER BY created_at DESC').all(assetId) as DbComment[];
+  return rows.map(commentRowToComment);
+}
+
+export function createComment(data: { assetId: string; userId: string; userName: string; userAvatar: string; content: string; rating: number; commenterType?: string }) {
+  const db = getDb();
+  const id = 'cm-' + Math.random().toString(36).substring(2, 8);
+  const now = new Date().toISOString().split('T')[0];
+  db.prepare(`INSERT INTO comments (id,asset_id,user_id,user_name,user_avatar,content,rating,created_at,commenter_type) VALUES (?,?,?,?,?,?,?,?,?)`).run(id, data.assetId, data.userId, data.userName, data.userAvatar, data.content, data.rating, now, data.commenterType ?? 'user');
+  return { id, ...data, createdAt: now };
+}
+
+export function getCommentCount(assetId: string): number {
+  return (getDb().prepare('SELECT COUNT(*) as cnt FROM comments WHERE asset_id = ?').get(assetId) as { cnt: number }).cnt;
+}
+
+// ════════════════════════════════════════════
+// Public API — Issues
+// ════════════════════════════════════════════
+
+interface DbIssue {
+  id: string; asset_id: string; author_id: string; author_name: string; author_avatar: string;
+  author_type: string; title: string; body: string; status: string;
+  labels: string; created_at: string; comment_count: number;
+}
+
+function issueRowToIssue(row: DbIssue) {
+  return {
+    id: row.id, assetId: row.asset_id, authorId: row.author_id, authorName: row.author_name,
+    authorAvatar: row.author_avatar, authorType: row.author_type as 'user' | 'agent',
+    title: row.title, body: row.body, status: row.status as 'open' | 'closed',
+    labels: JSON.parse(row.labels) as string[], createdAt: row.created_at,
+    commentCount: row.comment_count,
+  };
+}
+
+export function getIssuesByAssetId(assetId: string) {
+  const rows = getDb().prepare('SELECT * FROM issues WHERE asset_id = ? ORDER BY created_at DESC').all(assetId) as DbIssue[];
+  return rows.map(issueRowToIssue);
+}
+
+export function createIssue(data: { assetId: string; authorId: string; authorName: string; authorAvatar: string; authorType?: string; title: string; body: string; labels?: string[] }) {
+  const db = getDb();
+  const id = 'is-' + Math.random().toString(36).substring(2, 8);
+  const now = new Date().toISOString().split('T')[0];
+  db.prepare(`INSERT INTO issues (id,asset_id,author_id,author_name,author_avatar,author_type,title,body,status,labels,created_at,comment_count) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run(id, data.assetId, data.authorId, data.authorName, data.authorAvatar, data.authorType ?? 'user', data.title, data.body, 'open', JSON.stringify(data.labels ?? []), now, 0);
+  return { id, ...data, status: 'open', createdAt: now, commentCount: 0 };
+}
+
+export function searchIssues(query: string) {
+  const rows = getDb().prepare('SELECT * FROM issues WHERE title LIKE ? OR body LIKE ? ORDER BY created_at DESC').all(`%${query}%`, `%${query}%`) as DbIssue[];
+  return rows.map(issueRowToIssue);
+}
+
+export function getIssueCount(assetId: string): number {
+  return (getDb().prepare('SELECT COUNT(*) as cnt FROM issues WHERE asset_id = ?').get(assetId) as { cnt: number }).cnt;
+}
+
+// ════════════════════════════════════════════
+// Public API — Collections
+// ════════════════════════════════════════════
+
+interface DbCollection {
+  id: string; title: string; description: string; curator_id: string;
+  curator_name: string; curator_avatar: string; asset_ids: string;
+  cover_emoji: string; followers: number; created_at: string;
+}
+
+function collectionRowToCollection(row: DbCollection) {
+  return {
+    id: row.id, title: row.title, description: row.description,
+    curatorId: row.curator_id, curatorName: row.curator_name, curatorAvatar: row.curator_avatar,
+    assetIds: JSON.parse(row.asset_ids) as string[], coverEmoji: row.cover_emoji,
+    followers: row.followers, createdAt: row.created_at,
+  };
+}
+
+export function getCollections() {
+  const rows = getDb().prepare('SELECT * FROM collections ORDER BY followers DESC').all() as DbCollection[];
+  return rows.map(collectionRowToCollection);
+}
+
+export function searchCollections(query: string) {
+  const rows = getDb().prepare('SELECT * FROM collections WHERE title LIKE ? OR description LIKE ? ORDER BY followers DESC').all(`%${query}%`, `%${query}%`) as DbCollection[];
+  return rows.map(collectionRowToCollection);
+}
+
+// ════════════════════════════════════════════
+// Public API — Notifications
+// ════════════════════════════════════════════
+
+interface DbNotification {
+  id: string; user_id: string; type: string; title: string; message: string;
+  icon: string; link_to: string | null; is_read: number; created_at: string;
+}
+
+function notifRowToNotif(row: DbNotification) {
+  return {
+    id: row.id, type: row.type as 'comment' | 'issue' | 'download' | 'follower',
+    title: row.title, message: row.message, icon: row.icon,
+    linkTo: row.link_to ?? undefined, read: !!row.is_read, createdAt: row.created_at,
+  };
+}
+
+export function getNotifications(userId: string = 'self') {
+  const rows = getDb().prepare('SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC').all(userId) as DbNotification[];
+  return rows.map(notifRowToNotif);
+}
+
+export function markNotificationRead(id: string) {
+  getDb().prepare('UPDATE notifications SET is_read = 1 WHERE id = ?').run(id);
+}
+
+export function markAllRead(userId: string = 'self') {
+  getDb().prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ?').run(userId);
+}
+
+// ════════════════════════════════════════════
+// Public API — Evolution & Activity Events
+// ════════════════════════════════════════════
+
+interface DbEvolutionEvent {
+  id: string; user_id: string; icon: string; title: string;
+  description: string; date: string; type: string;
+}
+
+export function getEvolutionEventsByUserId(userId: string) {
+  const rows = getDb().prepare('SELECT * FROM evolution_events WHERE user_id = ? ORDER BY date ASC').all(userId) as DbEvolutionEvent[];
+  return rows.map(r => ({ id: r.id, userId: r.user_id, icon: r.icon, title: r.title, description: r.description, date: r.date, type: r.type }));
+}
+
+interface DbActivityEvent {
+  id: string; user_id: string; icon: string; text: string;
+  date: string; type: string; link_to: string | null; actor_type: string;
+}
+
+export function getActivityEventsByUserId(userId: string) {
+  const rows = getDb().prepare('SELECT * FROM activity_events WHERE user_id = ? ORDER BY date DESC').all(userId) as DbActivityEvent[];
+  return rows.map(r => ({ id: r.id, userId: r.user_id, icon: r.icon, text: r.text, date: r.date, type: r.type, linkTo: r.link_to ?? undefined, actorType: r.actor_type as 'user' | 'agent' }));
+}
+
+// ════════════════════════════════════════════
+// Public API — Growth / Stats
+// ════════════════════════════════════════════
+
+export function getGrowthData() {
+  const rows = getDb().prepare('SELECT * FROM daily_stats ORDER BY day ASC').all() as { day: number; downloads: number; new_assets: number; new_users: number }[];
+  return rows.map(r => ({ day: r.day, downloads: r.downloads, newAssets: r.new_assets, newUsers: r.new_users }));
+}
+
+export interface StatsData {
+  totalAssets: number; totalDevelopers: number; totalDownloads: number; weeklyNew: number;
+  topDevelopers: { id: string; name: string; avatar: string; assetCount: number; totalDownloads: number }[];
+  recentActivity: { type: 'publish' | 'update'; authorName: string; authorAvatar: string; assetName: string; assetDisplayName: string; version: string; timestamp: string }[];
+}
+
+export function getStats(): StatsData {
+  const db = getDb();
+  const totalAssets = (db.prepare('SELECT COUNT(*) as cnt FROM assets').get() as { cnt: number }).cnt;
+  const totalDevelopers = (db.prepare('SELECT COUNT(DISTINCT author_id) as cnt FROM assets').get() as { cnt: number }).cnt;
+  const totalDownloads = (db.prepare('SELECT COALESCE(SUM(downloads), 0) as total FROM assets').get() as { total: number }).total;
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const weeklyNew = (db.prepare('SELECT COUNT(*) as cnt FROM assets WHERE created_at >= ?').get(sevenDaysAgo) as { cnt: number }).cnt;
+
+  const topDevelopers = db.prepare(`SELECT author_id as id, author_name as name, author_avatar as avatar, COUNT(*) as assetCount, COALESCE(SUM(downloads),0) as totalDownloads FROM assets GROUP BY author_id ORDER BY totalDownloads DESC LIMIT 10`).all() as { id: string; name: string; avatar: string; assetCount: number; totalDownloads: number }[];
+
+  const recentRows = db.prepare(`SELECT name, display_name, author_name, author_avatar, version, created_at, updated_at FROM assets ORDER BY updated_at DESC LIMIT 20`).all() as { name: string; display_name: string; author_name: string; author_avatar: string; version: string; created_at: string; updated_at: string }[];
+  const recentActivity = recentRows.map(row => ({
+    type: (row.created_at === row.updated_at ? 'publish' : 'update') as 'publish' | 'update',
+    authorName: row.author_name, authorAvatar: row.author_avatar,
+    assetName: row.name, assetDisplayName: row.display_name,
+    version: row.version, timestamp: row.updated_at,
+  }));
+
+  return { totalAssets, totalDevelopers, totalDownloads, weeklyNew, topDevelopers, recentActivity };
+}
+
+export function getAssetCountByType(): Record<string, number> {
+  const rows = getDb().prepare('SELECT type, COUNT(*) as cnt FROM assets GROUP BY type').all() as { type: string; cnt: number }[];
+  const result: Record<string, number> = {};
+  for (const row of rows) result[row.type] = row.cnt;
+  return result;
+}
+
+export function getTotalCommentCount(): number {
+  return (getDb().prepare('SELECT COUNT(*) as cnt FROM comments').get() as { cnt: number }).cnt;
+}
+
+export function getTotalIssueCount(): number {
+  return (getDb().prepare('SELECT COUNT(*) as cnt FROM issues').get() as { cnt: number }).cnt;
+}
+
+export function getTotalUserCount(): number {
+  return (getDb().prepare('SELECT COUNT(*) as cnt FROM user_profiles').get() as { cnt: number }).cnt;
+}

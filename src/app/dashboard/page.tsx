@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import {
-  comments, issues, getAssetById,
   formatDownloads, typeConfig, Asset, Comment, Issue,
 } from '@/data/mock';
 
@@ -56,8 +55,8 @@ function MyAssetRow({ asset }: { asset: Asset }) {
   );
 }
 
-function CommentRow({ comment }: { comment: Comment }) {
-  const asset = getAssetById(comment.assetId);
+function CommentRow({ comment, assets }: { comment: Comment; assets: Asset[] }) {
+  const asset = assets.find(a => a.id === comment.assetId);
   const isAgent = comment.commenterType === 'agent';
 
   return (
@@ -80,8 +79,8 @@ function CommentRow({ comment }: { comment: Comment }) {
   );
 }
 
-function IssueRow({ issue }: { issue: Issue }) {
-  const asset = getAssetById(issue.assetId);
+function IssueRow({ issue, assets }: { issue: Issue; assets: Asset[] }) {
+  const asset = assets.find(a => a.id === issue.assetId);
   const isOpen = issue.status === 'open';
   const isAgent = issue.authorType === 'agent';
 
@@ -121,17 +120,21 @@ function IssueRow({ issue }: { issue: Issue }) {
 export default function DashboardPage() {
   const { user, isLoading: authLoading } = useAuth();
   const [allAssets, setAllAssets] = useState<Asset[]>([]);
+  const [allComments, setAllComments] = useState<Comment[]>([]);
+  const [allIssues, setAllIssues] = useState<Issue[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/assets?pageSize=100')
+    fetch('/api/dashboard')
       .then(res => res.json())
       .then(json => {
-        if (json.success && json.data?.assets) {
-          setAllAssets(json.data.assets);
+        if (json.success && json.data) {
+          setAllAssets(json.data.assets || []);
+          setAllComments(json.data.comments || []);
+          setAllIssues(json.data.issues || []);
         }
       })
-      .catch(err => console.error('Failed to fetch assets:', err))
+      .catch(err => console.error('Failed to fetch dashboard data:', err))
       .finally(() => setLoading(false));
   }, []);
 
@@ -171,15 +174,13 @@ export default function DashboardPage() {
 
   // Recent comments on my assets
   const myAssetIds = new Set(myAssets.map(a => a.id));
-  const recentComments = comments
+  const recentComments = allComments
     .filter(c => myAssetIds.has(c.assetId))
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 5);
 
   // Recent issues on my assets
-  const recentIssues = issues
+  const recentIssues = allIssues
     .filter(i => myAssetIds.has(i.assetId))
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 5);
 
   return (
@@ -303,7 +304,7 @@ export default function DashboardPage() {
               <div className="space-y-3">
                 {recentComments.length > 0 ? (
                   recentComments.map(comment => (
-                    <CommentRow key={comment.id} comment={comment} />
+                    <CommentRow key={comment.id} comment={comment} assets={allAssets} />
                   ))
                 ) : (
                   <p className="text-sm text-muted text-center py-4">暂无评论</p>
@@ -319,7 +320,7 @@ export default function DashboardPage() {
               <div className="space-y-3">
                 {recentIssues.length > 0 ? (
                   recentIssues.map(issue => (
-                    <IssueRow key={issue.id} issue={issue} />
+                    <IssueRow key={issue.id} issue={issue} assets={allAssets} />
                   ))
                 ) : (
                   <p className="text-sm text-muted text-center py-4">暂无 Issue</p>
