@@ -81,7 +81,7 @@ export function InstallDialog({ asset }: InstallDialogProps) {
         <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-lg rounded-lg bg-white border border-card-border p-6 shadow-xl shadow-black/5 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]">
           {/* Header */}
           <div className="flex items-center gap-3 mb-5">
-            <div className="w-10 h-10 rounded-md bg-blue/10 border border-blue/30 flex items-center justify-center text-lg">
+            <div className="w-10 h-10 rounded-md bg-surface border border-card-border flex items-center justify-center text-lg">
               ⚡
             </div>
             <div>
@@ -97,10 +97,10 @@ export function InstallDialog({ asset }: InstallDialogProps) {
           {/* Install Command */}
           <div className="mb-5 p-4 rounded-lg bg-surface border border-card-border">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-blue uppercase tracking-wider">安装命令</span>
+              <span className="text-xs font-semibold text-foreground uppercase tracking-wider">安装命令</span>
               <button
                 onClick={handleCopy}
-                className="text-xs px-3 py-1 rounded-lg bg-blue/10 text-blue border border-blue/30 hover:bg-blue/20 transition-colors"
+                className="text-xs px-3 py-1 rounded-lg bg-surface text-muted border border-card-border hover:text-foreground transition-colors"
               >
                 {copied ? '✓ 已复制' : '📋 复制'}
               </button>
@@ -143,7 +143,7 @@ export function InstallDialog({ asset }: InstallDialogProps) {
               <div className="space-y-1.5">
                 {depNames.map(dep => (
                   <div key={dep} className="flex items-center gap-2 text-sm">
-                    <span className="text-blue/60">📦</span>
+                    <span className="text-muted">📦</span>
                     <span className="font-mono text-foreground">{dep}</span>
                     <span className="text-xs text-muted ml-auto">将自动安装</span>
                   </div>
@@ -168,7 +168,7 @@ export function InstallDialog({ asset }: InstallDialogProps) {
                         isDone
                           ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                           : isActive
-                          ? 'bg-blue/20 text-blue border border-blue/30'
+                          ? 'bg-surface text-foreground border border-card-border'
                           : 'bg-surface text-muted border border-card-border'
                       }`}>
                         {isDone ? '✓' : isActive ? (
@@ -179,7 +179,7 @@ export function InstallDialog({ asset }: InstallDialogProps) {
                         ) : step.icon}
                       </div>
                       <span className={`text-sm transition-colors ${
-                        isDone ? 'text-emerald-400' : isActive ? 'text-blue' : 'text-muted'
+                        isDone ? 'text-emerald-400' : isActive ? 'text-foreground' : 'text-muted'
                       }`}>
                         {step.label}
                       </span>
@@ -187,7 +187,7 @@ export function InstallDialog({ asset }: InstallDialogProps) {
                         <span className="text-xs text-muted ml-auto">完成</span>
                       )}
                       {isActive && (
-                        <span className="text-xs text-blue ml-auto animate-pulse">进行中...</span>
+                        <span className="text-xs text-muted ml-auto animate-pulse">进行中...</span>
                       )}
                     </div>
                   );

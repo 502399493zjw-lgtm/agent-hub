@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAssetsByIds, getAssetById } from '@/lib/db';
+import { authenticateRequest, unauthorizedResponse } from '@/lib/api-auth';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
+  // Auth required
+  const authResult = await authenticateRequest(request);
+  if (!authResult) return unauthorizedResponse();
+
   const body = await request.json();
   const ids: string[] = body.ids;
 

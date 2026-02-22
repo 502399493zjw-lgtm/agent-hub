@@ -1,20 +1,24 @@
+@import url('https://fonts.googleapis.com/css2?family=Antonio:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 
 :root {
-  --color-paper: #faf8f4;
-  --color-ink: #1a1a1a;
-  --color-ink-light: #4a4a4a;
-  --color-ink-muted: #8a8a8a;
+  --color-paper: #ffffff;
+  --color-ink: #111111;
+  --color-ink-light: #444444;
+  --color-ink-muted: #888888;
   --color-blue: #60a5fa;
   --color-blue-dim: #3b82f6;
   --color-red: #f87171;
   --color-red-dim: #ef4444;
   --color-card: #ffffff;
   --color-border: rgba(0,0,0,0.08);
+  --color-dark-bg: #111111;
+  --color-dark-surface: #1a1a1a;
   --font-serif: 'Noto Serif SC', 'Source Han Serif SC', Georgia, serif;
   --font-sans: system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
+  --font-display: 'Antonio', 'Arial Narrow', sans-serif;
 }
 
 @theme inline {
@@ -26,9 +30,9 @@
   --color-red-dim: var(--color-red-dim);
   --color-card-bg: var(--color-card);
   --color-card-border: var(--color-border);
-  --color-card-hover: rgba(0,0,0,0.04);
+  --color-card-hover: rgba(0,0,0,0.03);
   --color-muted: var(--color-ink-muted);
-  --color-surface: #f5f3ef;
+  --color-surface: #f7f7f8;
   --color-paper: var(--color-paper);
   --color-ink: var(--color-ink);
   --color-ink-light: var(--color-ink-light);
@@ -42,7 +46,7 @@
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: #d4d0c8 transparent;
+  scrollbar-color: #ddd transparent;
 }
 
 body {
@@ -51,7 +55,32 @@ body {
   font-family: var(--font-sans);
 }
 
-/* Paper-style subtle effects — replaces cyberpunk glow */
+/* ── Display font for condensed headings ── */
+.font-display {
+  font-family: var(--font-display);
+}
+
+/* ── Section themes ── */
+.section-dark {
+  background-color: var(--color-dark-bg);
+  color: #eee;
+}
+
+.section-dark h2,
+.section-dark h3 {
+  color: #ffffff;
+}
+
+.section-dark .text-muted {
+  color: #999;
+}
+
+.section-light {
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+}
+
+/* Paper-style subtle effects */
 .glow-gold {
   box-shadow: 0 1px 3px rgba(0,0,0,0.04);
 }
@@ -81,22 +110,18 @@ body {
   background-image: none;
 }
 
-/* Card hover lift — elegant */
+/* Card hover — border-color only, explicit transition property */
 .card-hover {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: border-color 0.2s ease;
 }
 
 .card-hover:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+  border-color: rgba(0,0,0,0.22);
 }
 
-/* Gradient text — blue to red */
+/* Gradient text — disabled, use plain black */
 .gradient-text {
-  background: linear-gradient(135deg, #60a5fa, #f87171);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--color-ink);
 }
 
 /* Pulse dot */
@@ -144,3 +169,102 @@ h1, h2, h3 {
 .prose img { max-width: 100%; height: auto; }
 .prose code { word-break: break-word; }
 .prose pre code { word-break: normal; }
+
+/* ── Scroll indicator bounce ── */
+@keyframes bounce-down {
+  0%, 100% { transform: translateY(0); opacity: 0.6; }
+  50% { transform: translateY(8px); opacity: 1; }
+}
+
+.animate-bounce-down {
+  animation: bounce-down 2s ease-in-out infinite;
+}
+
+/* ── Fade-in-up animation for scroll reveal ── */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.7s ease-out both;
+}
+
+/* Staggered delays */
+.animate-delay-100 { animation-delay: 100ms; }
+.animate-delay-200 { animation-delay: 200ms; }
+.animate-delay-300 { animation-delay: 300ms; }
+.animate-delay-400 { animation-delay: 400ms; }
+.animate-delay-500 { animation-delay: 500ms; }
+
+/* ── Fade-in for card entrance ── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out both;
+}
+
+/* ── Navbar scroll state ── */
+.navbar-scrolled {
+  border-bottom-color: rgba(0,0,0,0.08);
+  background-color: rgba(255, 255, 255, 0.92);
+}
+
+/* ── Tab underline style ── */
+.tab-underline {
+  position: relative;
+}
+
+.tab-underline::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: var(--color-ink);
+  transform: scaleX(0);
+  transition: transform 0.2s ease;
+}
+
+.tab-underline.tab-active::after {
+  transform: scaleX(1);
+}
+
+/* ── Grayscale hover effect for avatars ── */
+.avatar-grayscale {
+  filter: grayscale(100%);
+  transition: filter 0.3s ease;
+}
+
+.group:hover .avatar-grayscale,
+.avatar-grayscale:hover {
+  filter: grayscale(0%);
+}
+
+/* ── Respect prefers-reduced-motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .animate-bounce-down,
+  .animate-fade-in-up,
+  .animate-fade-in,
+  .activity-scroll,
+  .pulse-dot {
+    animation: none;
+  }
+  
+  .card-hover,
+  .tab-underline::after,
+  .avatar-grayscale {
+    transition: none;
+  }
+}
+.opacity-0 { opacity: 1 !important; }

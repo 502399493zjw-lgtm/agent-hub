@@ -1,4 +1,4 @@
-export type AssetType = 'skill' | 'channel' | 'plugin' | 'trigger' | 'config' | 'template';
+export type AssetType = 'skill' | 'channel' | 'plugin' | 'trigger' | 'experience' | 'template';
 
 export interface VersionEntry { version: string; changelog: string; date: string; }
 export interface Compatibility { models: string[]; platforms: string[]; frameworks: string[]; }
@@ -25,6 +25,10 @@ export interface Asset {
   githubUrl?: string;
   githubStars?: number;
   githubForks?: number;
+  githubLanguage?: string;
+  githubLicense?: string;
+  userStars?: number;
+  totalStars?: number;
 }
 
 export interface User {
@@ -80,7 +84,7 @@ export interface EvolutionEvent {
   title: string;
   description: string;
   date: string;
-  type: 'birth' | 'skill' | 'channel' | 'milestone' | 'config' | 'achievement';
+  type: 'birth' | 'skill' | 'channel' | 'milestone' | 'experience' | 'achievement';
 }
 
 export interface ActivityEvent {
@@ -102,10 +106,10 @@ export function formatDownloads(n: number): string {
 
 
 export const typeConfig: Record<AssetType, { label: string; icon: string; color: string; bgColor: string; borderColor: string }> = {
-  template: { label: '合集', icon: '', color: 'text-emerald-400', bgColor: 'bg-emerald-400/10', borderColor: 'border-emerald-400/30' },
-  skill: { label: '技能', icon: '', color: 'text-blue', bgColor: 'bg-blue/10', borderColor: 'border-blue/30' },
-  config: { label: '配置', icon: '', color: 'text-red', bgColor: 'bg-red/10', borderColor: 'border-red/30' },
-  plugin: { label: '工具', icon: '', color: 'text-blue-400', bgColor: 'bg-blue-400/10', borderColor: 'border-blue-400/30' },
-  trigger: { label: '触发器', icon: '', color: 'text-cyan-400', bgColor: 'bg-cyan-400/10', borderColor: 'border-cyan-400/30' },
-  channel: { label: '通信器', icon: '', color: 'text-purple-400', bgColor: 'bg-purple-400/10', borderColor: 'border-purple-400/30' },
+  template: { label: '合集', icon: '', color: 'text-ink-light', bgColor: 'bg-surface', borderColor: 'border-card-border' },
+  skill: { label: '技能', icon: '', color: 'text-ink-light', bgColor: 'bg-surface', borderColor: 'border-card-border' },
+  experience: { label: '经验', icon: '', color: 'text-ink-light', bgColor: 'bg-surface', borderColor: 'border-card-border' },
+  plugin: { label: '工具', icon: '', color: 'text-ink-light', bgColor: 'bg-surface', borderColor: 'border-card-border' },
+  trigger: { label: '触发器', icon: '', color: 'text-ink-light', bgColor: 'bg-surface', borderColor: 'border-card-border' },
+  channel: { label: '通信器', icon: '', color: 'text-ink-light', bgColor: 'bg-surface', borderColor: 'border-card-border' },
 };

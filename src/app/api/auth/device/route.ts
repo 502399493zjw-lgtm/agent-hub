@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { findUserById, authorizeDevice, listAuthorizedDevices, revokeDevice } from '@/lib/db';
+import { findUserById, authorizeDevice, listAuthorizedDevices } from '@/lib/db';
 
 // GET — List my authorized devices
 export async function GET() {
@@ -36,7 +36,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Missing deviceId — from ~/.openclaw/identity/device.json' }, { status: 400 });
     }
 
-    authorizeDevice(session.user.id, deviceId, body.name || '');
+    const result = authorizeDevice(session.user.id, deviceId, body.name || '');
+    if (!result.success) {
+      return NextResponse.json({ success: false, error: result.error }, { status: 409 });
+    }
 
     return NextResponse.json({
       success: true,
@@ -51,27 +54,11 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// DELETE — Revoke a device
-export async function DELETE(request: NextRequest) {
-  try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
-    }
-
-    const body = await request.json() as { deviceId?: string };
-    if (!body.deviceId) {
-      return NextResponse.json({ success: false, error: 'Missing deviceId' }, { status: 400 });
-    }
-
-    const deleted = revokeDevice(body.deviceId, session.user.id);
-    if (!deleted) {
-      return NextResponse.json({ success: false, error: 'Device not found or not yours' }, { status: 404 });
-    }
-
-    return NextResponse.json({ success: true, data: { message: '设备授权已撤销' } });
-  } catch (err) {
-    console.error('DELETE /api/auth/device error:', err);
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
-  }
+// DELETE — Disabled. Device binding is permanent (admin operation only).
+// Kept as a stub to return a clear error message.
+export async function DELETE() {
+  return NextResponse.json(
+    { success: false, error: '设备绑定为永久绑定，不支持主动解绑。如需帮助请联系管理员。' },
+    { status: 403 }
+  );
 }

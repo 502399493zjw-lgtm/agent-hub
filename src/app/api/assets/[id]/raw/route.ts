@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAssetById } from '@/lib/db';
+import { authenticateRequest, unauthorizedResponse } from '@/lib/api-auth';
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Auth required
+    const authResult = await authenticateRequest(request);
+    if (!authResult) return unauthorizedResponse();
+
     const { id } = await params;
     const asset = getAssetById(id);
 

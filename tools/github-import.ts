@@ -17,6 +17,7 @@
  */
 
 import Database from 'better-sqlite3';
+import crypto from 'crypto';
 import path from 'path';
 import { execSync } from 'child_process';
 import fs from 'fs';
@@ -108,19 +109,46 @@ function githubHeaders(): Record<string, string> {
 
 async function ghFetch(endpoint: string): Promise<any> {
   const url = endpoint.startsWith('http') ? endpoint : `${GITHUB_API}${endpoint}`;
-  const res = await fetch(url, { headers: githubHeaders() });
-  if (res.status === 404) return null;
-  if (res.status === 403) {
+  const maxRetries = 3;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const res = await fetch(url, { headers: githubHeaders() });
+
+    if (res.status === 404) return null;
+
+    // L10: Check rate limit headers
     const remaining = res.headers.get('x-ratelimit-remaining');
-    if (remaining === '0') {
+    if (res.status === 403 && remaining === '0') {
       const reset = res.headers.get('x-ratelimit-reset');
       const resetDate = reset ? new Date(parseInt(reset) * 1000).toLocaleTimeString() : 'unknown';
       throw new Error(`GitHub API rate limit exceeded. Resets at ${resetDate}. Set GITHUB_TOKEN for higher limits.`);
     }
-    throw new Error(`GitHub API 403: ${await res.text()}`);
+
+    if (res.status === 403) {
+      throw new Error(`GitHub API 403: ${await res.text()}`);
+    }
+
+    // L10: Retry on 5xx or 429 with exponential backoff
+    if (res.status === 429 || res.status >= 500) {
+      if (attempt < maxRetries - 1) {
+        const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+        console.log(`  ⏳ Retrying in ${delay / 1000}s (attempt ${attempt + 1}/${maxRetries}, status ${res.status})...`);
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+    }
+
+    if (!res.ok) throw new Error(`GitHub API ${res.status}: ${await res.text()}`);
+
+    // L10: Warn when rate limit is getting low
+    if (remaining && parseInt(remaining) < 10) {
+      console.log(`  ⚠️  GitHub API rate limit low: ${remaining} remaining`);
+    }
+
+    return res.json();
   }
-  if (!res.ok) throw new Error(`GitHub API ${res.status}: ${await res.text()}`);
-  return res.json();
+
+  throw new Error(`GitHub API request failed after ${maxRetries} retries`);
 }
 
 // ═══════════════════════════════════════════
@@ -337,7 +365,7 @@ function insertAsset(db: Database.Database, info: RepoInfo, content: RepoContent
 }): string {
   const typePrefixes: Record<string, string> = { skill: 's', config: 'c', plugin: 'p', trigger: 'tr', channel: 'ch', template: 't' };
   const prefix = typePrefixes[opts.type] || 'x';
-  const id = `${prefix}-${Math.random().toString(36).substring(2, 8)}`;
+  const id = `${prefix}-${crypto.randomBytes(8).toString('hex')}`;
   const now = new Date().toISOString().split('T')[0];
 
   // Smart name: use repo name

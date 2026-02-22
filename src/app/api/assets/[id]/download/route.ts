@@ -1,15 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAssetById, incrementDownload } from '@/lib/db';
+import { authenticateRequest, unauthorizedResponse } from '@/lib/api-auth';
 import path from 'path';
 import fs from 'fs';
 
 const PACKAGES_DIR = path.join(process.cwd(), 'data', 'packages');
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Auth required: downloading needs login
+    const authResult = await authenticateRequest(request);
+    if (!authResult) return unauthorizedResponse();
+
     const { id } = await params;
     
     // 验证资产存在
@@ -70,13 +75,17 @@ export async function GET(
 }
 
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
 
-    const newCount = incrementDownload(id);
+    // Try to identify user for auto-star on download
+    const authResult = await authenticateRequest(request);
+    const userId = authResult?.userId;
+
+    const newCount = incrementDownload(id, userId);
     if (newCount === null) {
       return NextResponse.json(
         { success: false, error: 'Asset not found' },

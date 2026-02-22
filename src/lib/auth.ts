@@ -1,10 +1,13 @@
+import crypto from 'crypto';
 import NextAuth from 'next-auth';
 import GitHub from 'next-auth/providers/github';
 // Google OAuth removed (ECS in China cannot reach Google servers)
 import Resend from 'next-auth/providers/resend';
+import Feishu from '@/lib/auth-feishu';
+import { cookies } from 'next/headers';
 import {
   findUserByProvider, findUserByEmail, createUser, findUserById,
-  isOnboardingCompleted, updateProviderInfo,
+  updateProviderInfo, activateInviteCode, validateInviteCode,
   createVerificationToken, useVerificationToken,
   type DbUser,
 } from '@/lib/db';
@@ -19,13 +22,12 @@ declare module 'next-auth' {
       image: string;
       provider: string;
       inviteCode: string | null;
-      onboardingCompleted: boolean;
     };
   }
 }
 
 function generateUserId(): string {
-  return 'u-' + Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
+  return 'u-' + crypto.randomUUID().replace(/-/g, '').substring(0, 20);
 }
 
 // Minimal adapter: only implements what Email/Magic Link provider needs
@@ -51,6 +53,11 @@ const minimalAdapter: Adapter = {
       provider: 'email',
       providerId: data.email ?? id,
     });
+    // Auto-activate invite code for new email user (cookie was validated in signIn callback)
+    const inviteCode = await getInviteCodeFromCookie();
+    if (inviteCode) {
+      activateInviteCode(id, inviteCode);
+    }
     return toAdapterUser(user);
   },
   getUserByEmail: async (email) => {
@@ -83,6 +90,30 @@ const minimalAdapter: Adapter = {
   unlinkAccount: async () => {},
 };
 
+/**
+ * Read the invite_code cookie set by the login page.
+ * Returns the code string or null.
+ */
+async function getInviteCodeFromCookie(): Promise<string | null> {
+  try {
+    const cookieStore = await cookies();
+    const cookie = cookieStore.get('invite_code');
+    return cookie?.value ? decodeURIComponent(cookie.value).trim().toUpperCase() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Try to auto-activate invite code for a user if they don't have one yet.
+ */
+function tryAutoActivateInvite(userId: string, code: string | null): void {
+  if (!code) return;
+  const user = findUserById(userId);
+  if (!user || user.invite_code) return; // already activated or user not found
+  activateInviteCode(userId, code);
+}
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: minimalAdapter,
   providers: [
@@ -91,6 +122,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       clientSecret: process.env.AUTH_GITHUB_SECRET,
     }),
     // Google OAuth removed — ECS in China cannot reach Google servers
+    Feishu({
+      appId: process.env.AUTH_FEISHU_APP_ID || '',
+      appSecret: process.env.AUTH_FEISHU_APP_SECRET || '',
+      clientId: process.env.AUTH_FEISHU_APP_ID || '',
+      clientSecret: process.env.AUTH_FEISHU_APP_SECRET || '',
+    }),
     Resend({
       apiKey: process.env.AUTH_RESEND_KEY,
       from: process.env.AUTH_EMAIL_FROM || 'noreply@openclawmp.cc',
@@ -101,16 +138,29 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     verifyRequest: '/login?verify=true',
   },
   callbacks: {
-    async signIn({ user, account }) {
+        async signIn({ user, account, profile: oauthProfile }) {
       if (!account) return false;
 
       const provider = account.provider;
       const providerId = account.providerAccountId;
 
-      // Email provider: user is created by adapter, just check soft-delete
+      // Read invite code from cookie (set during register page step 1)
+      const inviteCode = await getInviteCodeFromCookie();
+
+      // Email provider: user is created by adapter, just check soft-delete + auto-activate
       if (provider === 'resend') {
         const existing = findUserByEmail(user.email ?? '');
         if (existing?.deleted_at) return false;
+        if (existing) {
+          // Existing user → allow login, auto-activate invite if they have one
+          tryAutoActivateInvite(existing.id, inviteCode);
+          return true;
+        }
+        // New user via email → must come through register flow with invite code
+        if (!inviteCode) return '/login?error=not_registered';
+        const validation = validateInviteCode(inviteCode);
+        if (!validation.valid) return '/register?error=invite_required';
+        // User will be created by the adapter's createUser; we'll activate invite in jwt callback
         return true;
       }
 
@@ -118,18 +168,38 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       const existing = findUserByProvider(provider, providerId);
       if (existing) {
         if (existing.deleted_at) return false;
-        updateProviderInfo(existing.id, user.name ?? existing.name, user.image ?? existing.avatar);
+        // user.image may be stale (from DB); prefer fresh avatar from OAuth profile
+        const freshAvatar = (oauthProfile as Record<string, unknown>)?.picture as string
+          || (oauthProfile as Record<string, unknown>)?.image as string
+          || user.image || existing.avatar;
+        console.log('[auth] signIn existing user, freshAvatar:', freshAvatar?.substring(0, 60));
+        updateProviderInfo(existing.id, user.name ?? existing.name, freshAvatar);
+        // Existing user → allow login, auto-activate invite if they have one
+        tryAutoActivateInvite(existing.id, inviteCode);
         return true;
       }
 
+      // New user via OAuth → must come through register flow with invite code
+      if (!inviteCode) return '/login?error=not_registered';
+      const validation = validateInviteCode(inviteCode);
+      if (!validation.valid) return '/register?error=invite_required';
+
+      // New user registration with valid invite code
+      const newUserId = generateUserId();
+      const newAvatar = (oauthProfile as Record<string, unknown>)?.picture as string
+        || (oauthProfile as Record<string, unknown>)?.image as string
+        || user.image || '';
       createUser({
-        id: generateUserId(),
+        id: newUserId,
         email: user.email ?? null,
         name: user.name ?? 'Anonymous',
-        avatar: user.image ?? '',
+        avatar: newAvatar,
         provider,
         providerId,
       });
+
+      // Activate invite code for new user
+      activateInviteCode(newUserId, inviteCode);
 
       return true;
     },
@@ -173,7 +243,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.image = dbUser.avatar;
         session.user.provider = dbUser.provider;
         session.user.inviteCode = dbUser.invite_code;
-        session.user.onboardingCompleted = !!dbUser.onboarding_completed;
       }
 
       return session;
@@ -181,6 +250,57 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   session: {
     strategy: 'jwt',
+    maxAge: 7 * 24 * 60 * 60, // M05: 7-day session expiration
   },
   trustHost: true,
+  // Fix PKCE cookie issue behind Cloudflare Tunnel (HTTPS→HTTP proxy).
+  // Without this, NextAuth uses __Secure- prefixed cookies which require
+  // the origin request to be HTTPS, but the container sees HTTP from the tunnel.
+  cookies: {
+    pkceCodeVerifier: {
+      name: 'next-auth.pkce.code_verifier',
+      options: {
+        httpOnly: true,
+        sameSite: 'none' as const,
+        path: '/',
+        secure: true,
+      },
+    },
+    state: {
+      name: 'next-auth.state',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax' as const,
+        path: '/',
+        secure: true,
+      },
+    },
+    nonce: {
+      name: 'next-auth.nonce',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax' as const,
+        path: '/',
+        secure: true,
+      },
+    },
+    callbackUrl: {
+      name: 'next-auth.callback-url',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax' as const,
+        path: '/',
+        secure: true,
+      },
+    },
+    csrfToken: {
+      name: 'next-auth.csrf-token',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax' as const,
+        path: '/',
+        secure: true,
+      },
+    },
+  },
 });

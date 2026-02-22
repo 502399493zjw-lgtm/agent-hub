@@ -10,6 +10,8 @@ function LoginContent() {
   const callbackUrl = searchParams.get('callbackUrl') || '/';
   const error = searchParams.get('error');
   const verify = searchParams.get('verify');
+
+  // Email login
   const [email, setEmail] = useState('');
   const [emailSending, setEmailSending] = useState(false);
   const [emailSent, setEmailSent] = useState(!!verify);
@@ -30,9 +32,11 @@ function LoginContent() {
         <div className="text-center mb-8">
           <div className="text-5xl mb-4">🐟</div>
           <h1 className="text-2xl font-bold font-serif">
-            登录 <span className="text-blue">水产市场</span>
+            登录水产市场
           </h1>
-          <p className="text-muted mt-2 text-sm">使用社交账号或邮箱登录，探索 Agent 生态</p>
+          <p className="text-muted mt-2 text-sm">
+            选择登录方式，进入水产市场
+          </p>
         </div>
 
         {/* Login Card */}
@@ -45,7 +49,23 @@ function LoginContent() {
                 ? '登录服务配置错误，请联系管理员'
                 : error === 'Verification'
                 ? '链接已过期或已使用，请重新发送'
+                : error === 'not_registered'
+                ? '该账号尚未注册，请先注册后再登录'
+                : error === 'invite_required'
+                ? '需要邀请码才能注册新账号'
                 : '登录失败，请稍后重试'}
+            </div>
+          )}
+
+          {/* Redirect to register if not_registered or invite_required */}
+          {(error === 'not_registered' || error === 'invite_required') && (
+            <div className="text-center">
+              <Link
+                href="/register"
+                className="inline-block px-4 py-2 rounded-lg bg-blue text-white text-sm font-medium hover:bg-blue-dim transition-colors"
+              >
+                前往注册 →
+              </Link>
             </div>
           )}
 
@@ -79,8 +99,16 @@ function LoginContent() {
                   </svg>
                   使用 GitHub 登录
                 </button>
-
-                {/* Google OAuth removed — ECS in China cannot reach Google servers */}
+                <button
+                  onClick={() => signIn('feishu', { callbackUrl })}
+                  className="w-full flex items-center justify-center gap-3 py-3 rounded-lg border border-card-border hover:border-[#3370ff]/30 hover:bg-surface text-sm font-medium text-foreground transition-colors"
+                >
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
+                    <path d="M3.947 6.137c1.262-1.089 6.758-5.478 7.222-3.748.464 1.73-3.59 7.952-3.59 7.952s7.595-5.313 8.232-3.274c.638 2.04-5.106 7.873-5.106 7.873s6.65-3.637 6.903-1.726c.254 1.911-7.95 7.665-7.95 7.665L3 15.48l.947-9.343z" fill="#3370FF"/>
+                    <path d="M9.657 14.94s5.75-5.833 6.388-3.794c.638 2.04-5.106 7.873-5.106 7.873s6.65-3.637 6.903-1.726c.254 1.911-7.95 7.665-7.95 7.665L3 19.56" fill="#00D6B9" fillOpacity="0.8"/>
+                  </svg>
+                  使用飞书登录
+                </button>
               </div>
 
               {/* Divider */}
@@ -115,17 +143,18 @@ function LoginContent() {
           {!emailSent && (
             <div className="space-y-2 text-xs text-muted">
               <p>🔒 我们不会存储你的密码，仅通过 OAuth 或邮箱验证登录</p>
-              <p>📧 首次登录将自动创建账号</p>
-              <p>🎟️ 登录后需要激活邀请码才能发布内容</p>
             </div>
           )}
 
-          {/* Footer */}
-          <p className="text-center text-sm text-muted">
-            <Link href="/" className="text-blue hover:text-blue-dim transition-colors">
-              ← 返回首页
+          {/* Footer links */}
+          <div className="flex items-center justify-between pt-1">
+            <Link href="/register" className="text-sm text-muted hover:text-blue transition-colors">
+              没有账号？<span className="underline underline-offset-2">注册</span>
             </Link>
-          </p>
+            <Link href="/" className="text-sm text-blue hover:text-blue-dim transition-colors">
+              返回首页
+            </Link>
+          </div>
         </div>
       </div>
     </div>

@@ -18,7 +18,7 @@
 set -euo pipefail
 
 # === Config ===
-REGISTRY_URL="${SEAFOOD_REGISTRY:-http://47.100.235.25:3000}"
+REGISTRY_URL="${SEAFOOD_REGISTRY:-https://openclawmp.cc}"
 INSTALL_BASE="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}"
 LOCKFILE="$INSTALL_BASE/seafood-lock.json"
 VERSION="0.1.0"

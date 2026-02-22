@@ -1,18 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/api-auth';
 import { listAssets, getCommentsByAssetId, getIssuesByAssetId } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const authorId = searchParams.get('authorId');
+    // Auth required — only return data for the authenticated user's assets
+    const authResult = await authenticateRequest(request);
+    if (!authResult) {
+      return NextResponse.json({ success: false, error: '请先登录' }, { status: 401 });
+    }
 
-    // If authorId is given, return that user's assets with their comments and issues
-    const dbResult = listAssets({ pageSize: 200 });
-    const allAssets = dbResult.assets;
-
-    // Gather comments and issues for all assets (or filtered by author)
-    const targetAssets = authorId ? allAssets.filter(a => a.author.id === authorId) : allAssets;
-    const targetAssetIds = new Set(targetAssets.map(a => a.id));
+    const authorId = authResult.userId;
+    const dbResult = listAssets({ pageSize: 500 });
+    const targetAssets = dbResult.assets.filter(a => a.author.id === authorId);
 
     let allComments: ReturnType<typeof getCommentsByAssetId> = [];
     let allIssues: ReturnType<typeof getIssuesByAssetId> = [];
@@ -22,14 +22,13 @@ export async function GET(request: NextRequest) {
       allIssues = allIssues.concat(getIssuesByAssetId(a.id));
     }
 
-    // Sort by date desc
     allComments.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     allIssues.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     return NextResponse.json({
       success: true,
       data: {
-        assets: allAssets,
+        assets: targetAssets,
         comments: allComments.slice(0, 20),
         issues: allIssues.slice(0, 20),
       },

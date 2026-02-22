@@ -20,7 +20,6 @@ export function useAuth() {
         email: session.user.email ?? '',
         provider: (session.user as Record<string, unknown>).provider as string ?? '',
         inviteCode: (session.user as Record<string, unknown>).inviteCode as string | null ?? null,
-        onboardingCompleted: (session.user as Record<string, unknown>).onboardingCompleted as boolean ?? false,
         bio: '',
       }
     : null;

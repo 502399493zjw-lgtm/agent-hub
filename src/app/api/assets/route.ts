@@ -1,29 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { listAssets, createAsset, findUserById, validateDevice } from '@/lib/db';
-import { auth } from '@/lib/auth';
-
-// Authenticate via NextAuth session OR device ID (X-Device-ID header)
-async function authenticateRequest(request: NextRequest): Promise<{ userId: string } | null> {
-  // 1. Try NextAuth session first (web browser)
-  const session = await auth();
-  if (session?.user?.id) {
-    return { userId: session.user.id };
-  }
-
-  // 2. Try Device ID (CLI / Agent — reads from ~/.openclaw/identity/device.json)
-  const deviceId = request.headers.get('X-Device-ID');
-  if (deviceId) {
-    const deviceInfo = validateDevice(deviceId);
-    if (deviceInfo) {
-      return { userId: deviceInfo.userId };
-    }
-  }
-
-  return null;
-}
+import { listAssets, createAsset, findUserById } from '@/lib/db';
+import { authenticateRequest, unauthorizedResponse, inviteRequiredResponse } from '@/lib/api-auth';
+import { createAssetLimiter, rateLimitResponse } from '@/lib/rate-limit';
 
 export async function GET(request: NextRequest) {
   try {
+    // Auth required: listing assets needs login
+    const authResult = await authenticateRequest(request);
+    if (!authResult) return unauthorizedResponse();
+
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') || undefined;
     const category = searchParams.get('category') || undefined;
@@ -39,7 +24,8 @@ export async function GET(request: NextRequest) {
       data: result,
     });
   } catch (err) {
-    console.error('GET /api/assets error:', err);
+    // M04: Don't leak internal error details
+    console.error('GET /api/assets error:', err instanceof Error ? err.message : 'Unknown error');
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
@@ -52,19 +38,18 @@ export async function POST(request: NextRequest) {
     // Auth check: session or API token
     const authResult = await authenticateRequest(request);
     if (!authResult) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required. Login on web or use API token (seafood-market login).' },
-        { status: 401 }
-      );
+      return unauthorizedResponse();
+    }
+
+    // M01: Rate limiting — 20/min per user
+    if (!createAssetLimiter.check(authResult.userId)) {
+      return rateLimitResponse() as unknown as NextResponse;
     }
 
     // Check invite code activation (same check for both session and token auth)
     const dbUser = findUserById(authResult.userId);
     if (!dbUser?.invite_code) {
-      return NextResponse.json(
-        { success: false, error: '需要激活邀请码才能发布。请先在网页上激活邀请码。' },
-        { status: 403 }
-      );
+      return inviteRequiredResponse();
     }
 
     const body = await request.json();
@@ -78,7 +63,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const validTypes = ['skill', 'config', 'plugin', 'trigger', 'channel', 'template'];
+    // M09: Input validation
+    const trimmedName = String(name).trim();
+    if (trimmedName.length < 2 || trimmedName.length > 100) {
+      return NextResponse.json(
+        { success: false, error: 'name must be between 2 and 100 characters' },
+        { status: 400 }
+      );
+    }
+
+    const trimmedDesc = String(description).trim();
+    if (trimmedDesc.length > 2000) {
+      return NextResponse.json(
+        { success: false, error: 'description must be less than 2000 characters' },
+        { status: 400 }
+      );
+    }
+
+    const validTypes = ['skill', 'experience', 'plugin', 'trigger', 'channel', 'template'];
     if (!validTypes.includes(type)) {
       return NextResponse.json(
         { success: false, error: `Invalid type. Must be one of: ${validTypes.join(', ')}` },
@@ -86,25 +88,41 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // M09: tags validation — max 10 tags
+    const tags = body.tags;
+    if (tags && Array.isArray(tags) && tags.length > 10) {
+      return NextResponse.json(
+        { success: false, error: 'Maximum 10 tags allowed' },
+        { status: 400 }
+      );
+    }
+
+    // M10: Force authorId from authenticated user, get name/avatar from DB
     const asset = createAsset({
-      name,
+      name: trimmedName,
       displayName,
       type,
-      description,
+      description: trimmedDesc,
       version,
-      authorId: body.authorId,
-      authorName: body.authorName,
-      authorAvatar: body.authorAvatar,
+      authorId: authResult.userId,
+      authorName: dbUser.name,
+      authorAvatar: dbUser.avatar,
       longDescription: body.longDescription,
-      tags: body.tags,
+      tags: tags,
       category: body.category,
       readme: body.readme,
       configSubtype: body.configSubtype,
+      githubUrl: body.githubUrl,
+      githubStars: body.githubStars,
+      githubForks: body.githubForks,
+      githubLanguage: body.githubLanguage,
+      githubLicense: body.githubLicense,
     });
 
     return NextResponse.json({ success: true, data: asset }, { status: 201 });
   } catch (err) {
-    console.error('POST /api/assets error:', err);
+    // M04: Don't leak internal error details
+    console.error('POST /api/assets error:', err instanceof Error ? err.message : 'Unknown error');
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

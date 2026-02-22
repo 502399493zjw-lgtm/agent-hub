@@ -55,17 +55,17 @@ export default function StatsClient({ assets, users, growthData, totalComments, 
   return (
     <div className="relative">
       <div className="absolute inset-0 grid-bg pointer-events-none" />
-      <div className="absolute top-0 right-0 w-[500px] h-[400px] bg-blue/3 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute top-0 right-0 w-[500px] h-[400px] bg-transparent rounded-full blur-[120px] pointer-events-none" />
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Header */}
         <div className="mb-10">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-blue/20 bg-blue/5 text-blue text-sm mb-4">
-            <span className="w-2 h-2 rounded-full bg-blue pulse-dot" />
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-card-border bg-surface text-foreground text-sm mb-4">
+            <span className="w-2 h-2 rounded-full bg-foreground pulse-dot" />
             实时社区数据
           </div>
           <h1 className="text-3xl md:text-4xl font-bold mb-3">
-            📊 <span className="text-blue">社区统计</span>
+            📊 社区统计
           </h1>
           <p className="text-muted max-w-xl">
             水产市场生态系统的实时数据概览
@@ -83,7 +83,7 @@ export default function StatsClient({ assets, users, growthData, totalComments, 
           ].map(stat => (
             <div key={stat.label} className="p-4 rounded-lg bg-white border border-card-border text-center">
               <div className="text-2xl mb-1">{stat.icon}</div>
-              <div className={`text-2xl font-bold font-mono ${stat.color === 'red' ? 'text-red' : 'text-blue'}`}>{stat.value}</div>
+              <div className={`text-2xl font-bold font-mono ${stat.color === 'red' ? 'text-red' : 'text-foreground'}`}>{stat.value}</div>
               <div className="text-xs text-muted mt-1">{stat.label}</div>
             </div>
           ))}
@@ -109,7 +109,7 @@ export default function StatsClient({ assets, users, growthData, totalComments, 
                       style={{
                         width: `${(td.count / maxTypeCount) * 100}%`,
                         background: td.type === 'skill' ? '#60a5fa'
-                          : td.type === 'config' ? '#f87171'
+                          : td.type === 'experience' ? '#f87171'
                           : td.type === 'plugin' ? '#60A5FA'
                           : td.type === 'trigger' ? '#f87171'
                           : td.type === 'channel' ? '#A855F7'
@@ -134,7 +134,7 @@ export default function StatsClient({ assets, users, growthData, totalComments, 
                   </div>
                   <div className="h-3 rounded-full bg-surface overflow-hidden">
                     <div
-                      className="h-full rounded-full bg-blue/70"
+                      className="h-full rounded-full bg-foreground/40"
                       style={{ width: `${(count / maxCatCount) * 100}%` }}
                     />
                   </div>
@@ -182,22 +182,22 @@ export default function StatsClient({ assets, users, growthData, totalComments, 
               <Link key={c.user.id} href={`/user/${c.user.id}`}>
                 <div className="flex items-center gap-4 p-3 rounded-xl hover:bg-surface transition-colors group">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                    i === 0 ? 'bg-blue/20 text-blue' : i === 1 ? 'bg-gray-400/20 text-gray-400' : i === 2 ? 'bg-amber-700/20 text-amber-600' : 'bg-surface text-muted'
+                    i === 0 ? 'bg-surface text-foreground' : i === 1 ? 'bg-gray-400/20 text-gray-400' : i === 2 ? 'bg-amber-700/20 text-amber-600' : 'bg-surface text-muted'
                   }`}>
                     {i + 1}
                   </div>
                   <span className="text-2xl">{c.user.avatar}</span>
                   <div className="flex-1 min-w-0">
-                    <span className="text-sm font-semibold group-hover:text-blue transition-colors">{c.user.name}</span>
+                    <span className="text-sm font-semibold group-hover:text-foreground transition-colors">{c.user.name}</span>
                     <p className="text-xs text-muted line-clamp-1">{c.user.bio}</p>
                   </div>
                   <div className="flex items-center gap-4 text-xs text-muted shrink-0">
                     <div className="text-center">
-                      <div className="text-blue font-mono font-bold">{c.assetCount}</div>
+                      <div className="text-foreground font-mono font-bold">{c.assetCount}</div>
                       <div>资产</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-blue font-mono font-bold">{formatDownloads(c.downloads)}</div>
+                      <div className="text-foreground font-mono font-bold">{formatDownloads(c.downloads)}</div>
                       <div>下载</div>
                     </div>
                   </div>

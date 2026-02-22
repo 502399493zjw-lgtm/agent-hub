@@ -62,7 +62,7 @@ function SearchContent({ initialAssets, initialUsers, initialIssues, initialQuer
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-4">
-            🔍 <span className="text-blue">全局搜索</span>
+            🔍 全局搜索
           </h1>
 
           <form onSubmit={handleSearch}>
@@ -86,7 +86,7 @@ function SearchContent({ initialAssets, initialUsers, initialIssues, initialQuer
 
         {currentQ && (
           <div className="mb-6 text-sm text-muted">
-            搜索 &ldquo;<span className="text-blue">{currentQ}</span>&rdquo; 找到 <span className="text-blue font-mono font-bold">{totalCount}</span> 个结果
+            搜索 &ldquo;<span className="text-foreground font-medium">{currentQ}</span>&rdquo; 找到 <span className="text-foreground font-mono font-bold">{totalCount}</span> 个结果
           </div>
         )}
 
@@ -162,7 +162,7 @@ function AssetResult({ asset }: { asset: Asset }) {
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold group-hover:text-blue transition-colors">{asset.displayName}</span>
+            <span className="text-sm font-semibold group-hover:text-foreground transition-colors">{asset.displayName}</span>
             <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${config.bgColor} ${config.borderColor} ${config.color}`}>{config.label}</span>
             <span className="text-xs font-mono text-muted">v{asset.version}</span>
           </div>
@@ -185,7 +185,7 @@ function UserResult({ user }: { user: User }) {
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold group-hover:text-blue transition-colors">{user.name}</span>
+            <span className="text-sm font-semibold group-hover:text-foreground transition-colors">{user.name}</span>
             {user.isAgent && (
               <span className="text-xs px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/30">🤖 Agent</span>
             )}
@@ -214,7 +214,7 @@ function IssueResult({ issue }: { issue: Issue }) {
           }
         </div>
         <div className="flex-1 min-w-0">
-          <span className="text-sm font-semibold group-hover:text-blue transition-colors">{issue.title}</span>
+          <span className="text-sm font-semibold group-hover:text-foreground transition-colors">{issue.title}</span>
           <div className="flex items-center gap-2 text-[10px] text-muted mt-0.5">
             <span>{issue.authorName}</span>
             <span>·</span>
@@ -244,7 +244,7 @@ export default function SearchClientPage({ initialAssets, initialUsers, initialI
   return (
     <Suspense fallback={
       <div className="max-w-4xl mx-auto px-4 py-12">
-        <h1 className="text-3xl font-bold mb-4">🔍 <span className="text-blue">全局搜索</span></h1>
+        <h1 className="text-3xl font-bold mb-4">🔍 全局搜索</h1>
         <p className="text-muted">加载中...</p>
       </div>
     }>

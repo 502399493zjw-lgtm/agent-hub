@@ -6,10 +6,10 @@ import { User, EvolutionEvent } from '@/data/types';
 
 const levelBadge: Record<string, { label: string; color: string }> = {
   newcomer: { label: '🌱', color: 'text-green-400' },
-  active: { label: '⚡', color: 'text-blue-400' },
+  active: { label: '⚡', color: 'text-foreground' },
   contributor: { label: '🔥', color: 'text-orange-400' },
   master: { label: '💎', color: 'text-purple-400' },
-  legend: { label: '👑', color: 'text-blue' },
+  legend: { label: '👑', color: 'text-foreground' },
 };
 
 export default function EvolutionPage() {
@@ -47,7 +47,7 @@ export default function EvolutionPage() {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2">
-          🧬 <span className="text-blue">Agent 进化图鉴</span>
+          🧬 Agent 进化图鉴
         </h1>
         <p className="text-muted">探索每个 Agent 和开发者的成长历程 — 从诞生到传奇</p>
       </div>
@@ -75,7 +75,7 @@ export default function EvolutionPage() {
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <h3 className="font-bold text-foreground group-hover:text-blue transition-colors">{user.name}</h3>
+                      <h3 className="font-bold text-foreground group-hover:text-foreground transition-colors">{user.name}</h3>
                       {badge && <span className={badge.color}>{badge.label}</span>}
                     </div>
                     <div className="flex items-center gap-2 text-xs text-muted">

@@ -28,7 +28,7 @@ function ExploreContent({ initialAssets, initialTotal, initialAllAssets }: Explo
 
   const [search, setSearch] = useState(initialQ);
   const [selectedType, setSelectedType] = useState<'all' | AssetType>(
-    initialType && (initialType === 'all' || ['skill','config','plugin','trigger','channel','template'].includes(initialType))
+    initialType && (initialType === 'all' || ['skill','experience','plugin','trigger','channel','template'].includes(initialType))
       ? initialType
       : 'all'
   );
@@ -50,7 +50,7 @@ function ExploreContent({ initialAssets, initialTotal, initialAllAssets }: Explo
     const sort = searchParams.get('sort');
 
     if (q) setSearch(q);
-    if (type && (type === 'all' || ['skill','config','plugin','trigger','channel','template'].includes(type))) {
+    if (type && (type === 'all' || ['skill','experience','plugin','trigger','channel','template'].includes(type))) {
       setSelectedType(type);
     }
     if (sort && sortOptions.some(o => o.value === sort)) {
@@ -108,54 +108,60 @@ function ExploreContent({ initialAssets, initialTotal, initialAllAssets }: Explo
     { value: 'all', label: '全部', icon: '' },
     { value: 'template', label: '合集', icon: '' },
     { value: 'skill', label: '技能', icon: '' },
-    { value: 'config', label: '配置', icon: '' },
+    { value: 'experience', label: '经验', icon: '' },
     { value: 'plugin', label: '工具', icon: '' },
     { value: 'trigger', label: '触发器', icon: '' },
     { value: 'channel', label: '通信器', icon: '' },
   ];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">
-          探索 <span className="text-blue">Agent 资产</span>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      {/* Header — larger, more dramatic */}
+      <div className="mb-10">
+        <p className="font-display text-xs uppercase tracking-[0.2em] text-muted mb-3">Explore</p>
+        <h1 className="text-4xl md:text-5xl font-bold mb-3 text-foreground tracking-tight">
+          探索资产
         </h1>
-        <p className="text-muted">发现社区分享的 Skills、Configs、Plugins、Triggers、Channels 和 Templates</p>
+        <p className="text-muted text-lg">发现社区分享的 Skills、Configs、Plugins、Triggers、Channels 和 Templates</p>
       </div>
 
       {/* Agent 直读提示 */}
-      <div className="mb-6 px-4 py-3 rounded-lg bg-blue/5 border border-blue/20 text-sm text-muted flex items-center gap-2">
-        <span>💡</span>
-        <span>所有资产均支持 Agent 直读 — 通过 <code className="px-1.5 py-0.5 rounded bg-surface border border-card-border text-blue font-mono text-xs">GET /api/assets/:id/raw</code> 获取完整内容，无需安装</span>
+      <div className="mb-8 px-5 py-4 rounded-xl bg-surface border border-card-border text-sm text-muted flex items-center gap-3">
+        <span className="text-lg">💡</span>
+        <span>所有资产均支持 Agent 直读 — 通过 <code className="px-1.5 py-0.5 rounded-md bg-white border border-card-border text-foreground font-mono text-xs">GET /api/assets/:id/raw</code> 获取完整内容，无需安装</span>
       </div>
 
       {/* Search & Sort Bar */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row gap-4 mb-8">
         <div className="relative flex-1">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <label htmlFor="explore-search" className="sr-only">搜索资产</label>
+          <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
+            id="explore-search"
             type="text"
-            placeholder="搜索 Skills, Configs, Plugins..."
+            placeholder="搜索 Skills, Configs, Plugins…"
             value={search}
             onChange={(e) => handleSearchChange(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 rounded-lg bg-white border border-card-border text-foreground placeholder:text-muted focus:outline-none focus:border-blue/50 transition-colors"
+            className="w-full pl-11 pr-4 py-3 rounded-full bg-white border border-card-border text-foreground placeholder:text-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-blue/50 transition-[border-color] duration-150"
           />
           {search && (
             <button
               onClick={() => handleSearchChange('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground transition-colors"
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-muted hover:text-foreground transition-[color] duration-150"
+              aria-label="清除搜索"
             >
               ✕
             </button>
           )}
         </div>
+        <label htmlFor="explore-sort" className="sr-only">排序方式</label>
         <select
+          id="explore-sort"
           value={sortBy}
           onChange={(e) => handleSortChange(e.target.value)}
-          className="px-4 py-3 rounded-lg bg-white border border-card-border text-foreground focus:outline-none focus:border-blue/50 transition-colors cursor-pointer"
+          className="px-5 py-3 rounded-full bg-white border border-card-border text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-blue/50 transition-[border-color] duration-150 cursor-pointer"
         >
           {sortOptions.map(opt => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -163,20 +169,20 @@ function ExploreContent({ initialAssets, initialTotal, initialAllAssets }: Explo
         </select>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-8">
+      <div className="flex flex-col lg:flex-row gap-10">
         {/* Sidebar Filters */}
         <aside className="lg:w-60 shrink-0">
           {/* Type Filter */}
-          <div className="mb-6">
-            <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-3">资产类型</h3>
+          <div className="mb-8">
+            <h3 className="text-xs font-semibold text-muted uppercase tracking-[0.15em] mb-3 font-sans">资产类型</h3>
             <div className="space-y-1">
               {typeFilters.map(tf => (
                 <button
                   key={tf.value}
                   onClick={() => handleTypeChange(tf.value)}
-                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-[color,background-color,border-color] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue/50 ${
                     selectedType === tf.value
-                      ? 'bg-blue/10 text-blue border border-blue/30'
+                      ? 'bg-surface text-foreground border border-card-border'
                       : 'text-muted hover:bg-white hover:text-foreground border border-transparent'
                   }`}
                 >
@@ -192,7 +198,7 @@ function ExploreContent({ initialAssets, initialTotal, initialAllAssets }: Explo
 
           {/* Category Filter */}
           <div>
-            <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-3">分类</h3>
+            <h3 className="text-xs font-semibold text-muted uppercase tracking-[0.15em] mb-3 font-sans">分类</h3>
             <div className="space-y-1 max-h-80 overflow-y-auto">
               {categories.map(cat => {
                 const count = cat === '全部' ? allAssets.length : allAssets.filter(a => a.category === cat).length;
@@ -201,13 +207,13 @@ function ExploreContent({ initialAssets, initialTotal, initialAllAssets }: Explo
                   <button
                     key={cat}
                     onClick={() => handleCategoryChange(cat)}
-                    className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-sm transition-all ${
+                    className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-sm transition-[color,background-color] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue/50 ${
                       selectedCategory === cat
-                        ? 'bg-white text-blue'
+                        ? 'bg-white text-foreground font-medium'
                         : 'text-muted hover:bg-white hover:text-foreground'
                     }`}
                   >
-                    <span>{cat}</span>
+                    <span className="truncate">{cat}</span>
                     <span className="text-xs opacity-50">{count}</span>
                   </button>
                 );
@@ -218,13 +224,13 @@ function ExploreContent({ initialAssets, initialTotal, initialAllAssets }: Explo
 
         {/* Results Grid */}
         <div className="flex-1">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-6">
             <span className="text-sm text-muted">
               {loading ? (
-                '加载中...'
+                '加载中…'
               ) : (
                 <>
-                  找到 <span className="text-blue font-semibold">{total}</span> 个资产
+                  找到 <span className="text-foreground font-semibold">{total}</span> 个资产
                   {search && <span className="ml-2">· 搜索: &quot;{search}&quot;</span>}
                 </>
               )}
@@ -234,7 +240,7 @@ function ExploreContent({ initialAssets, initialTotal, initialAllAssets }: Explo
           {loading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="rounded-lg border border-card-border bg-white p-6 animate-pulse">
+                <div key={i} className="rounded-xl border border-card-border bg-white p-6 animate-pulse">
                   <div className="h-4 bg-surface rounded w-1/3 mb-4" />
                   <div className="h-5 bg-surface rounded w-2/3 mb-3" />
                   <div className="h-3 bg-surface rounded w-full mb-2" />
@@ -249,10 +255,10 @@ function ExploreContent({ initialAssets, initialTotal, initialAllAssets }: Explo
               ))}
             </div>
           ) : (
-            <div className="text-center py-20">
-              <div className="text-6xl mb-4">🔍</div>
-              <h3 className="text-xl font-semibold mb-2">未找到匹配的资产</h3>
-              <p className="text-muted">试试调整筛选条件或搜索关键词</p>
+            <div className="text-center py-24">
+              <div className="text-7xl mb-6">🔍</div>
+              <h3 className="text-2xl font-bold mb-3">未找到匹配的资产</h3>
+              <p className="text-muted text-lg">试试调整筛选条件或搜索关键词</p>
             </div>
           )}
         </div>
@@ -270,12 +276,12 @@ interface ExploreClientPageProps {
 export default function ExploreClientPage({ initialAssets, initialTotal, initialAllAssets }: ExploreClientPageProps) {
   return (
     <Suspense fallback={
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">
-            探索 <span className="text-blue">Agent 资产</span>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="mb-10">
+          <h1 className="text-4xl md:text-5xl font-bold mb-3 text-foreground tracking-tight">
+            探索资产
           </h1>
-          <p className="text-muted">加载中...</p>
+          <p className="text-muted text-lg">加载中…</p>
         </div>
       </div>
     }>

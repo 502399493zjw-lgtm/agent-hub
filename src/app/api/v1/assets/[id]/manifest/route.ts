@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAssetManifest, getAssetById, updateAssetManifest, validateDevice } from '@/lib/db';
-import { auth } from '@/lib/auth';
+import { getAssetManifest, getAssetById, updateAssetManifest, findUserById } from '@/lib/db';
+import { authenticateRequest, unauthorizedResponse, inviteRequiredResponse } from '@/lib/api-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,6 +8,17 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Auth check: require login + invite code for manifest download
+  const authResult = await authenticateRequest(request);
+  if (!authResult) {
+    return unauthorizedResponse();
+  }
+
+  const dbUser = findUserById(authResult.userId);
+  if (!dbUser?.invite_code) {
+    return inviteRequiredResponse();
+  }
+
   const { id } = await params;
   const data = getAssetManifest(id);
   if (!data) {
@@ -52,13 +63,15 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   // Auth check
-  const session = await auth();
-  const deviceId = request.headers.get('X-Device-ID');
-  let authenticated = false;
-  if (session?.user?.id) authenticated = true;
-  if (deviceId && validateDevice(deviceId)) authenticated = true;
-  if (!authenticated) {
-    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  const authResult = await authenticateRequest(request);
+  if (!authResult) {
+    return unauthorizedResponse();
+  }
+
+  // Check invite code activation
+  const dbUser = findUserById(authResult.userId);
+  if (!dbUser?.invite_code) {
+    return inviteRequiredResponse();
   }
 
   const { id } = await params;

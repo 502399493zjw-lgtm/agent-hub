@@ -93,12 +93,12 @@ cp -r my-skill/ ~/openclaw/skills/my-skill/
 ];
 
 const assetTypes = [
-  { type: 'skill', emoji: '🛠️', name: '技能包', desc: 'SKILL.md + 脚本，prompt 驱动', example: 'seafood-market install skill/@xiaoyue/feishu-group-summary', color: 'text-blue' },
-  { type: 'config', emoji: '⚙️', name: '配置', desc: '定义 Agent 人格 / 行为 / 路由', example: 'seafood-market install config/@xiaoyue/quantum-sorcerer-persona', color: 'text-red' },
-  { type: 'plugin', emoji: '🔌', name: '插件', desc: '代码级扩展，接入新工具和服务', example: 'seafood-market install plugin/@xiaoyue/stepsearch-engine', color: 'text-blue' },
-  { type: 'trigger', emoji: '🔔', name: '触发器', desc: '监听事件，自动唤醒 Agent', example: 'seafood-market install trigger/@xiaoyue/pdf-watcher-v2', color: 'text-red' },
-  { type: 'channel', emoji: '📡', name: '通信器', desc: '消息渠道适配器', example: 'seafood-market install channel/@xiaoyue/feishu-connector', color: 'text-purple-500' },
-  { type: 'template', emoji: '📋', name: '合集', desc: '多个资产的组合包，一键获得完整方案', example: 'seafood-market install template/@cybernova/personal-assistant', color: 'text-amber-500' },
+  { type: 'skill', emoji: '🛠️', name: '技能包', desc: 'SKILL.md + 脚本，prompt 驱动', example: 'seafood-market install skill/@xiaoyue/feishu-group-summary', color: 'text-foreground' },
+  { type: 'experience', emoji: '💡', name: '经验', desc: '亲身实践方案、配置思路与参考文件', example: 'seafood-market install experience/@xiaoyue/quantum-sorcerer-persona', color: 'text-foreground' },
+  { type: 'plugin', emoji: '🔌', name: '插件', desc: '代码级扩展，接入新工具和服务', example: 'seafood-market install plugin/@xiaoyue/stepsearch-engine', color: 'text-foreground' },
+  { type: 'trigger', emoji: '🔔', name: '触发器', desc: '触发策略 + 可选的任务描述，纯事件源或完整自动化', example: 'seafood-market install trigger/@xiaoyue/pdf-watcher-v2', color: 'text-foreground' },
+  { type: 'channel', emoji: '📡', name: '通信器', desc: '消息渠道适配器', example: 'seafood-market install channel/@xiaoyue/feishu-connector', color: 'text-foreground' },
+  { type: 'template', emoji: '📋', name: '合集', desc: '多个资产的组合包，一键获得完整方案', example: 'seafood-market install template/@cybernova/personal-assistant', color: 'text-foreground' },
 ];
 
 const faq = [
@@ -123,7 +123,7 @@ export default function GuidePage() {
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       {/* Header */}
       <div className="text-center mb-16">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-blue/20 bg-blue/5 text-blue text-sm mb-6">
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-card-border bg-surface text-foreground text-sm mb-6">
           <span className="w-2 h-2 rounded-full bg-blue pulse-dot" />
           安装指南
         </div>
@@ -178,7 +178,7 @@ export default function GuidePage() {
               onClick={() => setActiveMethod(method.id)}
               className={`px-5 py-3 rounded-lg border text-sm font-medium transition-all ${
                 activeMethod === method.id
-                  ? 'border-blue bg-blue/5 text-blue shadow-sm'
+                  ? 'border-card-border bg-surface text-foreground shadow-sm'
                   : 'border-card-border bg-white text-muted hover:border-blue/30'
               }`}
             >
@@ -201,7 +201,7 @@ export default function GuidePage() {
                   </div>
                   <button
                     onClick={() => copyCode(step.code, `${method.id}-${i}`)}
-                    className="text-xs text-muted hover:text-blue transition-colors px-2 py-1 rounded border border-card-border hover:border-blue/30"
+                    className="text-xs text-muted hover:text-foreground transition-colors px-2 py-1 rounded border border-card-border hover:border-foreground/15"
                   >
                     {copiedIndex === `${method.id}-${i}` ? '✅ 已复制' : '📋 复制'}
                   </button>
@@ -263,7 +263,7 @@ export default function GuidePage() {
                 { cmd: 'publish', desc: '发布资产', ex: 'seafood-market publish ./my-skill/' },
               ].map((row, i) => (
                 <tr key={row.cmd} className={i % 2 === 0 ? '' : 'bg-surface/50'}>
-                  <td className="px-6 py-3 font-mono text-blue font-medium">{row.cmd}</td>
+                  <td className="px-6 py-3 font-mono text-foreground font-medium">{row.cmd}</td>
                   <td className="px-6 py-3 text-muted">{row.desc}</td>
                   <td className="px-6 py-3 font-mono text-xs text-muted">{row.ex}</td>
                 </tr>

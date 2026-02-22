@@ -180,7 +180,7 @@ export default function SettingsPage() {
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <h1 className="text-2xl font-bold mb-8">
-        <span className="text-blue">⚙️</span> 账号设置
+        ⚙️ 账号设置
       </h1>
 
       <div className="flex flex-col md:flex-row gap-8">
@@ -193,7 +193,7 @@ export default function SettingsPage() {
                 onClick={() => setActiveSection(section.id)}
                 className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
                   activeSection === section.id
-                    ? 'bg-blue/10 text-blue border border-blue/30'
+                    ? 'bg-surface text-foreground border border-card-border'
                     : 'text-muted hover:text-foreground hover:bg-white border border-transparent'
                 }`}
               >

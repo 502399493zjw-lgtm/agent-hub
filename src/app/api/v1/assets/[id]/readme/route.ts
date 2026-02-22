@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAssetReadme, getAssetById } from '@/lib/db';
+import { authenticateRequest, unauthorizedResponse } from '@/lib/api-auth';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Auth required
+  const authResult = await authenticateRequest(request);
+  if (!authResult) return unauthorizedResponse();
+
   const { id } = await params;
   const data = getAssetReadme(id);
   if (!data) {
