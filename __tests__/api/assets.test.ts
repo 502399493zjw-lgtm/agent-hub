@@ -22,7 +22,7 @@ function freshDb(): Database.Database {
 }
 
 // Import route handlers after mocking
-import { GET, POST } from '../../src/app/api/assets/route';
+import { GET } from '../../src/app/api/assets/route';
 import {
   GET as GET_BY_ID,
   PUT as PUT_BY_ID,
@@ -79,69 +79,7 @@ describe('API /api/assets', () => {
     });
   });
 
-  // ═══════════════ POST /api/assets ═══════════════
-  describe('POST /api/assets', () => {
-    it('should require authentication', async () => {
-      const req = createTestRequest('/api/assets', {
-        method: 'POST',
-        body: { name: 'x', displayName: 'X', type: 'skill', description: 'd', version: '1.0.0' },
-      });
-      const { status } = await parseResponse(await POST(req));
-      expect(status).toBe(401);
-    });
-
-    it('should require invite code activation', async () => {
-      const user = seedUser(testDb, { id: 'u-noinvite', inviteCode: null });
-      const key = seedApiKey(testDb, user.id);
-
-      const req = authRequest('/api/assets', key, {
-        method: 'POST',
-        body: { name: 'x', displayName: 'X', type: 'skill', description: 'd', version: '1.0.0' },
-      });
-      const { status, data } = await parseResponse(await POST(req));
-      expect(status).toBe(403);
-      expect(data.error).toBe('invite_required');
-    });
-
-    it('should create an asset with valid auth and invite code', async () => {
-      const user = seedUser(testDb, { id: 'u-pub', inviteCode: 'SEAFOOD' });
-      const key = seedApiKey(testDb, user.id);
-
-      const req = authRequest('/api/assets', key, {
-        method: 'POST',
-        body: { name: 'new-skill', displayName: 'New Skill', type: 'skill', description: 'Brand new', version: '1.0.0' },
-      });
-      const { status, data } = await parseResponse(await POST(req));
-      expect(status).toBe(201);
-      expect(data.success).toBe(true);
-      expect(data.data.name).toBe('new-skill');
-      expect(data.data.id).toMatch(/^s-/);
-    });
-
-    it('should reject missing required fields', async () => {
-      const user = seedUser(testDb, { id: 'u-miss', inviteCode: 'SEAFOOD' });
-      const key = seedApiKey(testDb, user.id);
-
-      const req = authRequest('/api/assets', key, {
-        method: 'POST',
-        body: { name: 'incomplete' },
-      });
-      const { status } = await parseResponse(await POST(req));
-      expect(status).toBe(400);
-    });
-
-    it('should reject invalid type', async () => {
-      const user = seedUser(testDb, { id: 'u-inv', inviteCode: 'SEAFOOD' });
-      const key = seedApiKey(testDb, user.id);
-
-      const req = authRequest('/api/assets', key, {
-        method: 'POST',
-        body: { name: 'bad', displayName: 'Bad', type: 'invalid_type', description: 'd', version: '1.0.0' },
-      });
-      const { status } = await parseResponse(await POST(req));
-      expect(status).toBe(400);
-    });
-  });
+  // POST /api/assets removed — use POST /api/v1/assets/publish instead
 });
 
 describe('API /api/assets/[id]', () => {

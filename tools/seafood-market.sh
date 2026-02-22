@@ -671,26 +671,38 @@ print(f\"  Author:      {author}\")
     exit 0
   fi
 
-  # POST to API
+  # Create tar.gz package from skill directory
+  local tarball
+  tarball=$(mktemp /tmp/seafood-publish-XXXXXX.tar.gz)
+  tar czf "$tarball" -C "$skill_dir" . 2>/dev/null || {
+    err "Failed to create package tarball"
+    rm -f "$tarball"
+    exit 1
+  }
+  info "Package: $(du -h "$tarball" | cut -f1) compressed"
+
+  # POST to /api/v1/assets/publish (multipart: metadata + package)
   local response http_code
-  response=$(curl -s -w "\n%{http_code}" -X POST "$REGISTRY_URL/api/assets" \
-    -H "Content-Type: application/json" \
+  response=$(curl -s -w "\n%{http_code}" -X POST "$REGISTRY_URL/api/v1/assets/publish" \
     -H "X-Device-ID: $device_id" \
-    -d "$payload")
+    -F "metadata=$payload;type=application/json" \
+    -F "package=@$tarball;type=application/gzip;filename=package.tar.gz")
   
+  rm -f "$tarball"
+
   http_code=$(echo "$response" | tail -1)
   local body_resp
   body_resp=$(echo "$response" | sed '$d')
 
-  if [ "$http_code" = "201" ]; then
-    local asset_id install_cmd
+  if [ "$http_code" = "201" ] || [ "$http_code" = "200" ]; then
+    local asset_id file_count
     asset_id=$(echo "$body_resp" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['data']['id'])" 2>/dev/null || echo "unknown")
-    install_cmd=$(echo "$body_resp" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['data'].get('installCommand',''))" 2>/dev/null || echo "")
+    file_count=$(echo "$body_resp" | python3 -c "import json,sys; d=json.load(sys.stdin); print(len(d['data'].get('files',[])))" 2>/dev/null || echo "?")
     echo ""
     ok "Published successfully! 🎉"
     echo ""
     echo "  ID:      $asset_id"
-    echo "  Install: $install_cmd"
+    echo "  Files:   $file_count"
     echo "  Page:    $REGISTRY_URL/asset/$asset_id"
     echo ""
   else
