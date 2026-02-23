@@ -104,9 +104,19 @@ export function hasEnoughCoins(userId: string, amount: number): boolean {
 // ════════════════════════════════════════════
 
 export function starAsset(userId: string, assetId: string, source: 'manual' | 'download' = 'manual'): boolean {
-  const result = getDb().prepare(
+  const db = getDb();
+  const result = db.prepare(
     'INSERT OR IGNORE INTO user_stars (user_id, asset_id, source) VALUES (?, ?, ?)'
   ).run(userId, assetId, source);
+
+  if (result.changes > 0 && source === 'manual') {
+    // Award reputation to asset author (not for auto-star on download)
+    const asset = db.prepare('SELECT author_id FROM assets WHERE id = ?').get(assetId) as { author_id: string } | undefined;
+    if (asset?.author_id && asset.author_id !== userId) {
+      addCoins(asset.author_id, 'reputation', USER_REP_EVENTS.asset_starred, 'asset_starred', assetId);
+    }
+  }
+
   return result.changes > 0;
 }
 
@@ -138,6 +148,22 @@ export function getTotalStars(assetId: string): number {
      WHERE a.id = ?`
   ).get(assetId, assetId) as { total: number } | undefined;
   return row?.total ?? 0;
+}
+
+/**
+ * One-time sync of GitHub stars → author reputation.
+ * Called during GitHub import. Capped at 30 rep per asset.
+ */
+export function syncGithubStarReputation(assetId: string): void {
+  const db = getDb();
+  const asset = db.prepare('SELECT author_id, github_stars, github_star_rep_synced FROM assets WHERE id = ?').get(assetId) as { author_id: string; github_stars: number; github_star_rep_synced: number } | undefined;
+  if (!asset || asset.github_star_rep_synced || !asset.author_id || !asset.github_stars) return;
+
+  const repAmount = Math.min(asset.github_stars * USER_REP_EVENTS.github_star_synced, 30);
+  if (repAmount > 0) {
+    addCoins(asset.author_id, 'reputation', repAmount, 'github_star_synced', assetId);
+  }
+  db.prepare('UPDATE assets SET github_star_rep_synced = 1 WHERE id = ?').run(assetId);
 }
 
 /** Get star info for a user: total given stars, assets starred */
