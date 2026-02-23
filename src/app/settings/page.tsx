@@ -17,6 +17,14 @@ interface InviteCodeInfo {
   createdAt: string;
 }
 
+interface DeviceInfo {
+  deviceId: string;
+  deviceIdShort: string;
+  name: string;
+  authorizedAt: string;
+  lastPublishAt: string | null;
+}
+
 export default function SettingsPage() {
   const router = useRouter();
   const { user, isLoading } = useAuth();
@@ -30,6 +38,15 @@ export default function SettingsPage() {
   const [userCodes, setUserCodes] = useState<InviteCodeInfo[]>([]);
   const [loadingCodes, setLoadingCodes] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+
+  // Devices
+  const [devices, setDevices] = useState<DeviceInfo[]>([]);
+  const [loadingDevices, setLoadingDevices] = useState(false);
+  const [newDeviceId, setNewDeviceId] = useState('');
+  const [newDeviceName, setNewDeviceName] = useState('');
+  const [bindingDevice, setBindingDevice] = useState(false);
+  const [bindError, setBindError] = useState('');
+  const [removingDeviceId, setRemovingDeviceId] = useState<string | null>(null);
 
   // Delete account
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -54,6 +71,14 @@ export default function SettingsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSection, activatedCode]);
 
+  // Fetch devices when viewing device section
+  useEffect(() => {
+    if (activeSection === 'devices') {
+      fetchDevices();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSection]);
+
   const fetchUserCodes = async () => {
     setLoadingCodes(true);
     try {
@@ -66,6 +91,74 @@ export default function SettingsPage() {
       // silently fail
     } finally {
       setLoadingCodes(false);
+    }
+  };
+
+  const fetchDevices = async () => {
+    setLoadingDevices(true);
+    try {
+      const res = await fetch('/api/auth/device');
+      const data = await res.json();
+      if (data.success && data.data?.devices) {
+        setDevices(data.data.devices);
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setLoadingDevices(false);
+    }
+  };
+
+  const handleBindDevice = async () => {
+    const trimmed = newDeviceId.trim();
+    if (!trimmed) return;
+
+    setBindingDevice(true);
+    setBindError('');
+
+    try {
+      const res = await fetch('/api/auth/device', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceId: trimmed, name: newDeviceName.trim() || '' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.data?.alreadyBound ? '设备已绑定（无需重复操作）' : '设备绑定成功');
+        setNewDeviceId('');
+        setNewDeviceName('');
+        fetchDevices();
+      } else {
+        setBindError(data.error || '绑定失败');
+      }
+    } catch {
+      setBindError('网络错误，请稍后重试');
+    } finally {
+      setBindingDevice(false);
+    }
+  };
+
+  const handleRemoveDevice = async (deviceId: string) => {
+    if (!confirm('确定要解绑此设备？解绑后该设备上的 Agent 将无法再以你的身份操作。')) return;
+
+    setRemovingDeviceId(deviceId);
+    try {
+      const res = await fetch('/api/auth/device', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('设备已解绑');
+        fetchDevices();
+      } else {
+        showToast(data.error || '解绑失败');
+      }
+    } catch {
+      showToast('网络错误');
+    } finally {
+      setRemovingDeviceId(null);
     }
   };
 
@@ -124,8 +217,7 @@ export default function SettingsPage() {
         setActivatedCode(inviteCode.trim().toUpperCase());
         setInviteCode('');
         setInviteStatus('idle');
-        showToast('🎉 邀请码激活成功！你已获得 6 个邀请码');
-        // Fetch the generated codes
+        showToast('邀请码激活成功！你已获得 6 个邀请码');
         if (data.data?.generatedCodes) {
           setUserCodes(data.data.generatedCodes);
         } else {
@@ -173,9 +265,19 @@ export default function SettingsPage() {
 
   const sections = [
     { id: 'profile', label: '个人信息', icon: '👤' },
+    { id: 'devices', label: '我的设备', icon: '🔗' },
     { id: 'invite', label: '邀请码', icon: '🎟️' },
     { id: 'danger', label: '危险操作', icon: '⚠️' },
   ];
+
+  const formatDate = (iso: string) => {
+    try {
+      return new Date(iso).toLocaleDateString('zh-CN', {
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit',
+      });
+    } catch { return iso; }
+  };
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -264,10 +366,151 @@ export default function SettingsPage() {
                         <span className="text-sm text-muted">Google</span>
                       </>
                     )}
+                    {user.provider === 'feishu' && (
+                      <>
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none"><path d="M3 17.6L9.3 6.5c.3-.5.9-.7 1.4-.4l8.7 5c.5.3.7.9.4 1.4L13.5 23.6c-.3.5-.9.7-1.4.4l-8.7-5c-.5-.3-.7-.9-.4-1.4z" fill="#3370FF"/><path d="M7.5 3.8L13.8 0c.5-.3 1.1-.1 1.4.4l3.3 5.7c.3.5.1 1.1-.4 1.4l-6.3 3.6c-.5.3-1.1.1-1.4-.4L7.1 5.2c-.3-.5-.1-1.1.4-1.4z" fill="#00D6B9"/></svg>
+                        <span className="text-sm text-muted">飞书</span>
+                      </>
+                    )}
                     {!user.provider && <span className="text-sm text-muted">未知</span>}
                   </div>
                 </div>
               </div>
+            </section>
+          )}
+
+          {/* ── Devices Section ── */}
+          {activeSection === 'devices' && (
+            <section className="bg-white border border-card-border rounded-lg p-6 space-y-6">
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                🔗 我的设备
+              </h2>
+              <p className="text-sm text-muted">
+                每个账号只能绑定一个设备（Agent），绑定后该设备可以用你的身份发布、下载资产。
+              </p>
+
+              {/* Loading state */}
+              {loadingDevices ? (
+                <div className="text-sm text-muted py-8 text-center">加载中...</div>
+              ) : devices.length > 0 ? (
+                /* ── Has bound device: show current device ── */
+                <div className="space-y-4">
+                  {devices.map(device => (
+                    <div
+                      key={device.deviceId}
+                      className="p-5 rounded-lg border-2 border-green-200 bg-green-50/30 space-y-3"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                              ✓ 已绑定
+                            </span>
+                          </div>
+                          <p className="text-base font-medium text-foreground">
+                            {device.name || '未命名设备'}
+                          </p>
+                          <p className="text-xs font-mono text-muted mt-1 break-all">
+                            {device.deviceIdShort || device.deviceId.slice(0, 12) + '...'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-4 text-xs text-muted">
+                        <span>绑定于 {formatDate(device.authorizedAt)}</span>
+                        {device.lastPublishAt && (
+                          <span>上次发布 {formatDate(device.lastPublishAt)}</span>
+                        )}
+                      </div>
+                      <div className="pt-2 border-t border-green-200/50">
+                        <button
+                          onClick={() => handleRemoveDevice(device.deviceId)}
+                          disabled={removingDeviceId === device.deviceId}
+                          className="text-xs px-3 py-1.5 rounded-lg border border-red/30 text-red hover:bg-red/10 transition-colors disabled:opacity-50"
+                        >
+                          {removingDeviceId === device.deviceId ? '解绑中...' : '解绑设备（换绑其他设备前需先解绑）'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                /* ── No device: show bind form ── */
+                <>
+                  {!activatedCode ? (
+                    <div className="p-4 rounded-lg bg-amber-50 border border-amber-200">
+                      <p className="text-sm text-amber-800">
+                        需要先激活邀请码才能绑定设备。前往「邀请码」页面激活。
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {/* How to find Device ID */}
+                      <div className="p-4 rounded-lg bg-blue-50/50 border border-blue/20">
+                        <p className="text-sm font-medium text-foreground mb-2">如何获取 Device ID？</p>
+                        <p className="text-sm text-muted mb-2">
+                          在你的 Agent 终端运行以下命令，复制输出的 Device ID：
+                        </p>
+                        <div className="bg-white rounded-lg border border-card-border p-3 font-mono text-sm text-foreground flex items-center justify-between gap-2">
+                          <code>cat ~/.openclaw/identity/device.json</code>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText('cat ~/.openclaw/identity/device.json');
+                              showToast('命令已复制');
+                            }}
+                            className="text-xs px-2 py-1 rounded border border-card-border text-muted hover:text-foreground transition-colors shrink-0"
+                          >
+                            复制
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Bind form */}
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-sm text-muted mb-1">Device ID</label>
+                          <input
+                            type="text"
+                            value={newDeviceId}
+                            onChange={e => {
+                              setNewDeviceId(e.target.value);
+                              setBindError('');
+                            }}
+                            placeholder="粘贴 Agent 的 Device ID"
+                            className="w-full px-4 py-2.5 rounded-lg bg-surface border border-card-border text-foreground placeholder:text-muted/50 focus:outline-none focus:border-blue/50 transition-colors font-mono text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm text-muted mb-1">备注名称（可选）</label>
+                          <input
+                            type="text"
+                            value={newDeviceName}
+                            onChange={e => setNewDeviceName(e.target.value)}
+                            placeholder="如：我的 MacBook、服务器 Agent"
+                            className="w-full max-w-sm px-4 py-2.5 rounded-lg bg-surface border border-card-border text-foreground placeholder:text-muted/50 focus:outline-none focus:border-blue/50 transition-colors text-sm"
+                          />
+                        </div>
+                        {bindError && (
+                          <div className="p-3 rounded-lg bg-red/10 border border-red/30">
+                            <p className="text-sm text-red">{bindError}</p>
+                          </div>
+                        )}
+                        <button
+                          onClick={handleBindDevice}
+                          disabled={!newDeviceId.trim() || bindingDevice}
+                          className="px-5 py-2.5 rounded-lg bg-foreground text-white text-sm font-medium hover:bg-foreground/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {bindingDevice ? '绑定中...' : '绑定设备'}
+                        </button>
+                      </div>
+
+                      {/* Empty state hint */}
+                      <div className="text-sm text-muted py-4 text-center border border-dashed border-card-border rounded-lg">
+                        暂未绑定设备。绑定后你的 Agent 即可以你的身份操作水产市场。
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </section>
           )}
 

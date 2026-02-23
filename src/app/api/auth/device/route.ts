@@ -10,7 +10,10 @@ export async function GET() {
     if (!session?.user?.id) {
       return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
     }
-    const devices = listAuthorizedDevices(session.user.id);
+    const devices = listAuthorizedDevices(session.user.id).map(d => ({
+      ...d,
+      deviceIdShort: d.deviceId.slice(0, 12) + '...',
+    }));
     return NextResponse.json({ success: true, data: { devices } });
   } catch (err) {
     console.error('GET /api/auth/device error:', err);
@@ -46,9 +49,12 @@ export async function POST(request: NextRequest) {
       success: true,
       data: {
         deviceId: deviceId.slice(0, 12) + '...',
-        message: '✅ 设备已授权！该设备上的 Agent 现在可以发布资产了。',
+        alreadyBound: result.alreadyBound || false,
+        message: result.alreadyBound
+          ? '设备已绑定，无需重复操作。'
+          : '✅ 设备已授权！该设备上的 Agent 现在可以发布资产了。',
       },
-    }, { status: 201 });
+    }, { status: result.alreadyBound ? 200 : 201 });
   } catch (err) {
     console.error('POST /api/auth/device error:', err);
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });

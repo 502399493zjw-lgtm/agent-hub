@@ -324,24 +324,32 @@ export function revokeApiKeyByRawKey(key: string, userId: string): boolean {
 // Public API — Authorized Devices
 // ════════════════════════════════════════════
 
-export function authorizeDevice(userId: string, deviceId: string, name: string = ''): { success: boolean; error?: string } {
+export function authorizeDevice(userId: string, deviceId: string, name: string = ''): { success: boolean; alreadyBound?: boolean; error?: string } {
   const db = getDb();
   const now = new Date().toISOString();
 
-  // Check if device is already bound
-  const existing = db.prepare('SELECT user_id FROM authorized_devices WHERE device_id = ?').get(deviceId) as { user_id: string } | undefined;
-
-  if (existing) {
-    if (existing.user_id === userId) {
-      // Already bound to the same user — update name/timestamp, return success
-      db.prepare('UPDATE authorized_devices SET name = ?, authorized_at = ? WHERE device_id = ?').run(name || '', now, deviceId);
-      return { success: true };
+  // ── Rule 1: One account can only bind ONE device ──
+  const userDevice = db.prepare('SELECT device_id FROM authorized_devices WHERE user_id = ?').get(userId) as { device_id: string } | undefined;
+  if (userDevice) {
+    if (userDevice.device_id === deviceId) {
+      // Same device — already bound, idempotent success
+      if (name) db.prepare('UPDATE authorized_devices SET name = ? WHERE device_id = ?').run(name, deviceId);
+      return { success: true, alreadyBound: true };
     }
-    // Bound to a different user — reject
-    return { success: false, error: '此设备已绑定到其他账号' };
+    // User already has a different device bound
+    return { success: false, error: '你已经绑定了一个设备，需要先解绑当前设备才能绑定新设备' };
   }
 
-  // Device not bound yet — create binding (permanent, no expires_at)
+  // ── Rule 2: One device can only bind ONE account ──
+  const deviceOwner = db.prepare(
+    `SELECT d.user_id, u.name AS user_name FROM authorized_devices d LEFT JOIN users u ON u.id = d.user_id WHERE d.device_id = ?`
+  ).get(deviceId) as { user_id: string; user_name: string | null } | undefined;
+  if (deviceOwner) {
+    const ownerHint = deviceOwner.user_name ? `（${deviceOwner.user_name}）` : '';
+    return { success: false, error: `此设备已被其他账号${ownerHint}绑定，一个设备只能绑定一个账号` };
+  }
+
+  // ── All clear — create binding ──
   db.prepare('INSERT INTO authorized_devices (device_id, user_id, name, authorized_at) VALUES (?, ?, ?, ?)').run(deviceId, userId, name, now);
   return { success: true };
 }
@@ -357,7 +365,7 @@ export function validateDevice(deviceId: string): { userId: string; name: string
 export function listAuthorizedDevices(userId: string): { deviceId: string; name: string; authorizedAt: string; lastPublishAt: string | null }[] {
   const rows = getDb().prepare('SELECT device_id, name, authorized_at, last_publish_at FROM authorized_devices WHERE user_id = ?').all(userId) as { device_id: string; name: string; authorized_at: string; last_publish_at: string | null }[];
   return rows.map(r => ({
-    deviceId: r.device_id.slice(0, 12) + '...',
+    deviceId: r.device_id,
     name: r.name,
     authorizedAt: r.authorized_at,
     lastPublishAt: r.last_publish_at,

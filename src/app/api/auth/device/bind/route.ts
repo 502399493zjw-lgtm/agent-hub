@@ -11,9 +11,11 @@ import { findUserById, authorizeDevice } from '@/lib/db';
  * Body: { deviceId: string }
  *
  * Rules:
- * - Device not bound → bind to current user
- * - Device already bound to current user → return "already bound"
- * - Device already bound to another user → return error
+ * - One account can only bind ONE device
+ * - One device can only bind ONE account
+ * - If already bound to same device → idempotent success
+ * - If account already has a different device → error (unbind first)
+ * - If device already bound to another account → error with owner hint
  */
 export async function POST(request: NextRequest) {
   try {
@@ -49,7 +51,10 @@ export async function POST(request: NextRequest) {
       data: {
         deviceId: deviceId.slice(0, 12) + '...',
         userId: session.user.id,
-        message: '✅ 设备已绑定到你的账号。',
+        alreadyBound: result.alreadyBound || false,
+        message: result.alreadyBound
+          ? '设备已绑定，无需重复操作。'
+          : '✅ 设备已绑定到你的账号。',
       },
     });
   } catch (err) {
