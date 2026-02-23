@@ -12,6 +12,7 @@ import {
   generateLetterAvatar,
   type DbUser,
 } from '@/lib/db';
+import { peekQualificationToken, approveCliAuthByDevice, consumePendingEmailInvite, peekPendingEmailInvite } from '@/lib/db/auth';
 import type { Adapter } from 'next-auth/adapters';
 
 declare module 'next-auth' {
@@ -54,8 +55,10 @@ const minimalAdapter: Adapter = {
       provider: 'email',
       providerId: data.email ?? id,
     });
-    // Auto-activate invite code for new email user (cookie was validated in signIn callback)
-    const inviteCode = await getInviteCodeFromCookie();
+    // Auto-activate invite code for new email user
+    // Try cookie first, then server-side stash (for cross-browser magic link)
+    const inviteCode = await getInviteCodeFromCookie()
+      || (data.email ? consumePendingEmailInvite(data.email) : null);
     if (inviteCode) {
       activateInviteCode(id, inviteCode);
     }
@@ -115,12 +118,44 @@ function tryAutoActivateInvite(userId: string, code: string | null): void {
   activateInviteCode(userId, code);
 }
 
+/**
+ * Read the qualification_token cookie set by the redirect route.
+ * If valid, returns the device_id (if any) to auto-approve CLI auth.
+ */
+async function getQualificationDeviceId(): Promise<string | null> {
+  try {
+    const cookieStore = await cookies();
+    const cookie = cookieStore.get('qualification_token');
+    if (!cookie?.value) return null;
+    const peek = peekQualificationToken(cookie.value);
+    return peek.valid && peek.deviceId ? peek.deviceId : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Auto-approve pending CLI auth request for a device after successful OAuth sign-in.
+ */
+function tryAutoApproveCliAuth(userId: string, deviceId: string | null): void {
+  if (!deviceId) return;
+  try {
+    const result = approveCliAuthByDevice(deviceId, userId);
+    if (result.success) {
+      console.log(`[auth] Auto-approved CLI auth for device ${deviceId.slice(0, 12)}... user ${userId}`);
+    }
+  } catch (e) {
+    console.error('[auth] Auto-approve CLI auth error:', e);
+  }
+}
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: minimalAdapter,
   providers: [
     GitHub({
       clientId: process.env.AUTH_GITHUB_ID,
       clientSecret: process.env.AUTH_GITHUB_SECRET,
+      allowDangerousEmailAccountLinking: true,
     }),
     // Google OAuth removed — ECS in China cannot reach Google servers
     Feishu({
@@ -128,6 +163,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       appSecret: process.env.AUTH_FEISHU_APP_SECRET || '',
       clientId: process.env.AUTH_FEISHU_APP_ID || '',
       clientSecret: process.env.AUTH_FEISHU_APP_SECRET || '',
+      allowDangerousEmailAccountLinking: true,
     }),
     Resend({
       apiKey: process.env.AUTH_RESEND_KEY,
@@ -147,6 +183,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
       // Read invite code from cookie (set during register page step 1)
       const inviteCode = await getInviteCodeFromCookie();
+      // Read qualification_token cookie to auto-approve CLI auth
+      const qualifyDeviceId = await getQualificationDeviceId();
 
       // Email provider: user is created by adapter, just check soft-delete + auto-activate
       if (provider === 'resend') {
@@ -154,14 +192,19 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (existing?.deleted_at) return false;
         if (existing) {
           // Existing user → allow login, auto-activate invite if they have one
-          tryAutoActivateInvite(existing.id, inviteCode);
+          // Use consume here since createUser adapter won't be called for existing users
+          const effectiveInviteCode = inviteCode || (user.email ? consumePendingEmailInvite(user.email) : null);
+          tryAutoActivateInvite(existing.id, effectiveInviteCode);
+          tryAutoApproveCliAuth(existing.id, qualifyDeviceId);
           return true;
         }
         // New user via email → must come through register flow with invite code
-        if (!inviteCode) return '/login?error=not_registered';
-        const validation = validateInviteCode(inviteCode);
+        // Use peek (non-destructive) — the adapter's createUser will consume it
+        const effectiveInviteCode = inviteCode || (user.email ? peekPendingEmailInvite(user.email) : null);
+        if (!effectiveInviteCode) return '/login?error=not_registered';
+        const validation = validateInviteCode(effectiveInviteCode);
         if (!validation.valid) return '/register?error=invite_required';
-        // User will be created by the adapter's createUser; we'll activate invite in jwt callback
+        // User will be created by the adapter's createUser; it will consume the stash and activate invite
         return true;
       }
 
@@ -177,6 +220,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         updateProviderInfo(existing.id, user.name ?? existing.name, freshAvatar);
         // Existing user → allow login, auto-activate invite if they have one
         tryAutoActivateInvite(existing.id, inviteCode);
+        tryAutoApproveCliAuth(existing.id, qualifyDeviceId);
         return true;
       }
 
@@ -201,6 +245,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
       // Activate invite code for new user
       activateInviteCode(newUserId, inviteCode);
+
+      // Auto-approve CLI auth if qualify flow created one
+      tryAutoApproveCliAuth(newUserId, qualifyDeviceId);
 
       return true;
     },

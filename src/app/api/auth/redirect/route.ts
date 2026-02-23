@@ -38,7 +38,10 @@ export async function GET(req: NextRequest) {
 
   // For email, redirect to the register page (needs client-side form)
   if (provider === 'email') {
-    return NextResponse.redirect(`${baseUrl}/register?qt=${qt}&provider=email`);
+    // Pass invite code so register page can skip invite validation step
+    const peek = peekQualificationToken(qt);
+    const codeParam = peek.valid && peek.inviteCode ? `&code=${encodeURIComponent(peek.inviteCode)}` : '';
+    return NextResponse.redirect(`${baseUrl}/register?qt=${qt}&provider=email${codeParam}`);
   }
 
   // Supported OAuth providers

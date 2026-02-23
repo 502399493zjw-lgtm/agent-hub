@@ -64,6 +64,15 @@ function RegisterContent() {
     e.preventDefault();
     if (!email || emailSending) return;
     setEmailSending(true);
+    // Stash invite code on server so magic link callback can find it
+    // (the cookie may not be present if magic link is opened in a different browser)
+    try {
+      await fetch('/api/auth/invite/stash', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, invite_code: inviteCode }),
+      });
+    } catch { /* best-effort; cookie fallback still works */ }
     await signIn('resend', { email, callbackUrl, redirect: true });
     setEmailSent(true);
     setEmailSending(false);

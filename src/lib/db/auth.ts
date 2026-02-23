@@ -25,6 +25,49 @@ export function useVerificationToken(data: { identifier: string; token: string }
 }
 
 // ════════════════════════════════════════════
+// Pending Email Invite Cache
+// ════════════════════════════════════════════
+// When a user submits email + invite_code via the register page,
+// we store the mapping here so the signIn callback can find the
+// invite code even if the magic link is opened in a different browser
+// (where the invite_code cookie doesn't exist).
+
+const pendingEmailInvites = new Map<string, { inviteCode: string; expiresAt: number }>();
+
+/** Store invite code for an email address (TTL: 30 minutes) */
+export function setPendingEmailInvite(email: string, inviteCode: string): void {
+  // Purge expired entries
+  const now = Date.now();
+  for (const [k, v] of pendingEmailInvites) {
+    if (v.expiresAt < now) pendingEmailInvites.delete(k);
+  }
+  pendingEmailInvites.set(email.toLowerCase().trim(), {
+    inviteCode: inviteCode.trim().toUpperCase(),
+    expiresAt: now + 30 * 60 * 1000,
+  });
+}
+
+/** Get and consume the pending invite code for an email */
+export function consumePendingEmailInvite(email: string): string | null {
+  const entry = pendingEmailInvites.get(email.toLowerCase().trim());
+  if (!entry) return null;
+  pendingEmailInvites.delete(email.toLowerCase().trim());
+  if (entry.expiresAt < Date.now()) return null;
+  return entry.inviteCode;
+}
+
+/** Peek at the pending invite code without consuming it */
+export function peekPendingEmailInvite(email: string): string | null {
+  const entry = pendingEmailInvites.get(email.toLowerCase().trim());
+  if (!entry) return null;
+  if (entry.expiresAt < Date.now()) {
+    pendingEmailInvites.delete(email.toLowerCase().trim());
+    return null;
+  }
+  return entry.inviteCode;
+}
+
+// ════════════════════════════════════════════
 // Invite Code System
 // ════════════════════════════════════════════
 
@@ -430,4 +473,36 @@ export function getCliAuthRequest(code: string): { deviceId: string; deviceName:
 
   if (!row) return null;
   return { deviceId: row.device_id, deviceName: row.device_name, status: row.status, expiresAt: row.expires_at };
+}
+
+/**
+ * Auto-approve a pending CLI auth request by device_id (not by code).
+ * Called from the signIn callback after successful OAuth, when the
+ * qualify flow created a CLI auth request with the same device_id.
+ */
+export function approveCliAuthByDevice(deviceId: string, userId: string): { success: boolean; error?: string } {
+  const now = new Date().toISOString();
+  const row = getDb().prepare(
+    "SELECT code, device_name, status, expires_at FROM cli_auth_requests WHERE device_id = ? AND status = 'pending' ORDER BY created_at DESC LIMIT 1"
+  ).get(deviceId) as { code: string; device_name: string; status: string; expires_at: string } | undefined;
+
+  if (!row) return { success: false, error: 'No pending CLI auth request for this device' };
+
+  if (row.expires_at < now) {
+    getDb().prepare('UPDATE cli_auth_requests SET status = ? WHERE code = ?').run('expired', row.code);
+    return { success: false, error: 'CLI auth request expired' };
+  }
+
+  // Bind device
+  const bindResult = authorizeDevice(userId, deviceId, row.device_name);
+  if (!bindResult.success) {
+    return { success: false, error: bindResult.error || '设备绑定失败' };
+  }
+
+  // Mark as authorized
+  getDb().prepare(
+    'UPDATE cli_auth_requests SET status = ?, user_id = ?, authorized_at = ? WHERE code = ?'
+  ).run('authorized', userId, now, row.code);
+
+  return { success: true };
 }
