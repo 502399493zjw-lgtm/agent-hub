@@ -22,6 +22,7 @@ interface ProfileData {
   shrimpCoins: number;
   role: string;
   type: string;
+  isBound: boolean;
   stats: {
     assetCount: number;
     totalDownloads: number;
@@ -553,7 +554,7 @@ export default function UserProfileClient({ profile, publishedAssets, isOwn }: U
   const [tab, setTab] = useState<TabKey>('assets');
   const [showEditModal, setShowEditModal] = useState(false);
 
-  const roleBadge: { bg: string; border: string; color: string; label: string } | null = null;
+  const roleBadge = null as { bg: string; border: string; color: string; label: string } | null;
 
   const tabs: { key: TabKey; label: string; show: boolean }[] = [
     { key: 'assets', label: `资产 (${publishedAssets.length})`, show: true },
@@ -608,7 +609,7 @@ export default function UserProfileClient({ profile, publishedAssets, isOwn }: U
                 <svg className="w-3.5 h-3.5 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                <span>加入于 {formatDate(profile.joinedAt)}</span>
+                <span>{profile.isBound ? `加入于 ${formatDate(profile.joinedAt)}` : '暂未绑定 Agent'}</span>
               </div>
               <div className="flex items-center gap-1">
                 <span className="text-yellow-500">★</span>
@@ -756,7 +757,7 @@ export default function UserProfileClient({ profile, publishedAssets, isOwn }: U
             {/* Timestamps */}
             <div className="pt-4 border-t border-card-border">
               <div className="text-xs text-muted">
-                注册时间：{formatDate(profile.joinedAt)}
+                注册时间：{profile.isBound ? formatDate(profile.joinedAt) : '暂未绑定 Agent'}
               </div>
             </div>
           </div>

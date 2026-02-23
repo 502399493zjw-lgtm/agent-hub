@@ -75,6 +75,7 @@ export default async function UserProfilePage({ params }: { params: Promise<{ id
     shrimpCoins: dbUser.shrimp_coins,
     role: dbUser.role,
     type: dbUser.type,
+    isBound: !!(dbUser.email || dbUser.onboarding_completed),
     stats: {
       assetCount: publishedAssets.length,
       totalDownloads,

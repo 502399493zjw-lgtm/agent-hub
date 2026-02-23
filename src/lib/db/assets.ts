@@ -148,7 +148,7 @@ export function listAssets(params: ListParams): { assets: Asset[]; total: number
     case 'popular':
     default:
       // 综合热度：下载量(对数衰减) + 星标(github + user) + 时间衰减
-      orderBy = '((ln(a.downloads + 2) / ln(2) * 3 + (a.github_stars + COALESCE(us.cnt, 0)) * 2) * CASE WHEN has_chinese(a.display_name) OR has_chinese(a.long_description) OR has_chinese(a.author_name) THEN 10 ELSE 1 END) DESC, a.updated_at DESC';
+      orderBy = '((ln(a.downloads + 2) / ln(2) * 3 + (a.github_stars + COALESCE(us.cnt, 0)) * 2) * CASE WHEN has_chinese(a.display_name) OR has_chinese(a.description) OR has_chinese(a.readme) OR has_chinese(a.author_name) THEN 10 ELSE 1 END) DESC, a.updated_at DESC';
       break;
   }
 
@@ -338,7 +338,7 @@ export function listAssetsCompact(params: ListParams & { tag?: string }): { asse
     case 'popular':
     default:
       // 综合热度：下载量(对数衰减) + github_stars（V1 compact 无 user_stars JOIN）
-      orderBy = '((ln(a.downloads + 2) / ln(2) * 3 + a.github_stars * 2) * CASE WHEN has_chinese(a.display_name) OR has_chinese(a.long_description) OR has_chinese(a.author_name) THEN 10 ELSE 1 END) DESC, a.updated_at DESC';
+      orderBy = '((ln(a.downloads + 2) / ln(2) * 3 + a.github_stars * 2) * CASE WHEN has_chinese(a.display_name) OR has_chinese(a.description) OR has_chinese(a.readme) OR has_chinese(a.author_name) THEN 10 ELSE 1 END) DESC, a.updated_at DESC';
       break;
   }
 
