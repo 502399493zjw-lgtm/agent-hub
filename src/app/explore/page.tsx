@@ -1,8 +1,8 @@
-import { listAssets } from '@/lib/db';
+import { listAssets, getAssetCountByType, getAssetCountByCategory, getTotalAssetCount } from '@/lib/db';
 import ExploreClientPage from './client';
 import type { Metadata } from 'next';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 60;
 
 export const metadata: Metadata = {
   title: '探索 Agent 资产 — 水产市场',
@@ -15,16 +15,20 @@ export const metadata: Metadata = {
 };
 
 export default function ExplorePage() {
-  // Pre-fetch initial assets (all types, first 20, popular sort)
+  // Pre-fetch initial assets (all types, first 100, popular sort)
   const result = listAssets({ pageSize: 100, sort: 'popular' });
-  // Also fetch all assets for sidebar counts
-  const allResult = listAssets({ pageSize: 100 });
+  // Use lightweight count queries for sidebar instead of fetching all assets again
+  const typeCounts = getAssetCountByType();
+  const categoryCounts = getAssetCountByCategory();
+  const totalCount = getTotalAssetCount();
 
   return (
     <ExploreClientPage
       initialAssets={result.assets}
       initialTotal={result.total}
-      initialAllAssets={allResult.assets}
+      typeCounts={typeCounts}
+      categoryCounts={categoryCounts}
+      totalCount={totalCount}
     />
   );
 }

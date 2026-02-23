@@ -190,14 +190,15 @@ interface AssetDetailClientProps {
   initialAsset: Asset | null;
   initialComments: Comment[];
   initialIssues: Issue[];
-  initialAllAssets: Asset[];
+  relatedAssets: Asset[];
+  depAssets: Asset[];
+  dependentAssets: Asset[];
 }
 
-export default function AssetDetailClient({ id, initialAsset, initialComments, initialIssues, initialAllAssets }: AssetDetailClientProps) {
+export default function AssetDetailClient({ id, initialAsset, initialComments, initialIssues, relatedAssets, depAssets, dependentAssets }: AssetDetailClientProps) {
   const { user } = useAuth();
   const hasInviteAccess = !!user?.inviteCode;
   const [asset] = useState<Asset | null>(initialAsset);
-  const [allAssets] = useState<Asset[]>(initialAllAssets);
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [toast, setToast] = useState<string | null>(null);
@@ -263,11 +264,8 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
   const config = typeConfig[asset.type];
   const allComments = [...localComments, ...serverComments];
   const issuesList = serverIssues;
-  const related = allAssets
-    .filter(a => a.id !== asset.id && (a.type === asset.type || a.tags.some(t => asset.tags.includes(t))))
-    .slice(0, 4);
-  const depAssets = asset.dependencies.map(depId => allAssets.find(a => a.id === depId)).filter(Boolean) as Asset[];
-  const dependents = allAssets.filter(a => a.dependencies.includes(asset.id));
+  const related = relatedAssets;
+  const dependents = dependentAssets;
   const installCmd = `seafood-market install ${asset.type}/@${asset.author.id}/${asset.name}`;
 
   const handleCopy = () => {

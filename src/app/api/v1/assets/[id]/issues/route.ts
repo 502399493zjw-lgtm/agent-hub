@@ -20,7 +20,9 @@ export async function GET(
 ) {
   const { id } = await params;
   const s = getIssuesByAssetId(id);
-  return NextResponse.json({ success: true, data: s });
+  return NextResponse.json({ success: true, data: s }, {
+    headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' },
+  });
 }
 
 export async function POST(

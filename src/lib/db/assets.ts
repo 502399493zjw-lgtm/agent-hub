@@ -6,6 +6,15 @@ import { Asset, User } from '@/data/types';
 import { getDb } from './connection';
 import { calculateHubScore } from './economy';
 import { addCoins, USER_REP_EVENTS, SHRIMP_COIN_EVENTS } from './economy';
+import { getCached } from '../cache';
+
+// ════════════════════════════════════════════
+// Safe JSON.parse wrapper
+// ════════════════════════════════════════════
+
+function safeParse(str: string, fallback: unknown = []) {
+  try { return JSON.parse(str); } catch { return fallback; }
+}
 
 // ════════════════════════════════════════════
 // Asset row conversion
@@ -35,12 +44,12 @@ export function rowToAsset(row: DbRow): Asset {
     author: { id: row.author_id || ('u-' + row.author_name.toLowerCase().replace(/\s+/g, '-')), name: row.author_name, avatar: row.author_avatar },
     description: row.description, longDescription: row.long_description, version: row.version,
     downloads: row.downloads, rating: row.rating, ratingCount: row.rating_count,
-    tags: JSON.parse(row.tags) as string[], category: row.category,
+    tags: safeParse(row.tags, []) as string[], category: row.category,
     createdAt: row.created_at, updatedAt: row.updated_at,
     installCommand: row.install_command, readme: row.readme,
-    versions: JSON.parse(row.versions), dependencies: JSON.parse(row.dependencies),
-    compatibility: JSON.parse(row.compatibility), issueCount: row.issue_count,
-    files: JSON.parse(row.files || '[]'),
+    versions: safeParse(row.versions, []), dependencies: safeParse(row.dependencies, []),
+    compatibility: safeParse(row.compatibility, {}), issueCount: row.issue_count,
+    files: safeParse(row.files || '[]', []),
     configSubtype: (row.config_subtype ?? undefined) as Asset['configSubtype'],
     githubUrl: row.github_url || undefined,
     githubStars: row.github_stars || undefined,
@@ -369,7 +378,7 @@ export function listAssetsCompact(params: ListParams & { tag?: string }): { asse
   return {
     assets: rows.map(r => ({
       id: r.id, name: r.name, displayName: r.display_name, type: r.type,
-      description: r.description, tags: JSON.parse(r.tags), installs: r.downloads,
+      description: r.description, tags: safeParse(r.tags, []), installs: r.downloads,
       rating: r.rating, author: r.author_name, authorId: r.author_id, version: r.version,
       installCommand: r.install_command, updatedAt: r.updated_at, category: r.category,
     })),
@@ -378,18 +387,20 @@ export function listAssetsCompact(params: ListParams & { tag?: string }): { asse
 }
 
 export function getAllTags(): { name: string; count: number }[] {
-  const db = getDb();
-  const rows = db.prepare('SELECT tags FROM assets').all() as { tags: string }[];
-  const tagMap = new Map<string, number>();
-  for (const row of rows) {
-    const tags = JSON.parse(row.tags) as string[];
-    for (const t of tags) {
-      tagMap.set(t, (tagMap.get(t) ?? 0) + 1);
+  return getCached('allTags', 60_000, () => {
+    const db = getDb();
+    const rows = db.prepare('SELECT tags FROM assets').all() as { tags: string }[];
+    const tagMap = new Map<string, number>();
+    for (const row of rows) {
+      const tags = safeParse(row.tags, []) as string[];
+      for (const t of tags) {
+        tagMap.set(t, (tagMap.get(t) ?? 0) + 1);
+      }
     }
-  }
-  return [...tagMap.entries()]
-    .map(([name, count]) => ({ name, count }))
-    .sort((a, b) => b.count - a.count);
+    return [...tagMap.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+  });
 }
 
 export function getAllCategories(): { name: string; count: number }[] {
@@ -400,7 +411,7 @@ export function getAllCategories(): { name: string; count: number }[] {
 export function getAssetManifest(id: string): { id: string; manifest: Record<string, unknown> } | null {
   const row = getDb().prepare('SELECT id, manifest FROM assets WHERE id = ?').get(id) as { id: string; manifest: string } | undefined;
   if (!row) return null;
-  return { id: row.id, manifest: JSON.parse(row.manifest || '{}') };
+  return { id: row.id, manifest: safeParse(row.manifest || '{}', {}) };
 }
 
 export function updateAssetManifest(id: string, manifest: Record<string, unknown>): boolean {
@@ -424,7 +435,7 @@ export function getAssetsByIds(ids: string[]): AssetCompact[] {
   }[];
   return rows.map(r => ({
     id: r.id, name: r.name, displayName: r.display_name, type: r.type,
-    description: r.description, tags: JSON.parse(r.tags), installs: r.downloads,
+    description: r.description, tags: safeParse(r.tags, []), installs: r.downloads,
     rating: r.rating, author: r.author_name, authorId: r.author_id, version: r.version,
     installCommand: r.install_command, updatedAt: r.updated_at, category: r.category,
   }));
@@ -465,12 +476,12 @@ export function getAssetL2(id: string): (AssetCompact & { readme: string; longDe
   if (!row) return null;
   return {
     id: row.id, name: row.name, displayName: row.display_name, type: row.type,
-    description: row.description, tags: JSON.parse(row.tags), installs: row.downloads,
+    description: row.description, tags: safeParse(row.tags, []), installs: row.downloads,
     rating: row.rating, author: row.author_name, authorId: row.author_id, version: row.version,
     installCommand: row.install_command, updatedAt: row.updated_at, category: row.category,
     readme: row.readme, longDescription: row.long_description,
-    versions: JSON.parse(row.versions), dependencies: JSON.parse(row.dependencies),
-    files: JSON.parse(row.files || '[]'),
+    versions: safeParse(row.versions, []), dependencies: safeParse(row.dependencies, []),
+    files: safeParse(row.files || '[]', []),
   };
 }
 
@@ -483,7 +494,7 @@ export function getTrendingAssets(period: string, limit: number = 10): AssetComp
   }[];
   return rows.map(r => ({
     id: r.id, name: r.name, displayName: r.display_name, type: r.type,
-    description: r.description, tags: JSON.parse(r.tags), installs: r.downloads,
+    description: r.description, tags: safeParse(r.tags, []), installs: r.downloads,
     rating: r.rating, author: r.author_name, authorId: r.author_id, version: r.version,
     installCommand: r.install_command, updatedAt: r.updated_at, category: r.category,
   }));
@@ -505,7 +516,7 @@ export function getAssetVersions(assetId: string): AssetVersionInfo[] | null {
   const db = getDb();
   const row = db.prepare('SELECT versions FROM assets WHERE id = ?').get(assetId) as { versions: string } | undefined;
   if (!row) return null;
-  return JSON.parse(row.versions);
+  return safeParse(row.versions, []);
 }
 
 /** Get a specific version for an asset */
@@ -513,6 +524,22 @@ export function getAssetVersion(assetId: string, version: string): AssetVersionI
   const versions = getAssetVersions(assetId);
   if (!versions) return null;
   return versions.find(v => v.version === version) ?? null;
+}
+
+// ════════════════════════════════════════════
+// Dependents (reverse dependency lookup)
+// ════════════════════════════════════════════
+
+/** Find assets that depend on the given assetId */
+export function getDependentAssets(assetId: string): Asset[] {
+  const db = getDb();
+  // dependencies is stored as JSON array; use LIKE for a quick filter then verify in JS
+  const rows = db.prepare(
+    `SELECT * FROM assets WHERE dependencies LIKE ?`
+  ).all(`%${assetId}%`) as DbRow[];
+  return rows
+    .map(rowToAsset)
+    .filter(a => a.dependencies.includes(assetId));
 }
 
 // ════════════════════════════════════════════
@@ -532,7 +559,7 @@ export function resolveByHash(hash: string): HashResolveResult[] {
   const rows = db.prepare('SELECT id, name, version, files FROM assets').all() as { id: string; name: string; version: string; files: string }[];
   const results: HashResolveResult[] = [];
   for (const row of rows) {
-    const files = JSON.parse(row.files || '[]') as { path: string; sha256?: string }[];
+    const files = safeParse(row.files || '[]', []) as { path: string; sha256?: string }[];
     for (const f of files) {
       if (f.sha256 === hash) {
         results.push({ assetId: row.id, assetName: row.name, filePath: f.path, version: row.version });

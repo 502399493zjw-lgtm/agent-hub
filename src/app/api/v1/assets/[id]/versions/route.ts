@@ -21,7 +21,9 @@ export async function GET(
     if (!v) {
       return NextResponse.json({ success: false, error: 'Version not found' }, { status: 404 });
     }
-    return NextResponse.json({ success: true, data: v });
+    return NextResponse.json({ success: true, data: v }, {
+      headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' },
+    });
   }
 
   const versions = getAssetVersions(id);
@@ -35,5 +37,7 @@ export async function GET(
       total: versions.length,
       versions,
     },
+  }, {
+    headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' },
   });
 }

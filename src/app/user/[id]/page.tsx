@@ -1,4 +1,4 @@
-import { findUserById, listAssets, getCommentsByAssetId, getIssuesByAssetId } from '@/lib/db';
+import { findUserById, listAssets, getCommentCountsByAssetIds, getIssueCountsByAssetIds } from '@/lib/db';
 import { auth } from '@/lib/auth';
 import UserProfileClient from './client';
 import type { Metadata } from 'next';
@@ -50,13 +50,16 @@ export default async function UserProfilePage({ params }: { params: Promise<{ id
   // Get stats: total downloads, total stars, total comments, total issues
   let totalDownloads = 0;
   let totalStars = 0;
+  const assetIds = publishedAssets.map(a => a.id);
+  const commentCounts = getCommentCountsByAssetIds(assetIds);
+  const issueCounts = getIssueCountsByAssetIds(assetIds);
   let totalComments = 0;
   let totalIssues = 0;
   for (const asset of publishedAssets) {
     totalDownloads += asset.downloads;
     totalStars += asset.totalStars ?? asset.githubStars ?? 0;
-    totalComments += getCommentsByAssetId(asset.id).length;
-    totalIssues += getIssuesByAssetId(asset.id).length;
+    totalComments += commentCounts[asset.id] || 0;
+    totalIssues += issueCounts[asset.id] || 0;
   }
 
   const profileData = {

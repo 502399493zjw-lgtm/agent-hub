@@ -231,6 +231,18 @@ export function initTables(db: import('better-sqlite3').Database): void {
     CREATE INDEX IF NOT EXISTS idx_user_stars_asset ON user_stars(asset_id);
   `);
 
+  // ════════════════════════════════════════════
+  // Performance indexes
+  // ════════════════════════════════════════════
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_assets_type_downloads ON assets(type, downloads DESC);
+    CREATE INDEX IF NOT EXISTS idx_assets_author ON assets(author_id);
+    CREATE INDEX IF NOT EXISTS idx_assets_updated ON assets(updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_comments_asset ON comments(asset_id);
+    CREATE INDEX IF NOT EXISTS idx_issues_asset ON issues(asset_id);
+  `);
+  // Note: idx_user_stars_asset is already created above with user_stars table
+
   // FTS5 full-text search virtual table
   db.exec(`
     CREATE VIRTUAL TABLE IF NOT EXISTS assets_fts USING fts5(

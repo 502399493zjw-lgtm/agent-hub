@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useState, useRef, useEffect } from 'react';
 import { AssetType, Asset, formatDownloads, typeConfig } from '@/data/types';
 import { StatsData } from '@/lib/db';
@@ -157,10 +158,12 @@ export default function HomeClient({ stats, tabAssets }: HomeClientProps) {
       <section className="relative overflow-hidden min-h-[85vh] flex items-center section-light">
         {/* Right illustration — positioned absolute with gradient overlays */}
         <div className="absolute right-0 top-[4%] bottom-[100px] w-[42.5%] hidden md:block pointer-events-none overflow-hidden z-0">
-          <img
-            src="/hero-illustration.jpg"
+          <Image
+            src="/hero-illustration.webp"
             alt="水产市场"
-            className="w-full h-full object-cover object-center"
+            fill
+            className="object-cover object-center"
+            priority
           />
           <div className="absolute inset-0" style={{ background: 'linear-gradient(to right, #ffffff 0%, #ffffff 5%, transparent 45%)' }} />
           <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, #ffffff 0%, #ffffff 5%, transparent 35%)' }} />

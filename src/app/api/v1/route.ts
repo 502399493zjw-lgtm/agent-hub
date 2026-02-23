@@ -35,5 +35,9 @@ export async function GET() {
       type_breakdown: typeCounts,
     },
     agent_hint: '推荐流程: search → assets/{id} → files/{path} → download。L1 搜索即可决策，L2 检视确认详情，L3 按需读文件。?facets=true 获取聚合。resolve?hash=sha256:xxx 通过哈希定位文件。versions 查版本历史。publish 发布资产。',
+  }, {
+    headers: {
+      'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+    },
   });
 }

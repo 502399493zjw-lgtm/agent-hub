@@ -2,6 +2,7 @@
  * db/stats.ts — Stats, Daily Growth, Notifications, Evolution/Activity Events.
  */
 import { getDb } from './connection';
+import { getCached } from '../cache';
 
 // ════════════════════════════════════════════
 // Public API — Notifications
@@ -73,31 +74,46 @@ export interface StatsData {
 }
 
 export function getStats(): StatsData {
-  const db = getDb();
-  const totalAssets = (db.prepare('SELECT COUNT(*) as cnt FROM assets').get() as { cnt: number }).cnt;
-  const totalDevelopers = (db.prepare("SELECT COUNT(DISTINCT author_id) as cnt FROM assets WHERE author_id != ''").get() as { cnt: number }).cnt;
-  const totalDownloads = (db.prepare('SELECT COALESCE(SUM(downloads), 0) as total FROM assets').get() as { total: number }).total;
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-  const weeklyNew = (db.prepare('SELECT COUNT(*) as cnt FROM assets WHERE created_at >= ?').get(sevenDaysAgo) as { cnt: number }).cnt;
+  return getCached('stats', 30_000, () => {
+    const db = getDb();
+    const totalAssets = (db.prepare('SELECT COUNT(*) as cnt FROM assets').get() as { cnt: number }).cnt;
+    const totalDevelopers = (db.prepare("SELECT COUNT(DISTINCT author_id) as cnt FROM assets WHERE author_id != ''").get() as { cnt: number }).cnt;
+    const totalDownloads = (db.prepare('SELECT COALESCE(SUM(downloads), 0) as total FROM assets').get() as { total: number }).total;
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const weeklyNew = (db.prepare('SELECT COUNT(*) as cnt FROM assets WHERE created_at >= ?').get(sevenDaysAgo) as { cnt: number }).cnt;
 
-  const topDevelopers = db.prepare(`SELECT author_id as id, author_name as name, author_avatar as avatar, COUNT(*) as assetCount, COALESCE(SUM(downloads),0) as totalDownloads FROM assets WHERE author_id != '' GROUP BY author_id ORDER BY totalDownloads DESC LIMIT 10`).all() as { id: string; name: string; avatar: string; assetCount: number; totalDownloads: number }[];
+    const topDevelopers = db.prepare(`SELECT author_id as id, author_name as name, author_avatar as avatar, COUNT(*) as assetCount, COALESCE(SUM(downloads),0) as totalDownloads FROM assets WHERE author_id != '' GROUP BY author_id ORDER BY totalDownloads DESC LIMIT 10`).all() as { id: string; name: string; avatar: string; assetCount: number; totalDownloads: number }[];
 
-  const recentRows = db.prepare(`SELECT name, display_name, author_name, author_avatar, version, created_at, updated_at FROM assets ORDER BY updated_at DESC LIMIT 20`).all() as { name: string; display_name: string; author_name: string; author_avatar: string; version: string; created_at: string; updated_at: string }[];
-  const recentActivity = recentRows.map(row => ({
-    type: (row.created_at === row.updated_at ? 'publish' : 'update') as 'publish' | 'update',
-    authorName: row.author_name, authorAvatar: row.author_avatar,
-    assetName: row.name, assetDisplayName: row.display_name,
-    version: row.version, timestamp: row.updated_at,
-  }));
+    const recentRows = db.prepare(`SELECT name, display_name, author_name, author_avatar, version, created_at, updated_at FROM assets ORDER BY updated_at DESC LIMIT 20`).all() as { name: string; display_name: string; author_name: string; author_avatar: string; version: string; created_at: string; updated_at: string }[];
+    const recentActivity = recentRows.map(row => ({
+      type: (row.created_at === row.updated_at ? 'publish' : 'update') as 'publish' | 'update',
+      authorName: row.author_name, authorAvatar: row.author_avatar,
+      assetName: row.name, assetDisplayName: row.display_name,
+      version: row.version, timestamp: row.updated_at,
+    }));
 
-  return { totalAssets, totalDevelopers, totalDownloads, weeklyNew, topDevelopers, recentActivity };
+    return { totalAssets, totalDevelopers, totalDownloads, weeklyNew, topDevelopers, recentActivity };
+  });
 }
 
 export function getAssetCountByType(): Record<string, number> {
-  const rows = getDb().prepare('SELECT type, COUNT(*) as cnt FROM assets GROUP BY type').all() as { type: string; cnt: number }[];
+  return getCached('assetCountByType', 30_000, () => {
+    const rows = getDb().prepare('SELECT type, COUNT(*) as cnt FROM assets GROUP BY type').all() as { type: string; cnt: number }[];
+    const result: Record<string, number> = {};
+    for (const row of rows) result[row.type] = row.cnt;
+    return result;
+  });
+}
+
+export function getAssetCountByCategory(): Record<string, number> {
+  const rows = getDb().prepare('SELECT category, COUNT(*) as cnt FROM assets GROUP BY category').all() as { category: string; cnt: number }[];
   const result: Record<string, number> = {};
-  for (const row of rows) result[row.type] = row.cnt;
+  for (const row of rows) result[row.category] = row.cnt;
   return result;
+}
+
+export function getTotalAssetCount(): number {
+  return (getDb().prepare('SELECT COUNT(*) as cnt FROM assets').get() as { cnt: number }).cnt;
 }
 
 export function getTotalCommentCount(): number {

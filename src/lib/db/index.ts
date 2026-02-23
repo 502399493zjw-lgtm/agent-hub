@@ -30,7 +30,7 @@ export {
   type L1ListParams, listAssetsL1, getAssetL2,
   getAllTags, getAllCategories,
   getAssetManifest, updateAssetManifest, getAssetReadme,
-  getAssetsByIds, getTrendingAssets,
+  getAssetsByIds, getTrendingAssets, getDependentAssets,
   type AssetVersionInfo, getAssetVersions, getAssetVersion,
   type HashResolveResult, resolveByHash,
 } from './assets';
@@ -66,8 +66,8 @@ export {
 
 // Social (Comments, Issues, Collections)
 export {
-  getCommentsByAssetId, createComment, getCommentCount,
-  getIssuesByAssetId, createIssue, searchIssues, getIssueCount,
+  getCommentsByAssetId, createComment, getCommentCount, getCommentCountsByAssetIds,
+  getIssuesByAssetId, createIssue, searchIssues, getIssueCount, getIssueCountsByAssetIds,
   getCollections, searchCollections,
 } from './social';
 
@@ -76,5 +76,6 @@ export {
   getNotifications, markNotificationRead, markAllRead,
   getEvolutionEventsByUserId, getActivityEventsByUserId,
   getGrowthData, type StatsData, getStats,
-  getAssetCountByType, getTotalCommentCount, getTotalIssueCount, getTotalUserCount,
+  getAssetCountByType, getAssetCountByCategory, getTotalAssetCount,
+  getTotalCommentCount, getTotalIssueCount, getTotalUserCount,
 } from './stats';

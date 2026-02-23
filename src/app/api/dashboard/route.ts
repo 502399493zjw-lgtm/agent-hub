@@ -11,8 +11,8 @@ export async function GET(request: NextRequest) {
     }
 
     const authorId = authResult.userId;
-    const dbResult = listAssets({ pageSize: 500 });
-    const targetAssets = dbResult.assets.filter(a => a.author.id === authorId);
+    const dbResult = listAssets({ authorId, pageSize: 200 });
+    const targetAssets = dbResult.assets;
 
     let allComments: ReturnType<typeof getCommentsByAssetId> = [];
     let allIssues: ReturnType<typeof getIssuesByAssetId> = [];

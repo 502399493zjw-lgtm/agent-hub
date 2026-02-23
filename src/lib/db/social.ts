@@ -55,6 +55,17 @@ export function getCommentCount(assetId: string): number {
   return (getDb().prepare('SELECT COUNT(*) as cnt FROM comments WHERE asset_id = ?').get(assetId) as { cnt: number }).cnt;
 }
 
+/** Batch: get comment counts for multiple asset IDs in one query */
+export function getCommentCountsByAssetIds(assetIds: string[]): Record<string, number> {
+  if (assetIds.length === 0) return {};
+  const db = getDb();
+  const placeholders = assetIds.map(() => '?').join(',');
+  const rows = db.prepare(`SELECT asset_id, COUNT(*) as cnt FROM comments WHERE asset_id IN (${placeholders}) GROUP BY asset_id`).all(...assetIds) as { asset_id: string; cnt: number }[];
+  const result: Record<string, number> = {};
+  for (const row of rows) result[row.asset_id] = row.cnt;
+  return result;
+}
+
 // ════════════════════════════════════════════
 // Public API — Issues
 // ════════════════════════════════════════════
@@ -101,6 +112,17 @@ export function searchIssues(query: string) {
 
 export function getIssueCount(assetId: string): number {
   return (getDb().prepare('SELECT COUNT(*) as cnt FROM issues WHERE asset_id = ?').get(assetId) as { cnt: number }).cnt;
+}
+
+/** Batch: get issue counts for multiple asset IDs in one query */
+export function getIssueCountsByAssetIds(assetIds: string[]): Record<string, number> {
+  if (assetIds.length === 0) return {};
+  const db = getDb();
+  const placeholders = assetIds.map(() => '?').join(',');
+  const rows = db.prepare(`SELECT asset_id, COUNT(*) as cnt FROM issues WHERE asset_id IN (${placeholders}) GROUP BY asset_id`).all(...assetIds) as { asset_id: string; cnt: number }[];
+  const result: Record<string, number> = {};
+  for (const row of rows) result[row.asset_id] = row.cnt;
+  return result;
 }
 
 // ════════════════════════════════════════════

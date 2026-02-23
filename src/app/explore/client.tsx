@@ -97,10 +97,12 @@ function AssetListItem({ asset }: { asset: Asset }) {
 interface ExploreContentProps {
   initialAssets: Asset[];
   initialTotal: number;
-  initialAllAssets: Asset[];
+  typeCounts: Record<string, number>;
+  categoryCounts: Record<string, number>;
+  totalCount: number;
 }
 
-function ExploreContent({ initialAssets, initialTotal, initialAllAssets }: ExploreContentProps) {
+function ExploreContent({ initialAssets, initialTotal, typeCounts, categoryCounts, totalCount }: ExploreContentProps) {
   const searchParams = useSearchParams();
 
   const initialQ = searchParams.get('q') || '';
@@ -121,7 +123,6 @@ function ExploreContent({ initialAssets, initialTotal, initialAllAssets }: Explo
   const [assets, setAssets] = useState<Asset[]>(initialAssets);
   const [total, setTotal] = useState(initialTotal);
   const [loading, setLoading] = useState(false);
-  const [allAssets] = useState<Asset[]>(initialAllAssets);
   const [hasUserInteracted, setHasUserInteracted] = useState(false);
 
   // Sync when URL params change
@@ -265,10 +266,10 @@ function ExploreContent({ initialAssets, initialTotal, initialAllAssets }: Explo
               {typeFilters.map(tf => {
                 // Count: "经验/合集" combines experience + template
                 const count = tf.value === 'all'
-                  ? allAssets.length
+                  ? totalCount
                   : tf.value === 'experience'
-                    ? allAssets.filter(a => a.type === 'experience' || a.type === 'template').length
-                    : allAssets.filter(a => a.type === tf.value).length;
+                    ? (typeCounts['experience'] || 0) + (typeCounts['template'] || 0)
+                    : (typeCounts[tf.value] || 0);
 
                 // Hide zero-count types (except 全部)
                 if (tf.value !== 'all' && count === 0) return null;
@@ -299,7 +300,7 @@ function ExploreContent({ initialAssets, initialTotal, initialAllAssets }: Explo
             <h3 className="text-xs font-semibold text-muted uppercase tracking-[0.15em] mb-3 font-sans">分类</h3>
             <div className="space-y-1 max-h-80 overflow-y-auto">
               {categories.map(cat => {
-                const count = cat === '全部' ? allAssets.length : allAssets.filter(a => a.category === cat).length;
+                const count = cat === '全部' ? totalCount : (categoryCounts[cat] || 0);
                 if (cat !== '全部' && count === 0) return null;
                 return (
                   <button
@@ -374,10 +375,12 @@ function ExploreContent({ initialAssets, initialTotal, initialAllAssets }: Explo
 interface ExploreClientPageProps {
   initialAssets: Asset[];
   initialTotal: number;
-  initialAllAssets: Asset[];
+  typeCounts: Record<string, number>;
+  categoryCounts: Record<string, number>;
+  totalCount: number;
 }
 
-export default function ExploreClientPage({ initialAssets, initialTotal, initialAllAssets }: ExploreClientPageProps) {
+export default function ExploreClientPage({ initialAssets, initialTotal, typeCounts, categoryCounts, totalCount }: ExploreClientPageProps) {
   return (
     <Suspense fallback={
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -389,7 +392,7 @@ export default function ExploreClientPage({ initialAssets, initialTotal, initial
         </div>
       </div>
     }>
-      <ExploreContent initialAssets={initialAssets} initialTotal={initialTotal} initialAllAssets={initialAllAssets} />
+      <ExploreContent initialAssets={initialAssets} initialTotal={initialTotal} typeCounts={typeCounts} categoryCounts={categoryCounts} totalCount={totalCount} />
     </Suspense>
   );
 }
