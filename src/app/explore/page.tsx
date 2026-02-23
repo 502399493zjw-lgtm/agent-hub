@@ -1,4 +1,5 @@
 import { listAssets, getAssetCountByType, getAssetCountByCategory, getTotalAssetCount } from '@/lib/db';
+import type { Asset } from '@/data/types';
 import ExploreClientPage from './client';
 import type { Metadata } from 'next';
 
@@ -22,9 +23,18 @@ export default function ExplorePage() {
   const categoryCounts = getAssetCountByCategory();
   const totalCount = getTotalAssetCount();
 
+  // Strip heavy fields (readme, files content, longDescription) to keep RSC payload small
+  // These fields can be 10s of KB each and are not needed for the list view
+  const lightAssets = result.assets.map(({ readme, files, longDescription, ...rest }) => ({
+    ...rest,
+    readme: '',
+    longDescription: '',
+    files: [] as Asset['files'],
+  }));
+
   return (
     <ExploreClientPage
-      initialAssets={result.assets}
+      initialAssets={lightAssets}
       initialTotal={result.total}
       typeCounts={typeCounts}
       categoryCounts={categoryCounts}

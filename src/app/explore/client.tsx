@@ -203,8 +203,8 @@ function ExploreContent({ initialAssets, initialTotal, typeCounts, categoryCount
 
   const typeFilters: { value: 'all' | AssetType; label: string; icon: string }[] = [
     { value: 'all', label: '全部', icon: '' },
-    { value: 'skill', label: '技能', icon: '' },
     { value: 'experience', label: '经验/合集', icon: '' },
+    { value: 'skill', label: '技能', icon: '' },
     { value: 'plugin', label: '插件', icon: '' },
     { value: 'trigger', label: '触发器', icon: '' },
     { value: 'channel', label: '通信器', icon: '' },

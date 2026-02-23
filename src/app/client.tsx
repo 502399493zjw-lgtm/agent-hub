@@ -18,8 +18,8 @@ const TAB_COLORS: Record<string, string> = {
 };
 
 const TABS: { key: string; label: string; type?: AssetType; types?: AssetType[]; desc: string }[] = [
-  { key: 'skill', label: '技能', type: 'skill', desc: 'Agent 可直接学习的能力包，含提示词与脚本' },
   { key: 'experience_template', label: '经验/合集', types: ['experience', 'template'], desc: '实践方案、配置思路、或多资产组合包' },
+  { key: 'skill', label: '技能', type: 'skill', desc: 'Agent 可直接学习的能力包，含提示词与脚本' },
   { key: 'plugin', label: '插件', type: 'plugin', desc: '代码级扩展，为 Agent 接入新能力和服务' },
   { key: 'trigger', label: '触发器', type: 'trigger', desc: '定义触发策略，可仅提供事件源，也可附带触发后的任务描述' },
   { key: 'channel', label: '通信器', type: 'channel', desc: '消息渠道适配器，让 Agent 接入更多平台' },
@@ -141,7 +141,7 @@ interface HomeClientProps {
 
 /* ── Main Client Component ── */
 export default function HomeClient({ stats, tabAssets }: HomeClientProps) {
-  const [activeTab, setActiveTab] = useState('skill');
+  const [activeTab, setActiveTab] = useState('experience_template');
 
   const featured = useScrollReveal();
   const developers = useScrollReveal();
