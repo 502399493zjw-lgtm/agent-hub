@@ -39,6 +39,5 @@ ENV HOSTNAME="0.0.0.0"
 
 # Run as root to avoid volume mount permission issues with SQLite
 # (mounted /app/data is owned by host root)
-# Entrypoint: copy seed DB only if no DB exists in the mounted volume
-COPY --chown=nextjs:nodejs data/hub.db /app/data/hub.db.seed
-CMD ["sh", "-c", "if [ ! -f /app/data/hub.db ]; then cp /app/data/hub.db.seed /app/data/hub.db; fi; node server.js"]
+# DB is provided by volume mount at runtime — schema auto-creates tables if needed
+CMD ["node", "server.js"]
