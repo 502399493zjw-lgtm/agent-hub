@@ -326,7 +326,7 @@ export function incrementDownload(assetId: string, userId?: string): number | nu
 export interface AssetCompact {
   id: string; name: string; displayName: string; type: string;
   description: string; tags: string[]; installs: number; rating: number;
-  author: string; authorId: string; version: string;
+  author: string; authorId: string; authorAvatar: string; version: string;
   installCommand: string; updatedAt: string; category: string;
 }
 
@@ -390,26 +390,26 @@ export function listAssetsCompact(params: ListParams & { tag?: string }): { asse
   // When using FTS relevance scoring, JOIN with assets_fts to access rank
   let query: string;
   if (usingFtsRelevance && (!params.sort || params.sort === 'relevance')) {
-    query = `SELECT a.id, a.name, a.display_name, a.type, a.description, a.tags, a.downloads, a.rating, a.author_name, a.author_id, a.version, a.install_command, a.updated_at, a.category
+    query = `SELECT a.id, a.name, a.display_name, a.type, a.description, a.tags, a.downloads, a.rating, a.author_name, a.author_id, a.author_avatar, a.version, a.install_command, a.updated_at, a.category
       FROM assets a
       JOIN assets_fts fts ON a.rowid = fts.rowid AND assets_fts MATCH @q
       ${where ? where.replace(/a\.rowid IN \(SELECT rowid FROM assets_fts WHERE assets_fts MATCH @q\)/, '1=1') : ''}
       ORDER BY ${orderBy} LIMIT @limit OFFSET @offset`;
   } else {
-    query = `SELECT a.id, a.name, a.display_name, a.type, a.description, a.tags, a.downloads, a.rating, a.author_name, a.author_id, a.version, a.install_command, a.updated_at, a.category FROM assets a ${where} ORDER BY ${orderBy} LIMIT @limit OFFSET @offset`;
+    query = `SELECT a.id, a.name, a.display_name, a.type, a.description, a.tags, a.downloads, a.rating, a.author_name, a.author_id, a.author_avatar, a.version, a.install_command, a.updated_at, a.category FROM assets a ${where} ORDER BY ${orderBy} LIMIT @limit OFFSET @offset`;
   }
 
   const rows = db.prepare(query).all({ ...bindings, limit: pageSize, offset }) as {
     id: string; name: string; display_name: string; type: string; description: string;
     tags: string; downloads: number; rating: number; author_name: string; author_id: string;
-    version: string; install_command: string; updated_at: string; category: string;
+    author_avatar: string; version: string; install_command: string; updated_at: string; category: string;
   }[];
 
   return {
     assets: rows.map(r => ({
       id: r.id, name: r.name, displayName: r.display_name, type: r.type,
       description: r.description, tags: safeParse(r.tags, []), installs: r.downloads,
-      rating: r.rating, author: r.author_name, authorId: r.author_id, version: r.version,
+      rating: r.rating, author: r.author_name, authorId: r.author_id, authorAvatar: r.author_avatar || '', version: r.version,
       installCommand: r.install_command, updatedAt: r.updated_at, category: r.category,
     })),
     total, page, pageSize,
@@ -458,15 +458,15 @@ export function getAssetsByIds(ids: string[]): AssetCompact[] {
   if (ids.length === 0) return [];
   const db = getDb();
   const placeholders = ids.map(() => '?').join(',');
-  const rows = db.prepare(`SELECT id, name, display_name, type, description, tags, downloads, rating, author_name, author_id, version, install_command, updated_at, category FROM assets WHERE id IN (${placeholders})`).all(...ids) as {
+  const rows = db.prepare(`SELECT id, name, display_name, type, description, tags, downloads, rating, author_name, author_id, author_avatar, version, install_command, updated_at, category FROM assets WHERE id IN (${placeholders})`).all(...ids) as {
     id: string; name: string; display_name: string; type: string; description: string;
     tags: string; downloads: number; rating: number; author_name: string; author_id: string;
-    version: string; install_command: string; updated_at: string; category: string;
+    author_avatar: string; version: string; install_command: string; updated_at: string; category: string;
   }[];
   return rows.map(r => ({
     id: r.id, name: r.name, displayName: r.display_name, type: r.type,
     description: r.description, tags: safeParse(r.tags, []), installs: r.downloads,
-    rating: r.rating, author: r.author_name, authorId: r.author_id, version: r.version,
+    rating: r.rating, author: r.author_name, authorId: r.author_id, authorAvatar: r.author_avatar || '', version: r.version,
     installCommand: r.install_command, updatedAt: r.updated_at, category: r.category,
   }));
 }
@@ -507,7 +507,7 @@ export function getAssetL2(id: string): (AssetCompact & { readme: string; longDe
   return {
     id: row.id, name: row.name, displayName: row.display_name, type: row.type,
     description: row.description, tags: safeParse(row.tags, []), installs: row.downloads,
-    rating: row.rating, author: row.author_name, authorId: row.author_id, version: row.version,
+    rating: row.rating, author: row.author_name, authorId: row.author_id, authorAvatar: row.author_avatar || '', version: row.version,
     installCommand: row.install_command, updatedAt: row.updated_at, category: row.category,
     readme: row.readme, longDescription: row.long_description,
     versions: safeParse(row.versions, []), dependencies: safeParse(row.dependencies, []),
@@ -517,15 +517,15 @@ export function getAssetL2(id: string): (AssetCompact & { readme: string; longDe
 
 export function getTrendingAssets(period: string, limit: number = 10): AssetCompact[] {
   const db = getDb();
-  const rows = db.prepare(`SELECT id, name, display_name, type, description, tags, downloads, rating, author_name, author_id, version, install_command, updated_at, category FROM assets ORDER BY downloads DESC, updated_at DESC LIMIT ?`).all(Math.min(limit, 50)) as {
+  const rows = db.prepare(`SELECT id, name, display_name, type, description, tags, downloads, rating, author_name, author_id, author_avatar, version, install_command, updated_at, category FROM assets ORDER BY downloads DESC, updated_at DESC LIMIT ?`).all(Math.min(limit, 50)) as {
     id: string; name: string; display_name: string; type: string; description: string;
     tags: string; downloads: number; rating: number; author_name: string; author_id: string;
-    version: string; install_command: string; updated_at: string; category: string;
+    author_avatar: string; version: string; install_command: string; updated_at: string; category: string;
   }[];
   return rows.map(r => ({
     id: r.id, name: r.name, displayName: r.display_name, type: r.type,
     description: r.description, tags: safeParse(r.tags, []), installs: r.downloads,
-    rating: r.rating, author: r.author_name, authorId: r.author_id, version: r.version,
+    rating: r.rating, author: r.author_name, authorId: r.author_id, authorAvatar: r.author_avatar || '', version: r.version,
     installCommand: r.install_command, updatedAt: r.updated_at, category: r.category,
   }));
 }

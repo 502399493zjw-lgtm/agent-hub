@@ -28,7 +28,7 @@ export default function ExplorePage() {
     ...item,
     downloads: item.installs ?? 0,
     author: typeof item.author === 'string'
-      ? { id: item.authorId ?? '', name: item.author, avatar: '', reputation: 0 }
+      ? { id: item.authorId ?? '', name: item.author, avatar: item.authorAvatar ?? '', reputation: 0 }
       : item.author,
   }));
 
