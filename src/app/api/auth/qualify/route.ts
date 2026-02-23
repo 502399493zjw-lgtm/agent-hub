@@ -43,17 +43,18 @@ function getAvailableMethods(baseUrl: string, qualificationToken: string) {
     });
   }
 
-  // Feishu OAuth — available if AUTH_FEISHU_APP_ID is set
-  if (process.env.AUTH_FEISHU_APP_ID) {
-    methods.push({
-      id: 'feishu',
-      name: '飞书',
-      type: 'oauth',
-      description: '使用飞书账号授权登录，适合国内用户。',
-      auth_url: `${baseUrl}/api/auth/redirect?qt=${qualificationToken}&provider=feishu`,
-      instruction: '请在浏览器中打开上方链接，完成飞书授权。',
-    });
-  }
+  // Feishu OAuth — disabled (self-built app can't cross tenants)
+  // To re-enable: create an ISV (app store) app on Feishu Open Platform
+  // if (process.env.AUTH_FEISHU_APP_ID) {
+  //   methods.push({
+  //     id: 'feishu',
+  //     name: '飞书',
+  //     type: 'oauth',
+  //     description: '使用飞书账号授权登录，适合国内用户。',
+  //     auth_url: `${baseUrl}/api/auth/redirect?qt=${qualificationToken}&provider=feishu`,
+  //     instruction: '请在浏览器中打开上方链接，完成飞书授权。',
+  //   });
+  // }
 
   // Email Magic Link — available if AUTH_RESEND_KEY is set
   if (process.env.AUTH_RESEND_KEY) {

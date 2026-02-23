@@ -210,16 +210,7 @@ function RegisterContent() {
                     </svg>
                     使用 GitHub 注册
                   </button>
-                  <button
-                    onClick={() => signIn('feishu', { callbackUrl })}
-                    className="w-full flex items-center justify-center gap-3 py-3 rounded-lg border border-card-border hover:border-[#3370ff]/30 hover:bg-surface text-sm font-medium text-foreground transition-colors"
-                  >
-                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
-                      <path d="M3.947 6.137c1.262-1.089 6.758-5.478 7.222-3.748.464 1.73-3.59 7.952-3.59 7.952s7.595-5.313 8.232-3.274c.638 2.04-5.106 7.873-5.106 7.873s6.65-3.637 6.903-1.726c.254 1.911-7.95 7.665-7.95 7.665L3 15.48l.947-9.343z" fill="#3370FF"/>
-                      <path d="M9.657 14.94s5.75-5.833 6.388-3.794c.638 2.04-5.106 7.873-5.106 7.873s6.65-3.637 6.903-1.726c.254 1.911-7.95 7.665-7.95 7.665L3 19.56" fill="#00D6B9" fillOpacity="0.8"/>
-                    </svg>
-                    使用飞书注册
-                  </button>
+                {/* Feishu registration removed — self-built app can't cross tenants */}
                 </div>
 
                 {/* Divider */}

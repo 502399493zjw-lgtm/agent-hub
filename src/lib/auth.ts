@@ -158,6 +158,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       allowDangerousEmailAccountLinking: true,
     }),
     // Google OAuth removed — ECS in China cannot reach Google servers
+    // Feishu OAuth — UI entry removed (self-built app can't cross tenants)
+    // Backend kept so existing feishu users (Commander) can still sign in
     Feishu({
       appId: process.env.AUTH_FEISHU_APP_ID || '',
       appSecret: process.env.AUTH_FEISHU_APP_SECRET || '',
