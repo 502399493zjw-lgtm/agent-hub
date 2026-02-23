@@ -22,6 +22,13 @@ export function getDb(): Database.Database {
     _db.pragma('journal_mode = WAL');
     _db.pragma('busy_timeout = 10000');
     _db.pragma('foreign_keys = ON');
+
+    // 注册 has_chinese() 自定义函数：检测文本是否包含中文字符
+    _db.function('has_chinese', (text: unknown) => {
+      if (typeof text !== 'string') return 0;
+      return /[\u4e00-\u9fff\u3400-\u4dbf]/.test(text) ? 1 : 0;
+    });
+
     if (_initFn) _initFn(_db);
   }
   return _db;

@@ -1,3 +1,0 @@
-module.exports=[55606,a=>{"use strict";var b=a.i(87924),c=a.i(72131),d=a.i(50944);function e(){let a=(0,d.useRouter)();return(0,c.useEffect)(()=>{a.replace("/login")},[a]),(0,b.jsx)("div",{className:"min-h-[calc(100vh-8rem)] flex items-center justify-center px-4",children:(0,b.jsx)("div",{className:"text-muted",children:"跳转到登录页..."})})}a.s(["default",()=>e])}];
-
-//# sourceMappingURL=src_app_register_page_tsx_463ddc00._.js.map

@@ -553,7 +553,7 @@ export default function UserProfileClient({ profile, publishedAssets, isOwn }: U
   const [tab, setTab] = useState<TabKey>('assets');
   const [showEditModal, setShowEditModal] = useState(false);
 
-  const roleBadge = null;
+  const roleBadge: { bg: string; border: string; color: string; label: string } | null = null;
 
   const tabs: { key: TabKey; label: string; show: boolean }[] = [
     { key: 'assets', label: `资产 (${publishedAssets.length})`, show: true },

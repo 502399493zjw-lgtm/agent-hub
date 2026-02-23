@@ -62,6 +62,7 @@ export {
   listApiKeys, revokeApiKey, revokeApiKeyByRawKey,
   authorizeDevice, validateDevice, listAuthorizedDevices, revokeDevice, getDeviceBinding,
   createCliAuthRequest, pollCliAuthRequest, approveCliAuthRequest, getCliAuthRequest,
+  createQualificationToken, peekQualificationToken,
 } from './auth';
 
 // Social (Comments, Issues, Collections)

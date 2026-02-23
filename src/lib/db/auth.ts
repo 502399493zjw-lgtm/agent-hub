@@ -160,6 +160,64 @@ export function userHasInviteAccess(userId: string): boolean {
 }
 
 // ════════════════════════════════════════════
+// Qualification Tokens (ephemeral, in-memory)
+// ════════════════════════════════════════════
+
+interface QualificationEntry {
+  inviteCode: string;
+  deviceId?: string;
+  deviceName?: string;
+  expiresAt: number; // epoch ms
+}
+
+const qualificationTokens = new Map<string, QualificationEntry>();
+
+/** Purge expired tokens (called lazily) */
+function purgeExpiredQualificationTokens() {
+  const now = Date.now();
+  for (const [k, v] of qualificationTokens) {
+    if (v.expiresAt < now) qualificationTokens.delete(k);
+  }
+}
+
+/**
+ * Create a short-lived qualification token after invite-code validation.
+ * The token proves "this invite code was checked" and is passed through
+ * the OAuth redirect flow so the signIn callback can trust it.
+ * TTL: 10 minutes.
+ */
+export function createQualificationToken(
+  inviteCode: string,
+  deviceId?: string,
+  deviceName?: string,
+): { token: string } {
+  purgeExpiredQualificationTokens();
+  const token = crypto.randomBytes(24).toString('base64url');
+  qualificationTokens.set(token, {
+    inviteCode,
+    deviceId,
+    deviceName,
+    expiresAt: Date.now() + 10 * 60 * 1000,
+  });
+  return { token };
+}
+
+/**
+ * Peek at a qualification token without consuming it.
+ * Used by the redirect route to read the invite code and set a cookie.
+ */
+export function peekQualificationToken(token: string): { valid: boolean; inviteCode?: string; deviceId?: string; deviceName?: string } {
+  purgeExpiredQualificationTokens();
+  const entry = qualificationTokens.get(token);
+  if (!entry) return { valid: false };
+  if (entry.expiresAt < Date.now()) {
+    qualificationTokens.delete(token);
+    return { valid: false };
+  }
+  return { valid: true, inviteCode: entry.inviteCode, deviceId: entry.deviceId, deviceName: entry.deviceName };
+}
+
+// ════════════════════════════════════════════
 // Public API — API Keys (Agent auth)
 // ════════════════════════════════════════════
 
