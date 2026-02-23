@@ -76,6 +76,7 @@ export default async function UserProfilePage({ params }: { params: Promise<{ id
     role: dbUser.role,
     type: dbUser.type,
     isBound: !!(dbUser.email || dbUser.onboarding_completed),
+    inviteCode: isOwn ? (dbUser.invite_code || null) : null,
     stats: {
       assetCount: publishedAssets.length,
       totalDownloads,

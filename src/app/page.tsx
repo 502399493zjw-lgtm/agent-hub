@@ -25,7 +25,18 @@ export default function HomePage() {
   const tabAssets: Record<string, ReturnType<typeof listAssets>['assets']> = {};
   for (const t of types) {
     const result = listAssets({ type: t, sort: 'popular', pageSize: 30 });
-    tabAssets[t] = result.assets;
+    // Strip large fields to avoid bloating RSC/HTML payload (readme, files, manifest, etc.)
+    tabAssets[t] = result.assets.map(a => ({
+      ...a,
+      readme: '',
+      longDescription: '',
+      files: [],
+      manifest: {},
+      versions: [],
+      dependencies: [],
+      compatibility: {},
+      hubScoreBreakdown: {},
+    }));
   }
 
   return (

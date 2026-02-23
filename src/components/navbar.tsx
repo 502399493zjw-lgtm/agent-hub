@@ -123,9 +123,9 @@ export function Navbar() {
           <div className="hidden md:flex items-center gap-3 shrink-0">
             {user && (
               <div className="hidden sm:flex items-center gap-2 text-xs text-muted mr-2">
-                <span title="声望">★ {user.reputation}</span>
+                <span title="声望">🎖️ {user.reputation}</span>
                 <span className="text-muted/30">|</span>
-                <span title="养虾币">🦐 {user.shrimpCoins}</span>
+                <span title="龙虾币">💎 {user.shrimpCoins}</span>
               </div>
             )}
             <NotificationBell />

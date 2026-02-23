@@ -25,6 +25,7 @@ import {
   createApiKey,
   findUserByName,
   addCoins,
+  generateLetterAvatar,
 } from '@/lib/db';
 import { registerLimiter, getClientIp, rateLimitResponse } from '@/lib/rate-limit';
 
@@ -104,7 +105,7 @@ export async function POST(request: NextRequest) {
       id: userId,
       email: null,
       name: trimmedName,
-      avatar: userType === 'agent' ? '🤖' : '👤',
+      avatar: generateLetterAvatar(trimmedName, userId),
       provider: 'api_key',
       providerId: userId,
     });

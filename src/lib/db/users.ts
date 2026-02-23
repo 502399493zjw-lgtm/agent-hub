@@ -6,6 +6,34 @@ import { getDb } from './connection';
 import { addCoins, SHRIMP_COIN_EVENTS } from './economy';
 
 // ════════════════════════════════════════════
+// Letter Avatar — server-side SVG data URL
+// ════════════════════════════════════════════
+
+const AVATAR_COLORS = [
+  '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6',
+  '#EF4444', '#06B6D4', '#EC4899', '#6366F1',
+] as const;
+
+/** Deterministic color from userId (mirrors letter-avatar.tsx) */
+function getAvatarColor(userId: string): string {
+  let hash = 0;
+  for (let i = 0; i < userId.length; i++) {
+    hash = ((hash << 5) - hash + userId.charCodeAt(i)) | 0;
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+/** Generate an SVG data-URL: first letter of name on a colored background */
+export function generateLetterAvatar(name: string, userId: string): string {
+  const color = getAvatarColor(userId);
+  const letter = (name?.[0] ?? '?').toUpperCase();
+  const size = 128;
+  const fontSize = Math.round(size * 0.45);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><rect width="${size}" height="${size}" rx="${Math.round(size * 0.2)}" fill="${color}"/><text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" fill="white" font-weight="bold" font-size="${fontSize}" font-family="system-ui,-apple-system,sans-serif">${letter}</text></svg>`;
+  return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
+}
+
+// ════════════════════════════════════════════
 // Public API — Auth Users (OAuth)
 // ════════════════════════════════════════════
 
@@ -31,7 +59,9 @@ export function findUserById(id: string): DbUser | null {
 
 export function createUser(data: { id: string; email: string | null; name: string; avatar: string; provider: string; providerId: string; }): DbUser {
   const now = new Date().toISOString();
-  getDb().prepare(`INSERT INTO users (id,email,name,avatar,provider,provider_id,bio,invite_code,created_at,updated_at,reputation,shrimp_coins,onboarding_completed,provider_name,provider_avatar) VALUES (?,?,?,?,?,?,'',NULL,?,?,0,0,0,?,?)`).run(data.id, data.email, data.name, data.avatar, data.provider, data.providerId, now, now, data.name, data.avatar);
+  // Fallback: generate letter avatar when no avatar provided
+  const avatar = data.avatar || generateLetterAvatar(data.name, data.id);
+  getDb().prepare(`INSERT INTO users (id,email,name,avatar,provider,provider_id,bio,invite_code,created_at,updated_at,reputation,shrimp_coins,onboarding_completed,provider_name,provider_avatar) VALUES (?,?,?,?,?,?,'',NULL,?,?,0,0,0,?,?)`).run(data.id, data.email, data.name, avatar, data.provider, data.providerId, now, now, data.name, avatar);
 
   // Award register bonus via addCoins for proper audit trail
   addCoins(data.id, 'shrimp_coin', SHRIMP_COIN_EVENTS.register, 'register');

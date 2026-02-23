@@ -193,7 +193,7 @@ export default function StatsClient({ assets, users, growthData, totalComments, 
                   </div>
                   <div className="flex items-center gap-4 text-xs text-muted shrink-0">
                     <div className="text-center">
-                      <div className="text-foreground font-mono font-bold">★ {c.reputation}</div>
+                      <div className="text-foreground font-mono font-bold">🎖️ {c.reputation}</div>
                       <div>声望</div>
                     </div>
                     <div className="text-center">

@@ -23,6 +23,7 @@ interface ProfileData {
   role: string;
   type: string;
   isBound: boolean;
+  inviteCode: string | null;
   stats: {
     assetCount: number;
     totalDownloads: number;
@@ -95,7 +96,7 @@ function eventToDisplay(event: CoinEvent): { icon: string; text: string } {
       if (event.coinType === 'reputation') {
         return { icon: '', text: `获得 +${event.amount} 声望` };
       }
-      return { icon: '', text: `获得 +${event.amount} 养虾币` };
+      return { icon: '', text: `获得 +${event.amount} 龙虾币` };
   }
 }
 
@@ -547,12 +548,81 @@ function EditProfileModal({
 
 // ── Main Component ─────────────────────────────────
 
-type TabKey = 'assets' | 'activity' | 'data' | 'about';
+type TabKey = 'assets' | 'activity' | 'data' | 'about' | 'invite';
 
 export default function UserProfileClient({ profile, publishedAssets, isOwn }: UserProfileClientProps) {
   const router = useRouter();
   const [tab, setTab] = useState<TabKey>('assets');
   const [showEditModal, setShowEditModal] = useState(false);
+
+  // Invite code state
+  const [inviteCode, setInviteCode] = useState('');
+  const [inviteStatus, setInviteStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
+  const [inviteError, setInviteError] = useState('');
+  const [isActivating, setIsActivating] = useState(false);
+  const [activatedCode, setActivatedCode] = useState(profile.inviteCode || '');
+  const [userCodes, setUserCodes] = useState<{ code: string; useCount: number; maxUses: number }[]>([]);
+  const [loadingCodes, setLoadingCodes] = useState(false);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+
+  // Fetch invite codes when invite tab is active
+  useEffect(() => {
+    if (tab === 'invite' && activatedCode && isOwn) {
+      setLoadingCodes(true);
+      fetch('/api/auth/invite')
+        .then(r => r.json())
+        .then(data => {
+          if (data.codes) setUserCodes(data.codes.map((c: { code: string; use_count?: number; useCount?: number; max_uses?: number; maxUses?: number }) => ({
+            code: c.code,
+            useCount: c.use_count ?? c.useCount ?? 0,
+            maxUses: c.max_uses ?? c.maxUses ?? 1,
+          })));
+        })
+        .catch(() => {})
+        .finally(() => setLoadingCodes(false));
+    }
+  }, [tab, activatedCode, isOwn]);
+
+  const handleValidateInvite = async () => {
+    if (!inviteCode.trim()) return;
+    setInviteStatus('checking');
+    setInviteError('');
+    try {
+      const res = await fetch('/api/auth/invite/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: inviteCode.trim() }),
+      });
+      const data = await res.json();
+      if (data.valid) { setInviteStatus('valid'); }
+      else { setInviteStatus('invalid'); setInviteError(data.error || '邀请码无效'); }
+    } catch { setInviteStatus('invalid'); setInviteError('验证失败'); }
+  };
+
+  const handleActivateInvite = async () => {
+    if (!inviteCode.trim()) return;
+    setIsActivating(true);
+    try {
+      const res = await fetch('/api/auth/invite/activate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: inviteCode.trim() }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setActivatedCode(inviteCode.trim().toUpperCase());
+        setInviteCode('');
+        setInviteStatus('idle');
+      } else { setInviteError(data.error || '激活失败'); setInviteStatus('invalid'); }
+    } catch { setInviteError('激活失败'); setInviteStatus('invalid'); }
+    finally { setIsActivating(false); }
+  };
+
+  const handleCopyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedCode(code);
+    setTimeout(() => setCopiedCode(null), 2000);
+  };
 
   const roleBadge = null as { bg: string; border: string; color: string; label: string } | null;
 
@@ -561,6 +631,7 @@ export default function UserProfileClient({ profile, publishedAssets, isOwn }: U
     { key: 'activity', label: '动态', show: true },
     { key: 'data', label: '数据', show: isOwn },
     { key: 'about', label: '关于', show: true },
+    { key: 'invite', label: '邀请码', show: isOwn },
   ];
 
   const handleSaved = () => {
@@ -612,7 +683,7 @@ export default function UserProfileClient({ profile, publishedAssets, isOwn }: U
                 <span>{profile.isBound ? `加入于 ${formatDate(profile.joinedAt)}` : '暂未绑定 Agent'}</span>
               </div>
               <div className="flex items-center gap-1">
-                <span className="text-yellow-500">★</span>
+                <span className="text-yellow-500">🎖️</span>
                 <span>{profile.reputation} 声望</span>
               </div>
             </div>
@@ -744,11 +815,11 @@ export default function UserProfileClient({ profile, publishedAssets, isOwn }: U
               <h3 className="text-sm font-medium text-muted mb-3">经济系统</h3>
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 rounded-lg bg-yellow-50 border border-yellow-200/50">
-                  <div className="text-xs text-yellow-600 mb-1">⭐ 声望</div>
+                  <div className="text-xs text-yellow-600 mb-1">🎖️ 声望</div>
                   <div className="text-xl font-bold font-mono text-yellow-700">{profile.reputation}</div>
                 </div>
                 <div className="p-3 rounded-lg bg-orange-50 border border-orange-200/50">
-                  <div className="text-xs text-orange-600 mb-1">🦐 养虾币</div>
+                  <div className="text-xs text-orange-600 mb-1">💎 龙虾币</div>
                   <div className="text-xl font-bold font-mono text-orange-700">{profile.shrimpCoins}</div>
                 </div>
               </div>
@@ -761,6 +832,95 @@ export default function UserProfileClient({ profile, publishedAssets, isOwn }: U
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── Invite Code Tab ── */}
+      {tab === 'invite' && isOwn && (
+        <div className="rounded-xl bg-white border border-card-border p-6 sm:p-8">
+          <h2 className="text-lg font-bold mb-6">🎟️ 邀请码</h2>
+
+          {activatedCode ? (
+            <div className="space-y-6">
+              <div className="p-4 rounded-lg bg-green-50 border border-green-200">
+                <div className="flex items-center gap-2">
+                  <span className="text-green-600 text-lg">✅</span>
+                  <div>
+                    <p className="font-medium text-green-800">邀请码已激活</p>
+                    <p className="text-sm text-green-600 font-mono mt-1">{activatedCode}</p>
+                  </div>
+                </div>
+                <p className="text-sm text-green-600 mt-2">你可以自由发布和编辑内容了</p>
+              </div>
+
+              {/* User's invite codes */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">我的邀请码</h3>
+                  <span className="text-xs text-muted">分享给朋友，邀请他们加入</span>
+                </div>
+
+                {loadingCodes ? (
+                  <div className="text-sm text-muted py-4 text-center">加载中...</div>
+                ) : userCodes.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {userCodes.map((c) => {
+                      const isUsed = c.useCount >= c.maxUses;
+                      return (
+                        <div key={c.code} className={`flex items-center justify-between p-3 rounded-lg border ${isUsed ? 'bg-gray-50 border-gray-200' : 'bg-blue-50/50 border-blue/20'}`}>
+                          <div className="flex items-center gap-2">
+                            <span className={`font-mono text-sm font-semibold ${isUsed ? 'text-gray-400 line-through' : 'text-blue'}`}>{c.code}</span>
+                            {isUsed && <span className="text-xs px-1.5 py-0.5 rounded bg-gray-200 text-gray-500">已使用</span>}
+                          </div>
+                          {!isUsed && (
+                            <button onClick={() => handleCopyCode(c.code)} className="text-xs px-2.5 py-1 rounded-lg border border-blue/30 text-blue hover:bg-blue/10 transition-colors">
+                              {copiedCode === c.code ? '✓ 已复制' : '复制'}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-sm text-muted py-4 text-center border border-card-border rounded-lg">暂无邀请码</div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-sm text-muted">输入邀请码以解锁发布权限。邀请码可以从社区获取。</p>
+              <div className="flex gap-3">
+                <input
+                  type="text"
+                  value={inviteCode}
+                  onChange={e => { setInviteCode(e.target.value); setInviteStatus('idle'); setInviteError(''); }}
+                  placeholder="请输入邀请码"
+                  className="flex-1 px-4 py-2.5 rounded-lg bg-surface border border-card-border text-foreground placeholder:text-muted/50 focus:outline-none focus:border-blue/50 transition-colors font-mono uppercase"
+                  onKeyDown={e => e.key === 'Enter' && handleValidateInvite()}
+                />
+                <button
+                  onClick={handleValidateInvite}
+                  disabled={!inviteCode.trim() || inviteStatus === 'checking'}
+                  className="px-4 py-2.5 rounded-lg border border-card-border text-sm font-medium text-muted hover:text-foreground hover:border-blue/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                >
+                  {inviteStatus === 'checking' ? '验证中...' : '验证'}
+                </button>
+              </div>
+              {inviteStatus === 'valid' && (
+                <div className="p-3 rounded-lg bg-green-50 border border-green-200">
+                  <p className="text-sm text-green-700 mb-2">✅ 邀请码有效！</p>
+                  <button onClick={handleActivateInvite} disabled={isActivating} className="px-4 py-2 rounded-lg bg-blue text-white text-sm font-medium hover:bg-blue-dim transition-colors disabled:opacity-50">
+                    {isActivating ? '激活中...' : '确认激活'}
+                  </button>
+                </div>
+              )}
+              {inviteStatus === 'invalid' && inviteError && (
+                <div className="p-3 rounded-lg bg-red/10 border border-red/30">
+                  <p className="text-sm text-red">❌ {inviteError}</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

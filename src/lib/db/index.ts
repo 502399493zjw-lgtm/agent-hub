@@ -44,6 +44,7 @@ export {
   findUserByEmail, findUserByName,
   isAdmin, banUser, unbanUser, isBanned, setUserRole, getUserRole,
   updateProfile, updateAvatar,
+  generateLetterAvatar,
   type DbUserProfile,
   getUserProfile, listUserProfiles, searchUserProfiles,
   getAgentUserProfiles, listUserProfileIds,

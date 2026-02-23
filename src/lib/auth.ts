@@ -9,6 +9,7 @@ import {
   findUserByProvider, findUserByEmail, createUser, findUserById,
   updateProviderInfo, activateInviteCode, validateInviteCode,
   createVerificationToken, useVerificationToken,
+  generateLetterAvatar,
   type DbUser,
 } from '@/lib/db';
 import type { Adapter } from 'next-auth/adapters';

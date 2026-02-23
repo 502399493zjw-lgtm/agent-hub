@@ -6,28 +6,28 @@ import { useState } from 'react';
 const installMethods = [
   {
     id: 'cli',
-    title: '🐟 seafood-market CLI',
+    title: '🐟 openclawmp CLI',
     subtitle: '推荐',
     desc: '命令行工具，一键安装和管理资产',
     steps: [
       {
         title: '安装 CLI',
         code: 'curl -fsSL http://47.100.235.25:3000/install.sh | bash',
-        note: '自动安装到 ~/.local/bin/seafood-market',
+        note: '自动安装到 ~/.local/bin/openclawmp',
       },
       {
         title: '搜索资产',
-        code: 'seafood-market search "飞书"',
+        code: 'openclawmp search "飞书"',
         note: '模糊搜索技能、配置、插件等',
       },
       {
         title: '安装资产',
-        code: 'seafood-market install skill/@xiaoyue/feishu-group-summary',
-        note: '格式：seafood-market install <类型>/@<作者>/<名称>',
+        code: 'openclawmp install skill/@xiaoyue/feishu-group-summary',
+        note: '格式：openclawmp install <类型>/@<作者>/<名称>',
       },
       {
         title: '查看已安装',
-        code: 'seafood-market list',
+        code: 'openclawmp list',
         note: '列出所有已安装的资产',
       },
     ],
@@ -93,17 +93,17 @@ cp -r my-skill/ ~/openclaw/skills/my-skill/
 ];
 
 const assetTypes = [
-  { type: 'skill', emoji: '🛠️', name: '技能包', desc: 'SKILL.md + 脚本，prompt 驱动', example: 'seafood-market install skill/@xiaoyue/feishu-group-summary', color: 'text-foreground' },
-  { type: 'experience', emoji: '💡', name: '经验', desc: '亲身实践方案、配置思路与参考文件', example: 'seafood-market install experience/@xiaoyue/quantum-sorcerer-persona', color: 'text-foreground' },
-  { type: 'plugin', emoji: '🔌', name: '插件', desc: '代码级扩展，接入新工具和服务', example: 'seafood-market install plugin/@xiaoyue/stepsearch-engine', color: 'text-foreground' },
-  { type: 'trigger', emoji: '🔔', name: '触发器', desc: '触发策略 + 可选的任务描述，纯事件源或完整自动化', example: 'seafood-market install trigger/@xiaoyue/pdf-watcher-v2', color: 'text-foreground' },
-  { type: 'channel', emoji: '📡', name: '通信器', desc: '消息渠道适配器', example: 'seafood-market install channel/@xiaoyue/feishu-connector', color: 'text-foreground' },
-  { type: 'template', emoji: '📋', name: '合集', desc: '多个资产的组合包，一键获得完整方案', example: 'seafood-market install template/@cybernova/personal-assistant', color: 'text-foreground' },
+  { type: 'skill', emoji: '🛠️', name: '技能包', desc: 'SKILL.md + 脚本，prompt 驱动', example: 'openclawmp install skill/@xiaoyue/feishu-group-summary', color: 'text-foreground' },
+  { type: 'experience', emoji: '💡', name: '经验', desc: '亲身实践方案、配置思路与参考文件', example: 'openclawmp install experience/@xiaoyue/quantum-sorcerer-persona', color: 'text-foreground' },
+  { type: 'plugin', emoji: '🔌', name: '插件', desc: '代码级扩展，接入新工具和服务', example: 'openclawmp install plugin/@xiaoyue/stepsearch-engine', color: 'text-foreground' },
+  { type: 'trigger', emoji: '🔔', name: '触发器', desc: '触发策略 + 可选的任务描述，纯事件源或完整自动化', example: 'openclawmp install trigger/@xiaoyue/pdf-watcher-v2', color: 'text-foreground' },
+  { type: 'channel', emoji: '📡', name: '通信器', desc: '消息渠道适配器', example: 'openclawmp install channel/@xiaoyue/feishu-connector', color: 'text-foreground' },
+  { type: 'template', emoji: '📋', name: '合集', desc: '多个资产的组合包，一键获得完整方案', example: 'openclawmp install template/@cybernova/personal-assistant', color: 'text-foreground' },
 ];
 
 const faq = [
   { q: '安装后如何生效？', a: '大多数资产安装后即时生效。技能(Skill)和配置(Config)会在下次对话中自动加载；插件(Plugin)可能需要重启 OpenClaw。' },
-  { q: '如何卸载资产？', a: '运行 `seafood-market uninstall <type>/<name>`，或手动删除对应目录。' },
+  { q: '如何卸载资产？', a: '运行 `openclawmp uninstall <type>/<name>`，或手动删除对应目录。' },
   { q: '如何发布自己的资产？', a: '在网页上点击「发布」，或通过 API `POST /api/assets` 提交。详见发布页面。' },
   { q: 'CLI 连接不上怎么办？', a: '检查环境变量：`SEAFOOD_REGISTRY=http://47.100.235.25:3000`，确认网络可达。' },
   { q: '资产之间可以有依赖吗？', a: '可以。资产的 `dependencies` 字段声明依赖关系，CLI 安装时会提示。' },
@@ -151,7 +151,7 @@ export default function GuidePage() {
             <span className="flex-shrink-0 w-7 h-7 rounded-full bg-blue text-white flex items-center justify-center text-sm font-bold">2</span>
             <div>
               <code className="text-sm bg-white px-3 py-1.5 rounded-lg border border-card-border font-mono block">
-                seafood-market search &quot;你想要的能力&quot;
+                openclawmp search &quot;你想要的能力&quot;
               </code>
             </div>
           </div>
@@ -159,7 +159,7 @@ export default function GuidePage() {
             <span className="flex-shrink-0 w-7 h-7 rounded-full bg-blue text-white flex items-center justify-center text-sm font-bold">3</span>
             <div>
               <code className="text-sm bg-white px-3 py-1.5 rounded-lg border border-card-border font-mono block">
-                seafood-market install skill/@xiaoyue/feishu-group-summary
+                openclawmp install skill/@xiaoyue/feishu-group-summary
               </code>
             </div>
           </div>
@@ -241,7 +241,7 @@ export default function GuidePage() {
         </div>
       </section>
 
-      {/* seafood-market CLI Reference */}
+      {/* openclawmp CLI Reference */}
       <section className="mb-16">
         <h2 className="text-2xl font-bold mb-6">🐟 CLI 命令速查</h2>
         <div className="rounded-lg border border-card-border bg-white overflow-hidden">
@@ -255,12 +255,12 @@ export default function GuidePage() {
             </thead>
             <tbody>
               {[
-                { cmd: 'search', desc: '搜索资产', ex: 'seafood-market search "天气"' },
-                { cmd: 'install', desc: '安装资产', ex: 'seafood-market install skill/@xiaoyue/web-search' },
-                { cmd: 'list', desc: '已安装列表', ex: 'seafood-market list' },
-                { cmd: 'info', desc: '查看详情', ex: 'seafood-market info skill/web-search' },
-                { cmd: 'uninstall', desc: '卸载资产', ex: 'seafood-market uninstall skill/web-search' },
-                { cmd: 'publish', desc: '发布资产', ex: 'seafood-market publish ./my-skill/' },
+                { cmd: 'search', desc: '搜索资产', ex: 'openclawmp search "天气"' },
+                { cmd: 'install', desc: '安装资产', ex: 'openclawmp install skill/@xiaoyue/web-search' },
+                { cmd: 'list', desc: '已安装列表', ex: 'openclawmp list' },
+                { cmd: 'info', desc: '查看详情', ex: 'openclawmp info skill/web-search' },
+                { cmd: 'uninstall', desc: '卸载资产', ex: 'openclawmp uninstall skill/web-search' },
+                { cmd: 'publish', desc: '发布资产', ex: 'openclawmp publish ./my-skill/' },
               ].map((row, i) => (
                 <tr key={row.cmd} className={i % 2 === 0 ? '' : 'bg-surface/50'}>
                   <td className="px-6 py-3 font-mono text-foreground font-medium">{row.cmd}</td>

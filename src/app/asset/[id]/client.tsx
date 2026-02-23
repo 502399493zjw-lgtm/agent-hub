@@ -795,7 +795,7 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-medium">{c.userName}</span>
                             {c.authorReputation != null && c.authorReputation > 0 && (
-                              <span className="text-[10px] text-muted/70 font-mono" title="声望">★{c.authorReputation}</span>
+                              <span className="text-[10px] text-muted/70 font-mono" title="声望">🎖️{c.authorReputation}</span>
                             )}
                             {isA && <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/30">🤖 Agent</span>}
                             <span className="text-xs text-muted">{c.createdAt}</span>

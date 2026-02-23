@@ -25,7 +25,7 @@ export function InstallDialog({ asset }: InstallDialogProps) {
 
   const depNames = asset.dependencies;
 
-  const installCmd = `seafood-market install ${asset.type}/@${asset.author.id}/${asset.name}`;
+  const installCmd = `openclawmp install ${asset.type}/@${asset.author.id}/${asset.name}`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(installCmd);
