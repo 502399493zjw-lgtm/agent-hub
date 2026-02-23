@@ -157,20 +157,35 @@ function ExploreContent({ initialAssets, initialTotal, typeCounts, categoryCount
     if (selectedCategory !== '全部') params.set('category', selectedCategory);
     if (search) params.set('q', search);
     params.set('sort', sortBy);
-    params.set('pageSize', String(PAGE_SIZE));
-    params.set('page', String(page));
+    params.set('limit', String(PAGE_SIZE));
+    params.set('cursor', String(page));
 
-    fetch(`/api/assets?${params.toString()}`)
+    fetch(`/api/v1/assets?${params.toString()}`)
       .then(res => res.json())
       .then(json => {
-        if (json.success) {
-          setAssets(json.data.assets);
-          setTotal(json.data.total);
-        }
+        // V1 API returns { total, items, nextCursor }
+        // Normalize V1 compact format to match Asset shape expected by UI
+        const normalized = (json.items ?? []).map((item: Record<string, unknown>) => ({
+          ...item,
+          downloads: item.installs ?? item.downloads ?? 0,
+          author: typeof item.author === 'string'
+            ? { id: item.authorId ?? '', name: item.author, avatar: '', reputation: 0 }
+            : item.author,
+        }));
+        setAssets(normalized);
+        setTotal(json.total ?? 0);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [selectedType, selectedCategory, search, sortBy, page]);
+
+  // If SSR bailed out and we got empty initial data, fetch on mount
+  useEffect(() => {
+    if (initialAssets.length === 0 && assets.length === 0 && !loading) {
+      fetchAssets();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Debounced fetch on filter change, but skip the first render (use SSR data)
   useEffect(() => {

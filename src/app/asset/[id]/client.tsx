@@ -296,7 +296,7 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
   const fetchStarStatus = useCallback(async () => {
     if (!asset) return;
     try {
-      const res = await fetch(`/api/assets/${asset.id}/star`);
+      const res = await fetch(`/api/v1/assets/${asset.id}/star`);
       if (res.ok) {
         const data = await res.json();
         if (data.success) {
@@ -316,7 +316,7 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
     setStarLoading(true);
     try {
       const method = starred ? 'DELETE' : 'POST';
-      const res = await fetch(`/api/assets/${asset.id}/star`, { method });
+      const res = await fetch(`/api/v1/assets/${asset.id}/star`, { method });
       if (res.ok) {
         const data = await res.json();
         if (data.success) {

@@ -1,5 +1,4 @@
-import { listAssets, getAssetCountByType, getAssetCountByCategory, getTotalAssetCount } from '@/lib/db';
-import type { Asset } from '@/data/types';
+import { listAssetsCompact, getAssetCountByType, getAssetCountByCategory, getTotalAssetCount } from '@/lib/db';
 import ExploreClientPage from './client';
 import type { Metadata } from 'next';
 
@@ -16,25 +15,26 @@ export const metadata: Metadata = {
 };
 
 export default function ExplorePage() {
-  // Pre-fetch initial assets (all types, first 100, popular sort)
-  const result = listAssets({ pageSize: 100, sort: 'popular' });
+  // Pre-fetch initial assets using compact query (same as V1 API)
+  const result = listAssetsCompact({ pageSize: 100, sort: 'popular' });
   // Use lightweight count queries for sidebar instead of fetching all assets again
   const typeCounts = getAssetCountByType();
   const categoryCounts = getAssetCountByCategory();
   const totalCount = getTotalAssetCount();
 
-  // Strip heavy fields (readme, files content, longDescription) to keep RSC payload small
-  // These fields can be 10s of KB each and are not needed for the list view
-  const lightAssets = result.assets.map(({ readme, files, longDescription, ...rest }) => ({
-    ...rest,
-    readme: '',
-    longDescription: '',
-    files: [] as Asset['files'],
+  // Normalize compact format to match what client expects
+  // (author string → author object, installs → downloads)
+  const normalizedAssets = result.assets.map(item => ({
+    ...item,
+    downloads: item.installs ?? 0,
+    author: typeof item.author === 'string'
+      ? { id: item.authorId ?? '', name: item.author, avatar: '', reputation: 0 }
+      : item.author,
   }));
 
   return (
     <ExploreClientPage
-      initialAssets={lightAssets}
+      initialAssets={normalizedAssets as any}
       initialTotal={result.total}
       typeCounts={typeCounts}
       categoryCounts={categoryCounts}
