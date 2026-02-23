@@ -133,7 +133,7 @@ function LoginContent() {
                   disabled={emailSending || !email}
                   className="w-full py-3 rounded-lg bg-blue text-white text-sm font-medium hover:bg-blue-dim disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  {emailSending ? '发送中...' : '📧 发送登录链接'}
+                  {emailSending ? '发送中...' : <><span suppressHydrationWarning>📧</span> 发送登录链接</>}
                 </button>
               </form>
             </>
