@@ -123,8 +123,10 @@ function ExploreContent({ initialAssets, initialTotal, typeCounts, categoryCount
 
   const [assets, setAssets] = useState<Asset[]>(initialAssets);
   const [total, setTotal] = useState(initialTotal);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [hasUserInteracted, setHasUserInteracted] = useState(false);
+  const PAGE_SIZE = 30;
 
   // Sync when URL params change
   useEffect(() => {
@@ -155,7 +157,8 @@ function ExploreContent({ initialAssets, initialTotal, typeCounts, categoryCount
     if (selectedCategory !== '全部') params.set('category', selectedCategory);
     if (search) params.set('q', search);
     params.set('sort', sortBy);
-    params.set('pageSize', '30');
+    params.set('pageSize', String(PAGE_SIZE));
+    params.set('page', String(page));
 
     fetch(`/api/assets?${params.toString()}`)
       .then(res => res.json())
@@ -167,7 +170,7 @@ function ExploreContent({ initialAssets, initialTotal, typeCounts, categoryCount
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [selectedType, selectedCategory, search, sortBy]);
+  }, [selectedType, selectedCategory, search, sortBy, page]);
 
   // Debounced fetch on filter change, but skip the first render (use SSR data)
   useEffect(() => {
@@ -179,18 +182,22 @@ function ExploreContent({ initialAssets, initialTotal, typeCounts, categoryCount
   // Track user interaction
   const handleTypeChange = (type: 'all' | AssetType) => {
     setSelectedType(type);
+    setPage(1);
     setHasUserInteracted(true);
   };
   const handleCategoryChange = (cat: string) => {
     setSelectedCategory(cat);
+    setPage(1);
     setHasUserInteracted(true);
   };
   const handleSortChange = (sort: string) => {
     setSortBy(sort);
+    setPage(1);
     setHasUserInteracted(true);
   };
   const handleSearchChange = (val: string) => {
     setSearch(val);
+    setPage(1);
     setHasUserInteracted(true);
   };
 
@@ -365,6 +372,56 @@ function ExploreContent({ initialAssets, initialTotal, typeCounts, categoryCount
               <div className="text-7xl mb-6">🔍</div>
               <h3 className="text-2xl font-bold mb-3">未找到匹配的资产</h3>
               <p className="text-muted text-lg">试试调整筛选条件或搜索关键词</p>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {total > PAGE_SIZE && (
+            <div className="flex items-center justify-center gap-2 mt-8">
+              <button
+                onClick={() => { setPage(p => Math.max(1, p - 1)); setHasUserInteracted(true); }}
+                disabled={page <= 1}
+                className="px-3 py-2 rounded-lg text-sm border border-card-border bg-white text-muted hover:text-foreground hover:bg-surface disabled:opacity-30 disabled:cursor-not-allowed transition-colors duration-150"
+              >
+                ← 上一页
+              </button>
+              {(() => {
+                const totalPages = Math.ceil(total / PAGE_SIZE);
+                const pages: (number | '...')[] = [];
+                if (totalPages <= 7) {
+                  for (let i = 1; i <= totalPages; i++) pages.push(i);
+                } else {
+                  pages.push(1);
+                  if (page > 3) pages.push('...');
+                  for (let i = Math.max(2, page - 1); i <= Math.min(totalPages - 1, page + 1); i++) pages.push(i);
+                  if (page < totalPages - 2) pages.push('...');
+                  pages.push(totalPages);
+                }
+                return pages.map((p, idx) =>
+                  p === '...' ? (
+                    <span key={`dots-${idx}`} className="px-2 text-muted">…</span>
+                  ) : (
+                    <button
+                      key={p}
+                      onClick={() => { setPage(p); setHasUserInteracted(true); }}
+                      className={`min-w-[36px] h-9 rounded-lg text-sm font-medium transition-colors duration-150 ${
+                        page === p
+                          ? 'bg-foreground text-white'
+                          : 'border border-card-border bg-white text-muted hover:text-foreground hover:bg-surface'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  )
+                );
+              })()}
+              <button
+                onClick={() => { setPage(p => Math.min(Math.ceil(total / PAGE_SIZE), p + 1)); setHasUserInteracted(true); }}
+                disabled={page >= Math.ceil(total / PAGE_SIZE)}
+                className="px-3 py-2 rounded-lg text-sm border border-card-border bg-white text-muted hover:text-foreground hover:bg-surface disabled:opacity-30 disabled:cursor-not-allowed transition-colors duration-150"
+              >
+                下一页 →
+              </button>
             </div>
           )}
         </div>
