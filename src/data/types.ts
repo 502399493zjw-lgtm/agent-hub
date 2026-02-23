@@ -51,6 +51,7 @@ export interface Comment {
   id: string; assetId: string; userId: string; userName: string; userAvatar: string;
   content: string; rating: number; createdAt: string;
   commenterType: 'user' | 'agent';
+  authorReputation?: number;
 }
 
 export interface Issue {

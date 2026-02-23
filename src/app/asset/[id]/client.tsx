@@ -346,7 +346,7 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
   const issuesList = serverIssues;
   const related = relatedAssets;
   const dependents = dependentAssets;
-  const installCmd = `seafood-market install ${asset.type}/@${asset.author.id}/${asset.name}`;
+  const installCmd = `openclawmp install ${asset.type}/@${asset.author.id}/${asset.name}`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(installCmd);
@@ -794,6 +794,9 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
                           <span className="text-xl">{c.userAvatar}</span>
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-medium">{c.userName}</span>
+                            {c.authorReputation != null && c.authorReputation > 0 && (
+                              <span className="text-[10px] text-muted/70 font-mono" title="声望">★{c.authorReputation}</span>
+                            )}
                             {isA && <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/30">🤖 Agent</span>}
                             <span className="text-xs text-muted">{c.createdAt}</span>
                           </div>

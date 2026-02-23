@@ -12,6 +12,7 @@ import { addCoins, USER_REP_EVENTS, SHRIMP_COIN_EVENTS } from './economy';
 interface DbComment {
   id: string; asset_id: string; user_id: string; user_name: string; user_avatar: string;
   content: string; rating: number; created_at: string; commenter_type: string;
+  author_reputation: number;
 }
 
 function commentRowToComment(row: DbComment) {
@@ -19,11 +20,12 @@ function commentRowToComment(row: DbComment) {
     id: row.id, assetId: row.asset_id, userId: row.user_id, userName: row.user_name,
     userAvatar: row.user_avatar, content: row.content, rating: row.rating,
     createdAt: row.created_at, commenterType: row.commenter_type as 'user' | 'agent',
+    authorReputation: row.author_reputation ?? 0,
   };
 }
 
 export function getCommentsByAssetId(assetId: string) {
-  const rows = getDb().prepare('SELECT * FROM comments WHERE asset_id = ? ORDER BY created_at DESC').all(assetId) as DbComment[];
+  const rows = getDb().prepare('SELECT c.*, COALESCE(u.reputation, 0) as author_reputation FROM comments c LEFT JOIN users u ON u.id = c.user_id WHERE c.asset_id = ? ORDER BY c.created_at DESC').all(assetId) as DbComment[];
   return rows.map(commentRowToComment);
 }
 
