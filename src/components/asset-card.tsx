@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Asset, formatDownloads, typeConfig } from '@/data/types';
 import { LetterAvatar } from '@/components/letter-avatar';
 
@@ -23,8 +24,10 @@ export function AssetCard({ asset }: { asset: Asset }) {
   const config = typeConfig[asset.type];
   const stars = asset.totalStars ?? asset.githubStars ?? 0;
 
+  const router = useRouter();
+
   return (
-    <Link href={`/asset/${asset.id}`}>
+    <div onClick={() => router.push(`/asset/${asset.id}`)} role="link" tabIndex={0}>
       <div className="group relative rounded-lg border border-card-border bg-white p-4 sm:p-5 card-hover cursor-pointer overflow-hidden">
 
         {/* Header row: badge left, author right */}
@@ -88,6 +91,6 @@ export function AssetCard({ asset }: { asset: Asset }) {
           <span className="text-xs text-muted font-mono">v{asset.version}</span>
         </div>
       </div>
-    </Link>
+    </div>
   );
 }
