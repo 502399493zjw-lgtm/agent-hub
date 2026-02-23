@@ -25,6 +25,8 @@ export async function GET(request: NextRequest) {
       createdAt: user.created_at,
       updatedAt: user.updated_at,
       authMethod: authResult.method, // 告诉调用者用了哪种认证
+      reputation: user.reputation ?? 0,
+      shrimpCoins: user.shrimp_coins ?? 0,
     },
   });
 }

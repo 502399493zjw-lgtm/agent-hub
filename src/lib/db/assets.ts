@@ -33,6 +33,7 @@ export interface DbRow {
   github_url: string; github_stars: number; github_forks: number;
   github_language: string; github_license: string; github_synced_at: string;
   user_star_count?: number;
+  author_reputation?: number;
 }
 
 export function rowToAsset(row: DbRow): Asset {
@@ -41,7 +42,7 @@ export function rowToAsset(row: DbRow): Asset {
   return {
     id: row.id, name: row.name, displayName: row.display_name,
     type: row.type as Asset['type'],
-    author: { id: row.author_id || ('u-' + row.author_name.toLowerCase().replace(/\s+/g, '-')), name: row.author_name, avatar: row.author_avatar },
+    author: { id: row.author_id || ('u-' + row.author_name.toLowerCase().replace(/\s+/g, '-')), name: row.author_name, avatar: row.author_avatar, reputation: row.author_reputation ?? 0 },
     description: row.description, longDescription: row.long_description, version: row.version,
     downloads: row.downloads, rating: row.rating, ratingCount: row.rating_count,
     tags: safeParse(row.tags, []) as string[], category: row.category,
@@ -166,14 +167,15 @@ export function listAssets(params: ListParams): { assets: Asset[]; total: number
 
   let query: string;
   if (usingFtsRelevance && (!params.sort || params.sort === 'relevance')) {
-    query = `SELECT a.*, COALESCE(us.cnt, 0) as user_star_count
+    query = `SELECT a.*, COALESCE(us.cnt, 0) as user_star_count, COALESCE(uauth.reputation, 0) as author_reputation
       FROM assets a
       LEFT JOIN (SELECT asset_id, COUNT(*) as cnt FROM user_stars GROUP BY asset_id) us ON us.asset_id = a.id
+      LEFT JOIN users uauth ON uauth.id = a.author_id
       JOIN assets_fts fts ON a.rowid = fts.rowid AND assets_fts MATCH @q
       ${where ? where.replace(/a\.rowid IN \(SELECT rowid FROM assets_fts WHERE assets_fts MATCH @q\)/, '1=1') : ''}
       ORDER BY ${orderBy} LIMIT @limit OFFSET @offset`;
   } else {
-    query = `SELECT a.*, COALESCE(us.cnt, 0) as user_star_count FROM assets a LEFT JOIN (SELECT asset_id, COUNT(*) as cnt FROM user_stars GROUP BY asset_id) us ON us.asset_id = a.id ${where} ORDER BY ${orderBy} LIMIT @limit OFFSET @offset`;
+    query = `SELECT a.*, COALESCE(us.cnt, 0) as user_star_count, COALESCE(uauth.reputation, 0) as author_reputation FROM assets a LEFT JOIN (SELECT asset_id, COUNT(*) as cnt FROM user_stars GROUP BY asset_id) us ON us.asset_id = a.id LEFT JOIN users uauth ON uauth.id = a.author_id ${where} ORDER BY ${orderBy} LIMIT @limit OFFSET @offset`;
   }
 
   const rows = db.prepare(query).all({ ...bindings, limit: pageSize, offset }) as DbRow[];
@@ -182,7 +184,7 @@ export function listAssets(params: ListParams): { assets: Asset[]; total: number
 
 export function getAssetById(id: string): Asset | null {
   const db = getDb();
-  const row = db.prepare('SELECT a.*, COALESCE(us.cnt, 0) as user_star_count FROM assets a LEFT JOIN (SELECT asset_id, COUNT(*) as cnt FROM user_stars WHERE asset_id = ? GROUP BY asset_id) us ON us.asset_id = a.id WHERE a.id = ?').get(id, id) as DbRow | undefined;
+  const row = db.prepare('SELECT a.*, COALESCE(us.cnt, 0) as user_star_count, COALESCE(uauth.reputation, 0) as author_reputation FROM assets a LEFT JOIN (SELECT asset_id, COUNT(*) as cnt FROM user_stars WHERE asset_id = ? GROUP BY asset_id) us ON us.asset_id = a.id LEFT JOIN users uauth ON uauth.id = a.author_id WHERE a.id = ?').get(id, id) as DbRow | undefined;
   return row ? rowToAsset(row) : null;
 }
 
@@ -212,7 +214,7 @@ export function createAsset(data: {
     version: data.version, downloads: 0, rating: 0, ratingCount: 0,
     tags: data.tags || [], category: data.category || '',
     createdAt: now, updatedAt: now,
-    installCommand: `seafood-market install ${data.type}/@${authorId}/${data.name}`,
+    installCommand: `openclawmp install ${data.type}/@${authorId}/${data.name}`,
     readme: data.readme || '',
     versions: [{ version: data.version, changelog: '首次发布', date: now }],
     dependencies: [], compatibility: { models: ['GPT-4','Claude 3'], platforms: ['OpenClaw'], frameworks: ['Node.js'] },

@@ -13,7 +13,7 @@ export interface FileNode {
 
 export interface Asset {
   id: string; name: string; displayName: string; type: AssetType;
-  author: { id: string; name: string; avatar: string };
+  author: { id: string; name: string; avatar: string; reputation?: number };
   description: string; longDescription: string; version: string;
   downloads: number; rating: number; ratingCount: number;
   tags: string[]; category: string; createdAt: string; updatedAt: string;
@@ -93,7 +93,7 @@ export interface ActivityEvent {
   icon: string;
   text: string;
   date: string;
-  type: 'publish' | 'update' | 'issue' | 'review' | 'pr' | 'favorite';
+  type: 'publish' | 'update' | 'issue' | 'pr' | 'favorite';
   linkTo?: string;
   actorType: 'user' | 'agent';
 }
