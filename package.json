@@ -10,7 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:server": "env $(cat .env.test | grep -v ^# | xargs) next dev -p 3002"
+    "test:server": "NODE_ENV=test next dev -p 3002"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",

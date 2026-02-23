@@ -110,6 +110,7 @@ export function listAssets(params: ListParams): { assets: Asset[]; total: number
   const db = getDb();
   const conditions: string[] = [];
   const bindings: Record<string, string | number> = {};
+  let usingFtsRelevance = false;
 
   if (params.type && ['skill','experience','plugin','trigger','channel','template'].includes(params.type)) {
     conditions.push('a.type = @type'); bindings.type = params.type;
@@ -122,6 +123,7 @@ export function listAssets(params: ListParams): { assets: Asset[]; total: number
     if (ftsQuery && ftsHasContent()) {
       conditions.push(`a.rowid IN (SELECT rowid FROM assets_fts WHERE assets_fts MATCH @q)`);
       bindings.q = ftsQuery;
+      usingFtsRelevance = true;
     } else {
       conditions.push(`(a.name LIKE @q ESCAPE '\\' OR a.display_name LIKE @q ESCAPE '\\' OR a.description LIKE @q ESCAPE '\\' OR a.tags LIKE @q ESCAPE '\\')`);
       const escaped = params.q.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
@@ -140,10 +142,32 @@ export function listAssets(params: ListParams): { assets: Asset[]; total: number
     case 'trending': orderBy = 'a.downloads DESC, a.updated_at DESC'; break;
     default: orderBy = '(a.downloads * a.rating) DESC';
   }
+
+  // When FTS5 is active and sort is default/relevance, use hybrid relevance + business metrics scoring
+  if (usingFtsRelevance && (!params.sort || params.sort === 'relevance')) {
+    orderBy = `(
+      (-fts.rank) * 0.6 +
+      (ln(a.downloads + 2) / ln(2) * 3 + a.rating * 2) * 0.4
+    ) DESC`;
+  }
+
   const page = Math.max(1, params.page ?? 1);
   const pageSize = Math.min(100, Math.max(1, params.pageSize ?? 20));
   const offset = (page - 1) * pageSize;
-  const rows = db.prepare(`SELECT a.*, COALESCE(us.cnt, 0) as user_star_count FROM assets a LEFT JOIN (SELECT asset_id, COUNT(*) as cnt FROM user_stars GROUP BY asset_id) us ON us.asset_id = a.id ${where} ORDER BY ${orderBy} LIMIT @limit OFFSET @offset`).all({ ...bindings, limit: pageSize, offset }) as DbRow[];
+
+  let query: string;
+  if (usingFtsRelevance && (!params.sort || params.sort === 'relevance')) {
+    query = `SELECT a.*, COALESCE(us.cnt, 0) as user_star_count
+      FROM assets a
+      LEFT JOIN (SELECT asset_id, COUNT(*) as cnt FROM user_stars GROUP BY asset_id) us ON us.asset_id = a.id
+      JOIN assets_fts fts ON a.rowid = fts.rowid AND assets_fts MATCH @q
+      ${where ? where.replace(/a\.rowid IN \(SELECT rowid FROM assets_fts WHERE assets_fts MATCH @q\)/, '1=1') : ''}
+      ORDER BY ${orderBy} LIMIT @limit OFFSET @offset`;
+  } else {
+    query = `SELECT a.*, COALESCE(us.cnt, 0) as user_star_count FROM assets a LEFT JOIN (SELECT asset_id, COUNT(*) as cnt FROM user_stars GROUP BY asset_id) us ON us.asset_id = a.id ${where} ORDER BY ${orderBy} LIMIT @limit OFFSET @offset`;
+  }
+
+  const rows = db.prepare(query).all({ ...bindings, limit: pageSize, offset }) as DbRow[];
   return { assets: rows.map(rowToAsset), total, page, pageSize };
 }
 
@@ -272,43 +296,71 @@ export function listAssetsCompact(params: ListParams & { tag?: string }): { asse
   const conditions: string[] = [];
   const bindings: Record<string, string | number> = {};
 
+  // Track whether we're doing an FTS5 relevance-aware query
+  let usingFtsRelevance = false;
+
   if (params.type && ['skill','experience','plugin','trigger','channel','template'].includes(params.type)) {
-    conditions.push('type = @type'); bindings.type = params.type;
+    conditions.push('a.type = @type'); bindings.type = params.type;
   }
-  if (params.category) { conditions.push('category = @category'); bindings.category = params.category; }
+  if (params.category) { conditions.push('a.category = @category'); bindings.category = params.category; }
   if (params.tag) {
-    conditions.push('tags LIKE @tag');
+    conditions.push('a.tags LIKE @tag');
     bindings.tag = `%"${params.tag}"%`;
   }
   if (params.q) {
     // Try FTS5 search first, fall back to LIKE
     const ftsQuery = escapeFts5Query(params.q);
     if (ftsQuery && ftsHasContent()) {
-      conditions.push(`rowid IN (SELECT rowid FROM assets_fts WHERE assets_fts MATCH @q)`);
+      conditions.push(`a.rowid IN (SELECT rowid FROM assets_fts WHERE assets_fts MATCH @q)`);
       bindings.q = ftsQuery;
+      usingFtsRelevance = true;
     } else {
-      conditions.push(`(name LIKE @q ESCAPE '\\' OR display_name LIKE @q ESCAPE '\\' OR description LIKE @q ESCAPE '\\' OR tags LIKE @q ESCAPE '\\')`);
+      conditions.push(`(a.name LIKE @q ESCAPE '\\' OR a.display_name LIKE @q ESCAPE '\\' OR a.description LIKE @q ESCAPE '\\' OR a.tags LIKE @q ESCAPE '\\')`);
       const escaped = params.q.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
       bindings.q = `%${escaped}%`;
     }
   }
   const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
-  const total = (db.prepare(`SELECT COUNT(*) as cnt FROM assets ${where}`).get(bindings) as { cnt: number }).cnt;
+  const total = (db.prepare(`SELECT COUNT(*) as cnt FROM assets a ${where}`).get(bindings) as { cnt: number }).cnt;
 
   let orderBy: string;
   switch (params.sort) {
-    case 'installs': case 'downloads': orderBy = 'downloads DESC'; break;
-    case 'rating': orderBy = 'rating DESC'; break;
-    case 'newest': case 'updated_at': orderBy = 'updated_at DESC'; break;
-    case 'created_at': orderBy = 'created_at DESC'; break;
-    case 'trending': orderBy = 'downloads DESC, updated_at DESC'; break;
-    default: orderBy = 'downloads DESC, updated_at DESC';
+    case 'installs': case 'downloads': orderBy = 'a.downloads DESC'; break;
+    case 'rating': orderBy = 'a.rating DESC'; break;
+    case 'newest': case 'updated_at': orderBy = 'a.updated_at DESC'; break;
+    case 'created_at': orderBy = 'a.created_at DESC'; break;
+    case 'trending': orderBy = 'a.downloads DESC, a.updated_at DESC'; break;
+    default: orderBy = 'a.downloads DESC, a.updated_at DESC';
   }
+
+  // When FTS5 is active and sort is default/relevance, use hybrid relevance + business metrics scoring
+  // Formula: relevance_score * 0.6 + normalized_business_score * 0.4
+  // - FTS5 rank is negative (closer to 0 = more relevant), we negate it
+  // - Business score: log2(downloads+2) * 3 + rating * 2 (log-dampened to avoid download count domination)
+  if (usingFtsRelevance && (!params.sort || params.sort === 'relevance')) {
+    orderBy = `(
+      (-fts.rank) * 0.6 +
+      (ln(a.downloads + 2) / ln(2) * 3 + a.rating * 2) * 0.4
+    ) DESC`;
+  }
+
   const page = Math.max(1, params.page ?? 1);
   const pageSize = Math.min(100, Math.max(1, params.pageSize ?? 20));
   const offset = (page - 1) * pageSize;
 
-  const rows = db.prepare(`SELECT id, name, display_name, type, description, tags, downloads, rating, author_name, author_id, version, install_command, updated_at, category FROM assets ${where} ORDER BY ${orderBy} LIMIT @limit OFFSET @offset`).all({ ...bindings, limit: pageSize, offset }) as {
+  // When using FTS relevance scoring, JOIN with assets_fts to access rank
+  let query: string;
+  if (usingFtsRelevance && (!params.sort || params.sort === 'relevance')) {
+    query = `SELECT a.id, a.name, a.display_name, a.type, a.description, a.tags, a.downloads, a.rating, a.author_name, a.author_id, a.version, a.install_command, a.updated_at, a.category
+      FROM assets a
+      JOIN assets_fts fts ON a.rowid = fts.rowid AND assets_fts MATCH @q
+      ${where ? where.replace(/a\.rowid IN \(SELECT rowid FROM assets_fts WHERE assets_fts MATCH @q\)/, '1=1') : ''}
+      ORDER BY ${orderBy} LIMIT @limit OFFSET @offset`;
+  } else {
+    query = `SELECT a.id, a.name, a.display_name, a.type, a.description, a.tags, a.downloads, a.rating, a.author_name, a.author_id, a.version, a.install_command, a.updated_at, a.category FROM assets a ${where} ORDER BY ${orderBy} LIMIT @limit OFFSET @offset`;
+  }
+
+  const rows = db.prepare(query).all({ ...bindings, limit: pageSize, offset }) as {
     id: string; name: string; display_name: string; type: string; description: string;
     tags: string; downloads: number; rating: number; author_name: string; author_id: string;
     version: string; install_command: string; updated_at: string; category: string;

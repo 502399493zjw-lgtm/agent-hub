@@ -256,14 +256,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   // Fix PKCE cookie issue behind Cloudflare Tunnel (HTTPS→HTTP proxy).
   // Without this, NextAuth uses __Secure- prefixed cookies which require
   // the origin request to be HTTPS, but the container sees HTTP from the tunnel.
+  // In local dev (http://localhost), secure must be false or cookies won't be set.
   cookies: {
     pkceCodeVerifier: {
       name: 'next-auth.pkce.code_verifier',
       options: {
         httpOnly: true,
-        sameSite: 'none' as const,
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' as const : 'lax' as const,
         path: '/',
-        secure: true,
+        secure: process.env.NODE_ENV === 'production',
       },
     },
     state: {
@@ -272,7 +273,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         httpOnly: true,
         sameSite: 'lax' as const,
         path: '/',
-        secure: true,
+        secure: process.env.NODE_ENV === 'production',
       },
     },
     nonce: {
@@ -281,7 +282,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         httpOnly: true,
         sameSite: 'lax' as const,
         path: '/',
-        secure: true,
+        secure: process.env.NODE_ENV === 'production',
       },
     },
     callbackUrl: {
@@ -290,7 +291,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         httpOnly: true,
         sameSite: 'lax' as const,
         path: '/',
-        secure: true,
+        secure: process.env.NODE_ENV === 'production',
       },
     },
     csrfToken: {
@@ -299,7 +300,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         httpOnly: true,
         sameSite: 'lax' as const,
         path: '/',
-        secure: true,
+        secure: process.env.NODE_ENV === 'production',
       },
     },
   },
