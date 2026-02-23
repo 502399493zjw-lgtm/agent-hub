@@ -1,5 +1,5 @@
 import { getStats, getAssetCountByType, listAssets } from '@/lib/db';
-import type { AssetType } from '@/data/types';
+import type { AssetType, Asset } from '@/data/types';
 import HomeClient from './client';
 import type { Metadata } from 'next';
 
@@ -25,17 +25,15 @@ export default function HomePage() {
   const tabAssets: Record<string, ReturnType<typeof listAssets>['assets']> = {};
   for (const t of types) {
     const result = listAssets({ type: t, sort: 'popular', pageSize: 30 });
-    // Strip large fields to avoid bloating RSC/HTML payload (readme, files, manifest, etc.)
+    // Strip large fields to avoid bloating RSC/HTML payload
     tabAssets[t] = result.assets.map(a => ({
       ...a,
       readme: '',
       longDescription: '',
       files: [],
-      manifest: {},
       versions: [],
       dependencies: [],
-      compatibility: {},
-      hubScoreBreakdown: {},
+      compatibility: { models: [], platforms: [], frameworks: [] },
     }));
   }
 
