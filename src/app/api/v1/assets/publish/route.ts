@@ -13,6 +13,170 @@ const PACKAGES_DIR = path.join(process.cwd(), 'data', 'packages');
 
 export const dynamic = 'force-dynamic';
 
+// ─── Publish validation helpers ─────────────────────────────────────────────
+
+function parseFrontmatter(content: string): { frontmatter: Record<string, string>; body: string } {
+  const fm: Record<string, string> = {};
+  let body = content;
+  const match = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)/);
+  if (match) {
+    for (const line of match[1].split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const kv = trimmed.match(/^([\w-]+)\s*:\s*(.*)/);
+      if (kv) {
+        let val = kv[2].trim();
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+          val = val.slice(1, -1);
+        }
+        fm[kv[1]] = val;
+      }
+    }
+    body = match[2].trim();
+  }
+  return { frontmatter: fm, body };
+}
+
+function extractFromReadme(content: string): { title: string; description: string } {
+  let title = '', description = '';
+  for (const line of content.split('\n')) {
+    const t = line.trim();
+    if (!title) {
+      const m = t.match(/^#\s+(.+)$/);
+      if (m) { title = m[1].trim(); continue; }
+    }
+    if (title && !description && t && !t.startsWith('#') && !t.startsWith('---') && !t.startsWith('>')) {
+      description = t;
+      break;
+    }
+  }
+  return { title, description };
+}
+
+interface ValidationResult {
+  valid: boolean;
+  error?: string;
+  missing?: string[];
+  hint?: string;
+  required?: Record<string, string>;
+  extractedDisplayName?: string;
+  extractedDescription?: string;
+  extractedReadme?: string;
+}
+
+function validatePackageByType(
+  type: string,
+  textFiles: Map<string, string>,
+  metadata: { displayName?: string; description?: string; readme?: string },
+): ValidationResult {
+  const missing: string[] = [];
+  let dn = metadata.displayName || '';
+  let desc = metadata.description || '';
+  let readme = metadata.readme || '';
+
+  switch (type) {
+    case 'skill': {
+      const skillMd = textFiles.get('SKILL.md');
+      if (!skillMd) {
+        return {
+          valid: false, error: '发布校验失败：缺少 SKILL.md', missing: ['SKILL.md'],
+          hint: '请创建 SKILL.md，包含 frontmatter（name, description）和技能说明正文。',
+          required: { 'SKILL.md': '❌' },
+        };
+      }
+      const { frontmatter: fm, body } = parseFrontmatter(skillMd);
+      if (!fm.name && !fm.displayName && !fm['display-name']) missing.push('SKILL.md frontmatter: name');
+      if (!fm.description) missing.push('SKILL.md frontmatter: description');
+      if (!body) missing.push('SKILL.md 正文（frontmatter 之后的内容）');
+      if (missing.length) {
+        return {
+          valid: false, error: 'SKILL.md 信息不完整', missing,
+          hint: 'SKILL.md 需要 frontmatter（name, description）和正文。',
+          required: {
+            'SKILL.md': '✅',
+            name: fm.name || fm.displayName || fm['display-name'] ? '✅' : '❌',
+            description: fm.description ? '✅' : '❌',
+            body: body ? '✅' : '❌',
+          },
+        };
+      }
+      dn = dn || fm.displayName || fm['display-name'] || fm.name;
+      desc = desc || fm.description;
+      readme = readme || body;
+      break;
+    }
+
+    case 'plugin':
+    case 'channel': {
+      const pj = textFiles.get('openclaw.plugin.json');
+      if (!pj) {
+        return {
+          valid: false, error: `缺少 openclaw.plugin.json`, missing: ['openclaw.plugin.json'],
+          hint: `${type} 类型必须包含 openclaw.plugin.json。`,
+        };
+      }
+      let pd: Record<string, unknown>;
+      try { pd = JSON.parse(pj); } catch {
+        return { valid: false, error: 'openclaw.plugin.json JSON 格式错误', missing: ['valid JSON'] };
+      }
+      if (!pd.id) missing.push('openclaw.plugin.json: id');
+      if (type === 'channel' && (!Array.isArray(pd.channels) || !(pd.channels as unknown[]).length)) {
+        missing.push('openclaw.plugin.json: channels 数组');
+      }
+      const rm = textFiles.get('README.md');
+      if (!rm) missing.push('README.md');
+      if (missing.length) {
+        return {
+          valid: false, error: `发布校验失败：${missing.join('、')}`, missing,
+          hint: `${type} 需要 openclaw.plugin.json（含 id${type === 'channel' ? ' + channels' : ''}）和 README.md。`,
+        };
+      }
+      const ri = extractFromReadme(rm!);
+      dn = dn || (pd.name as string) || ri.title;
+      desc = desc || (pd.description as string) || ri.description;
+      readme = readme || rm!;
+      if (!dn) missing.push('displayName');
+      if (!desc) missing.push('description');
+      if (missing.length) {
+        return {
+          valid: false, error: `无法提取 ${missing.join('、')}`, missing,
+          hint: '请在 openclaw.plugin.json 添加 name/description，或确保 README.md 有标题和描述。',
+        };
+      }
+      break;
+    }
+
+    case 'trigger':
+    case 'experience': {
+      const rm = textFiles.get('README.md');
+      if (!rm) {
+        return {
+          valid: false, error: `缺少 README.md`, missing: ['README.md'],
+          hint: `${type} 类型必须包含 README.md（标题 + 描述段落）。`,
+        };
+      }
+      const ri = extractFromReadme(rm);
+      if (!ri.title) missing.push('README.md 标题（# xxx）');
+      if (!ri.description) missing.push('README.md 描述段落');
+      if (missing.length) {
+        return {
+          valid: false, error: 'README.md 信息不完整', missing,
+          hint: 'README.md 需要标题行（# 名称）和描述段落。',
+          required: { 'README.md': '✅', title: ri.title ? '✅' : '❌', description: ri.description ? '✅' : '❌' },
+        };
+      }
+      dn = dn || ri.title;
+      desc = desc || ri.description;
+      readme = readme || rm;
+      break;
+    }
+  }
+
+  return { valid: true, extractedDisplayName: dn, extractedDescription: desc, extractedReadme: readme };
+}
+
+// ─── POST handler ───────────────────────────────────────────────────────────
+
 export async function POST(request: NextRequest) {
   try {
     const { auth: authResult, banned } = await authenticateAndCheckBan(request);
@@ -41,12 +205,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Invalid metadata JSON' }, { status: 400 });
     }
 
-    const { name, displayName, type, description, version } = metadata;
-    if (!name || !displayName || !type || !description || !version) {
-      return NextResponse.json({ success: false, error: 'metadata must include: name, displayName, type, description, version' }, { status: 400 });
+    const { name, type, version } = metadata;
+    // Only require name + type + version upfront; displayName/description can be extracted from package
+    if (!name || !type || !version) {
+      return NextResponse.json({ success: false, error: 'metadata must include: name, type, version' }, { status: 400 });
     }
 
-    const validTypes = ['skill', 'experience', 'plugin', 'trigger', 'channel', 'template'];
+    const validTypes = ['skill', 'experience', 'plugin', 'trigger', 'channel'];
     if (!validTypes.includes(type)) {
       return NextResponse.json({ success: false, error: `Invalid type. Must be one of: ${validTypes.join(', ')}` }, { status: 400 });
     }
@@ -65,7 +230,6 @@ export async function POST(request: NextRequest) {
         const sha256 = crypto.createHash('sha256').update(buf).digest('hex');
 
         if (key === 'package') {
-          // Traditional package upload (.tar.gz / .zip / .skill)
           const origName = value.name || 'package.tar.gz';
           const isZip = origName.endsWith('.zip') || origName.endsWith('.skill');
           const isTarGz = origName.endsWith('.tar.gz') || origName.endsWith('.tgz');
@@ -85,8 +249,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Extract file list from package (tar.gz / zip) if provided
+    // ─── Extract package + validate (single pass) ───────────────────────
+
     let packageFilesMetadata: { path: string; size: number; sha256: string; contentType: string }[] = [];
+    const textFiles = new Map<string, string>();
+    const TEXT_EXTS = ['.md', '.json', '.yaml', '.yml', '.txt', '.js', '.ts', '.py', '.sh'];
+
     if (packageFile) {
       const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'openclawmp-pkg-'));
       const tmpPkg = path.join(tmpDir, `pkg.${packageFile.ext}`);
@@ -99,14 +267,13 @@ export async function POST(request: NextRequest) {
           try {
             execSync(`tar xzf "${tmpPkg}" -C "${extractDir}" --strip-components=1 2>/dev/null`, { stdio: 'pipe' });
           } catch {
-            // Retry without --strip-components (flat archive)
             try { execSync(`tar xzf "${tmpPkg}" -C "${extractDir}" 2>/dev/null`, { stdio: 'pipe' }); } catch { /* ignore */ }
           }
         } else {
           try { execSync(`unzip -o -q "${tmpPkg}" -d "${extractDir}" 2>/dev/null`, { stdio: 'pipe' }); } catch { /* ignore */ }
         }
 
-        // Walk extracted directory to build file list
+        // Walk extracted directory: build file metadata + collect text contents
         const walkDir = (dir: string, prefix: string): void => {
           for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
             const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
@@ -125,52 +292,77 @@ export async function POST(request: NextRequest) {
                 : ext === '.yaml' || ext === '.yml' ? 'text/yaml'
                 : 'application/octet-stream';
               packageFilesMetadata.push({ path: rel, size: buf.length, sha256: sha, contentType: ct });
+
+              // Collect text file contents for validation
+              if (TEXT_EXTS.includes(ext)) {
+                try { textFiles.set(rel, buf.toString('utf-8')); } catch { /* ignore */ }
+              }
             }
           }
         };
         walkDir(extractDir, '');
       } finally {
-        // Cleanup temp dir
         try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
       }
     }
 
-    // Use package-extracted files if available, otherwise fall back to uploaded files
+    // ─── Validate by type ───────────────────────────────────────────────
+
+    const validation = validatePackageByType(type, textFiles, {
+      displayName: metadata.displayName,
+      description: metadata.description,
+      readme: metadata.readme,
+    });
+
+    if (!validation.valid) {
+      return NextResponse.json({
+        success: false,
+        error: 'publish_validation_failed',
+        message: validation.error,
+        missing: validation.missing,
+        hint: validation.hint,
+        required: validation.required,
+      }, { status: 400 });
+    }
+
+    // Server-side enrichment: use extracted values when metadata didn't provide them
+    const finalDisplayName = metadata.displayName || validation.extractedDisplayName || name;
+    const finalDescription = metadata.description || validation.extractedDescription || '';
+    const finalReadme = metadata.readme || validation.extractedReadme || '';
+
+    // ─── Save to DB ─────────────────────────────────────────────────────
+
     const filesMetadata = packageFilesMetadata.length > 0
       ? packageFilesMetadata
       : uploadedFiles.filter(f => f.path !== (packageFile ? `pkg.${packageFile.ext}` : '')).map(f => ({ path: f.path, size: f.size, sha256: f.sha256, contentType: f.contentType }));
 
-    // Check if asset already exists (update vs create)
     const db = getDb();
     const existingAssets = db.prepare('SELECT id FROM assets WHERE name = ? AND author_id = ?').all(name, authResult.userId) as { id: string }[];
 
     let asset;
 
     if (existingAssets.length > 0) {
-      // Update existing asset
       const existingId = existingAssets[0].id;
       updateAsset(existingId, {
-        displayName,
-        description,
+        displayName: finalDisplayName,
+        description: finalDescription,
         version,
         tags: metadata.tags,
         category: metadata.category,
         longDescription: metadata.longDescription,
-        readme: metadata.readme,
+        readme: finalReadme,
         files: filesMetadata as unknown as Array<{ name: string; type: string }>,
       });
       asset = getAssetById(existingId)!;
 
-      // Award publish_version coins for updating an existing asset
       addCoins(authResult.userId, 'reputation', USER_REP_EVENTS.publish_version, 'publish_version', existingId);
       addCoins(authResult.userId, 'shrimp_coin', SHRIMP_COIN_EVENTS.publish_version, 'publish_version', existingId);
     } else {
-      // Create new asset
       asset = createAsset({
         name,
-        displayName,
+        displayName: finalDisplayName,
         type,
-        description,
+        description: finalDescription,
         version,
         authorId: authResult.userId,
         authorName: dbUser.name,
@@ -178,16 +370,15 @@ export async function POST(request: NextRequest) {
         tags: metadata.tags,
         category: metadata.category,
         longDescription: metadata.longDescription,
-        readme: metadata.readme || '',
+        readme: finalReadme,
         configSubtype: metadata.configSubtype,
       });
-      // Update files metadata
       if (filesMetadata.length > 0) {
         updateAsset(asset.id, { files: filesMetadata as unknown as Array<{ name: string; type: string }> });
       }
     }
 
-    // Save package file if provided
+    // Save package file
     if (packageFile) {
       fs.mkdirSync(PACKAGES_DIR, { recursive: true });
       const packagePath = path.join(PACKAGES_DIR, `${asset.id}.${packageFile.ext}`);
