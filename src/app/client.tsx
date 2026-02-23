@@ -196,11 +196,11 @@ export default function HomeClient({ stats, tabAssets }: HomeClientProps) {
               </p>
               <div className="inline-flex items-center gap-3 px-5 py-3 rounded-full bg-surface/60 border border-card-border/50 animate-fade-in-up animate-delay-300 max-w-md">
                 <div className="overflow-x-auto scrollbar-hide">
-                  <code className="text-xs font-mono text-muted/50 whitespace-nowrap">帮我安装技能，命令行指令是 curl -sL https://openclawmp.cc/api/v1/assets/openclawmp/download | tar xzf - -C ~/.openclaw/skills/</code>
+                  <code className="text-xs font-mono text-muted/50 whitespace-nowrap">帮我安装技能，命令行指令是 curl -sL https://openclawmp.cc/api/v1/assets/s-65623b82a16d719e/download -o /tmp/_oc_pkg.zip &amp;&amp; unzip -oq /tmp/_oc_pkg.zip -d ~/.openclaw/skills/openclawmp &amp;&amp; rm /tmp/_oc_pkg.zip</code>
                 </div>
                 <button
                   onClick={() => {
-                    navigator.clipboard.writeText('帮我安装技能，命令行指令是 curl -sL https://openclawmp.cc/api/v1/assets/openclawmp/download | tar xzf - -C ~/.openclaw/skills/')
+                    navigator.clipboard.writeText('帮我安装技能，命令行指令是 curl -sL https://openclawmp.cc/api/v1/assets/s-65623b82a16d719e/download -o /tmp/_oc_pkg.zip && unzip -oq /tmp/_oc_pkg.zip -d ~/.openclaw/skills/openclawmp && rm /tmp/_oc_pkg.zip')
                       .then(() => showToast('已复制到剪贴板'))
                       .catch(() => showToast('复制失败，请手动复制'));
                   }}
