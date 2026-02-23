@@ -249,6 +249,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ─── Package is required ────────────────────────────────────────────
+    if (!packageFile) {
+      return NextResponse.json({
+        success: false,
+        error: 'missing_package',
+        message: '发布资产必须包含文件包（.tar.gz / .tgz / .zip / .skill）。水产市场要求"发了就能用"。',
+      }, { status: 400 });
+    }
+
     // ─── Extract package + validate (single pass) ───────────────────────
 
     let packageFilesMetadata: { path: string; size: number; sha256: string; contentType: string }[] = [];
