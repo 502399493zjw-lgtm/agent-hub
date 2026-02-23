@@ -168,8 +168,10 @@ function ExploreContent({ initialAssets, initialTotal, typeCounts, categoryCount
         const normalized = (json.items ?? []).map((item: Record<string, unknown>) => ({
           ...item,
           downloads: item.installs ?? item.downloads ?? 0,
+          totalStars: item.totalStars ?? 0,
+          githubStars: item.githubStars ?? 0,
           author: typeof item.author === 'string'
-            ? { id: item.authorId ?? '', name: item.author, avatar: item.authorAvatar ?? '', reputation: 0 }
+            ? { id: item.authorId ?? '', name: item.author, avatar: item.authorAvatar ?? '', reputation: item.authorReputation ?? 0 }
             : item.author,
         }));
         setAssets(normalized);

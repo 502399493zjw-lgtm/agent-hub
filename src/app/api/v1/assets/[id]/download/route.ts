@@ -13,9 +13,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Auth required: downloading needs login
+    // Public endpoint: downloading is open (no auth required)
+    // Auth is optional — used to track who downloaded
     const authResult = await authenticateRequest(request);
-    if (!authResult) return unauthorizedResponse();
 
     const { id } = await params;
     const { searchParams } = new URL(request.url);
@@ -72,6 +72,9 @@ export async function GET(
     }
 
     const fileBuffer = fs.readFileSync(packagePath);
+
+    // Auto-increment download counter
+    incrementDownload(id, authResult?.userId);
 
     return new NextResponse(fileBuffer, {
       status: 200,

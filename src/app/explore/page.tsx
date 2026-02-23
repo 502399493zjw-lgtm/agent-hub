@@ -27,8 +27,10 @@ export default function ExplorePage() {
   const normalizedAssets = result.assets.map(item => ({
     ...item,
     downloads: item.installs ?? 0,
+    totalStars: item.totalStars ?? 0,
+    githubStars: item.githubStars ?? 0,
     author: typeof item.author === 'string'
-      ? { id: item.authorId ?? '', name: item.author, avatar: item.authorAvatar ?? '', reputation: 0 }
+      ? { id: item.authorId ?? '', name: item.author, avatar: item.authorAvatar ?? '', reputation: item.authorReputation ?? 0 }
       : item.author,
   }));
 

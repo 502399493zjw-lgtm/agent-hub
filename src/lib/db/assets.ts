@@ -326,8 +326,9 @@ export function incrementDownload(assetId: string, userId?: string): number | nu
 export interface AssetCompact {
   id: string; name: string; displayName: string; type: string;
   description: string; tags: string[]; installs: number; rating: number;
-  author: string; authorId: string; authorAvatar: string; version: string;
-  installCommand: string; updatedAt: string; category: string;
+  author: string; authorId: string; authorAvatar: string; authorReputation: number;
+  version: string; installCommand: string; updatedAt: string; category: string;
+  githubStars: number; totalStars: number;
 }
 
 export function listAssetsCompact(params: ListParams & { tag?: string }): { assets: AssetCompact[]; total: number; page: number; pageSize: number } {
@@ -390,27 +391,32 @@ export function listAssetsCompact(params: ListParams & { tag?: string }): { asse
   // When using FTS relevance scoring, JOIN with assets_fts to access rank
   let query: string;
   if (usingFtsRelevance && (!params.sort || params.sort === 'relevance')) {
-    query = `SELECT a.id, a.name, a.display_name, a.type, a.description, a.tags, a.downloads, a.rating, a.author_name, a.author_id, a.author_avatar, a.version, a.install_command, a.updated_at, a.category
+    query = `SELECT a.id, a.name, a.display_name, a.type, a.description, a.tags, a.downloads, a.rating, a.author_name, a.author_id, a.author_avatar, a.version, a.install_command, a.updated_at, a.category, a.github_stars, COALESCE(us.cnt, 0) as user_star_count, COALESCE(uauth.reputation, 0) as author_reputation
       FROM assets a
+      LEFT JOIN (SELECT asset_id, COUNT(*) as cnt FROM user_stars GROUP BY asset_id) us ON us.asset_id = a.id
+      LEFT JOIN users uauth ON uauth.id = a.author_id
       JOIN assets_fts fts ON a.rowid = fts.rowid AND assets_fts MATCH @q
       ${where ? where.replace(/a\.rowid IN \(SELECT rowid FROM assets_fts WHERE assets_fts MATCH @q\)/, '1=1') : ''}
       ORDER BY ${orderBy} LIMIT @limit OFFSET @offset`;
   } else {
-    query = `SELECT a.id, a.name, a.display_name, a.type, a.description, a.tags, a.downloads, a.rating, a.author_name, a.author_id, a.author_avatar, a.version, a.install_command, a.updated_at, a.category FROM assets a ${where} ORDER BY ${orderBy} LIMIT @limit OFFSET @offset`;
+    query = `SELECT a.id, a.name, a.display_name, a.type, a.description, a.tags, a.downloads, a.rating, a.author_name, a.author_id, a.author_avatar, a.version, a.install_command, a.updated_at, a.category, a.github_stars, COALESCE(us.cnt, 0) as user_star_count, COALESCE(uauth.reputation, 0) as author_reputation FROM assets a LEFT JOIN (SELECT asset_id, COUNT(*) as cnt FROM user_stars GROUP BY asset_id) us ON us.asset_id = a.id LEFT JOIN users uauth ON uauth.id = a.author_id ${where} ORDER BY ${orderBy} LIMIT @limit OFFSET @offset`;
   }
 
   const rows = db.prepare(query).all({ ...bindings, limit: pageSize, offset }) as {
     id: string; name: string; display_name: string; type: string; description: string;
     tags: string; downloads: number; rating: number; author_name: string; author_id: string;
     author_avatar: string; version: string; install_command: string; updated_at: string; category: string;
+    github_stars: number; user_star_count: number; author_reputation: number;
   }[];
 
   return {
     assets: rows.map(r => ({
       id: r.id, name: r.name, displayName: r.display_name, type: r.type,
       description: r.description, tags: safeParse(r.tags, []), installs: r.downloads,
-      rating: r.rating, author: r.author_name, authorId: r.author_id, authorAvatar: r.author_avatar || '', version: r.version,
-      installCommand: r.install_command, updatedAt: r.updated_at, category: r.category,
+      rating: r.rating, author: r.author_name, authorId: r.author_id, authorAvatar: r.author_avatar || '',
+      authorReputation: r.author_reputation ?? 0,
+      version: r.version, installCommand: r.install_command, updatedAt: r.updated_at, category: r.category,
+      githubStars: r.github_stars || 0, totalStars: (r.github_stars || 0) + (r.user_star_count || 0),
     })),
     total, page, pageSize,
   };
@@ -458,16 +464,19 @@ export function getAssetsByIds(ids: string[]): AssetCompact[] {
   if (ids.length === 0) return [];
   const db = getDb();
   const placeholders = ids.map(() => '?').join(',');
-  const rows = db.prepare(`SELECT id, name, display_name, type, description, tags, downloads, rating, author_name, author_id, author_avatar, version, install_command, updated_at, category FROM assets WHERE id IN (${placeholders})`).all(...ids) as {
+  const rows = db.prepare(`SELECT a.id, a.name, a.display_name, a.type, a.description, a.tags, a.downloads, a.rating, a.author_name, a.author_id, a.author_avatar, a.version, a.install_command, a.updated_at, a.category, a.github_stars, COALESCE(us.cnt, 0) as user_star_count, COALESCE(uauth.reputation, 0) as author_reputation FROM assets a LEFT JOIN (SELECT asset_id, COUNT(*) as cnt FROM user_stars GROUP BY asset_id) us ON us.asset_id = a.id LEFT JOIN users uauth ON uauth.id = a.author_id WHERE a.id IN (${placeholders})`).all(...ids) as {
     id: string; name: string; display_name: string; type: string; description: string;
     tags: string; downloads: number; rating: number; author_name: string; author_id: string;
     author_avatar: string; version: string; install_command: string; updated_at: string; category: string;
+    github_stars: number; user_star_count: number; author_reputation: number;
   }[];
   return rows.map(r => ({
     id: r.id, name: r.name, displayName: r.display_name, type: r.type,
     description: r.description, tags: safeParse(r.tags, []), installs: r.downloads,
-    rating: r.rating, author: r.author_name, authorId: r.author_id, authorAvatar: r.author_avatar || '', version: r.version,
-    installCommand: r.install_command, updatedAt: r.updated_at, category: r.category,
+    rating: r.rating, author: r.author_name, authorId: r.author_id, authorAvatar: r.author_avatar || '',
+    authorReputation: r.author_reputation ?? 0,
+    version: r.version, installCommand: r.install_command, updatedAt: r.updated_at, category: r.category,
+    githubStars: r.github_stars || 0, totalStars: (r.github_stars || 0) + (r.user_star_count || 0),
   }));
 }
 
@@ -507,8 +516,10 @@ export function getAssetL2(id: string): (AssetCompact & { readme: string; longDe
   return {
     id: row.id, name: row.name, displayName: row.display_name, type: row.type,
     description: row.description, tags: safeParse(row.tags, []), installs: row.downloads,
-    rating: row.rating, author: row.author_name, authorId: row.author_id, authorAvatar: row.author_avatar || '', version: row.version,
+    rating: row.rating, author: row.author_name, authorId: row.author_id, authorAvatar: row.author_avatar || '',
+    authorReputation: 0, version: row.version,
     installCommand: row.install_command, updatedAt: row.updated_at, category: row.category,
+    githubStars: row.github_stars || 0, totalStars: row.github_stars || 0,
     readme: row.readme, longDescription: row.long_description,
     versions: safeParse(row.versions, []), dependencies: safeParse(row.dependencies, []),
     files: safeParse(row.files || '[]', []),
@@ -517,16 +528,19 @@ export function getAssetL2(id: string): (AssetCompact & { readme: string; longDe
 
 export function getTrendingAssets(period: string, limit: number = 10): AssetCompact[] {
   const db = getDb();
-  const rows = db.prepare(`SELECT id, name, display_name, type, description, tags, downloads, rating, author_name, author_id, author_avatar, version, install_command, updated_at, category FROM assets ORDER BY downloads DESC, updated_at DESC LIMIT ?`).all(Math.min(limit, 50)) as {
+  const rows = db.prepare(`SELECT a.id, a.name, a.display_name, a.type, a.description, a.tags, a.downloads, a.rating, a.author_name, a.author_id, a.author_avatar, a.version, a.install_command, a.updated_at, a.category, a.github_stars, COALESCE(us.cnt, 0) as user_star_count, COALESCE(uauth.reputation, 0) as author_reputation FROM assets a LEFT JOIN (SELECT asset_id, COUNT(*) as cnt FROM user_stars GROUP BY asset_id) us ON us.asset_id = a.id LEFT JOIN users uauth ON uauth.id = a.author_id ORDER BY a.downloads DESC, a.updated_at DESC LIMIT ?`).all(Math.min(limit, 50)) as {
     id: string; name: string; display_name: string; type: string; description: string;
     tags: string; downloads: number; rating: number; author_name: string; author_id: string;
     author_avatar: string; version: string; install_command: string; updated_at: string; category: string;
+    github_stars: number; user_star_count: number; author_reputation: number;
   }[];
   return rows.map(r => ({
     id: r.id, name: r.name, displayName: r.display_name, type: r.type,
     description: r.description, tags: safeParse(r.tags, []), installs: r.downloads,
-    rating: r.rating, author: r.author_name, authorId: r.author_id, authorAvatar: r.author_avatar || '', version: r.version,
-    installCommand: r.install_command, updatedAt: r.updated_at, category: r.category,
+    rating: r.rating, author: r.author_name, authorId: r.author_id, authorAvatar: r.author_avatar || '',
+    authorReputation: r.author_reputation ?? 0,
+    version: r.version, installCommand: r.install_command, updatedAt: r.updated_at, category: r.category,
+    githubStars: r.github_stars || 0, totalStars: (r.github_stars || 0) + (r.user_star_count || 0),
   }));
 }
 
