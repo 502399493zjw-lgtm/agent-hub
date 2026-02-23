@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAsset, getAssetById, updateAsset, findUserById, getDb } from '@/lib/db';
+import { addCoins, USER_REP_EVENTS, SHRIMP_COIN_EVENTS } from '@/lib/db/economy';
 import { authenticateAndCheckBan, unauthorizedResponse, bannedResponse, inviteRequiredResponse } from '@/lib/api-auth';
 import path from 'path';
 import fs from 'fs';
@@ -159,6 +160,10 @@ export async function POST(request: NextRequest) {
         files: filesMetadata as unknown as Array<{ name: string; type: string }>,
       });
       asset = getAssetById(existingId)!;
+
+      // Award publish_version coins for updating an existing asset
+      addCoins(authResult.userId, 'reputation', USER_REP_EVENTS.publish_version, 'publish_version', existingId);
+      addCoins(authResult.userId, 'shrimp_coin', SHRIMP_COIN_EVENTS.publish_version, 'publish_version', existingId);
     } else {
       // Create new asset
       asset = createAsset({

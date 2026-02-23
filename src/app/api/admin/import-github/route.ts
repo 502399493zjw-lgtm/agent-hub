@@ -4,6 +4,7 @@ import {
   createAsset, updateAsset, findUserByProvider, createUser, findUserByApiKey,
   isAdmin as isAdminUser, getDb,
 } from '@/lib/db';
+import { syncGithubStarReputation } from '@/lib/db/economy';
 
 // ── Admin auth (same as /api/admin/invite) ──
 
@@ -369,6 +370,9 @@ export async function POST(request: NextRequest) {
     if (files.length > 0) {
       updateAsset(asset.id, { files } as Parameters<typeof updateAsset>[1]);
     }
+
+    // ── 7. Sync GitHub star count → reputation ──
+    syncGithubStarReputation(asset.id);
 
     // Count files recursively
     function countFiles(nodes: FileNode[]): number {
