@@ -274,9 +274,9 @@ export default function HomeClient({ stats, tabAssets }: HomeClientProps) {
                     <div className="flex flex-col">
                       <p className="text-sm font-semibold truncate group-hover:text-blue transition-[color] duration-150">{dev.name}</p>
                       <div className="flex items-center gap-2 text-[11px] text-muted">
-                        <span>{dev.assetCount ?? 0} 个资产</span>
+                        <span className="font-semibold text-foreground/70">★ {dev.reputation ?? 0}</span>
                         <span className="text-muted/30">·</span>
-                        <span className="font-mono">{dev.totalDownloads ?? 0} ↓</span>
+                        <span>{dev.assetCount ?? 0} 个资产</span>
                       </div>
                     </div>
                   </div>

@@ -37,12 +37,12 @@ export default function StatsClient({ assets, users, growthData, totalComments, 
   }, [assets]);
   const maxCatCount = useMemo(() => Math.max(...categories.map(c => c[1]), 1), [categories]);
 
-  // Top contributors
+  // Top contributors (sorted by reputation, then downloads)
   const contributors = useMemo(() => users.map(user => {
     const published = assets.filter(a => user.publishedAssets.includes(a.id));
     const dl = published.reduce((s, a) => s + a.downloads, 0);
-    return { user, assetCount: published.length, downloads: dl };
-  }).sort((a, b) => b.downloads - a.downloads), [assets, users]);
+    return { user, assetCount: published.length, downloads: dl, reputation: user.reputation ?? 0 };
+  }).sort((a, b) => b.reputation - a.reputation || b.downloads - a.downloads), [assets, users]);
 
   // Growth trend
   const maxDl = useMemo(() => Math.max(...growthData.map(d => d.downloads), 1), [growthData]);
@@ -192,6 +192,10 @@ export default function StatsClient({ assets, users, growthData, totalComments, 
                     <p className="text-xs text-muted line-clamp-1">{c.user.bio}</p>
                   </div>
                   <div className="flex items-center gap-4 text-xs text-muted shrink-0">
+                    <div className="text-center">
+                      <div className="text-foreground font-mono font-bold">★ {c.reputation}</div>
+                      <div>声望</div>
+                    </div>
                     <div className="text-center">
                       <div className="text-foreground font-mono font-bold">{c.assetCount}</div>
                       <div>资产</div>

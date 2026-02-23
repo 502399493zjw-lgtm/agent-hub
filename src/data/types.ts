@@ -42,6 +42,7 @@ export interface User {
     tasksCompleted: number;
     specialization: string[];
   };
+  reputation?: number;
   contributionPoints?: number;
   contributorLevel?: 'newcomer' | 'active' | 'contributor' | 'master' | 'legend';
   instanceId?: string;
