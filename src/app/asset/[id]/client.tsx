@@ -412,6 +412,9 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
           <Link href={`/user/${asset.author.id}`} className="flex items-center gap-2 hover:text-blue transition-colors">
             <AuthorAvatar src={asset.author.avatar} />
             <span className="text-sm font-medium">{asset.author.name}</span>
+            {asset.author.reputation != null && asset.author.reputation > 0 && (
+              <span className="text-xs text-muted/70 font-mono" title="声望">🎖️{asset.author.reputation}</span>
+            )}
           </Link>
           {(asset.githubStars ?? 0) > 0 && asset.githubUrl && (
             <a href={asset.githubUrl} target="_blank" rel="noopener noreferrer"
