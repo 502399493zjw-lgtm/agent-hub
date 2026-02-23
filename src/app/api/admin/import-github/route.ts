@@ -86,10 +86,30 @@ function isImportantFile(name: string): boolean {
 }
 
 /**
+ * Fast path: when subPath points to a single file, fetch it directly
+ * without pulling the entire repo tree (avoids memory pressure on dev server).
+ */
+async function fetchSingleFile(repo: string, branch: string, filePath: string): Promise<FileNode[]> {
+  const res = await ghFetch(
+    `https://api.github.com/repos/${repo}/contents/${encodeURIComponent(filePath)}?ref=${branch}`,
+    'application/vnd.github.v3.raw'
+  );
+  if (!res.ok) return [];
+  const content = await res.text();
+  const name = filePath.split('/').pop() || filePath;
+  return [{ name, type: 'file' as const, size: content.length, content }];
+}
+
+/**
  * Fetch the full file tree from a GitHub repo using the Trees API (recursive).
  * Then selectively fetch content for important / small text files.
  */
 async function fetchRepoFiles(repo: string, defaultBranch: string, subPath?: string): Promise<FileNode[]> {
+  // Fast path: if subPath looks like a single file (has extension), fetch directly
+  if (subPath && /\.[a-zA-Z0-9]+$/.test(subPath)) {
+    return fetchSingleFile(repo, defaultBranch, subPath);
+  }
+
   // 1. Get recursive tree
   const treeRes = await ghFetch(
     `https://api.github.com/repos/${repo}/git/trees/${defaultBranch}?recursive=1`
@@ -276,9 +296,17 @@ export async function POST(request: NextRequest) {
     // ── 2. Fetch README ──
     let readme = '';
     const subPath = (body.path as string) || '';
+    const isSingleFile = subPath && /\.[a-zA-Z0-9]+$/.test(subPath);
     try {
-      // If sub-path, try sub-directory README first
-      if (subPath) {
+      if (isSingleFile) {
+        // Single file import: the file content IS the readme
+        const fileRes = await ghFetch(
+          `https://api.github.com/repos/${repo}/contents/${encodeURIComponent(subPath)}?ref=${(repoData.default_branch as string) || 'main'}`,
+          'application/vnd.github.v3.raw'
+        );
+        if (fileRes.ok) readme = await fileRes.text();
+      } else if (subPath) {
+        // Sub-directory: try sub-directory README first
         const subReadmeRes = await ghFetch(
           `https://api.github.com/repos/${repo}/contents/${subPath}/README.md?ref=${(repoData.default_branch as string) || 'main'}`,
           'application/vnd.github.v3.raw'
@@ -339,13 +367,19 @@ export async function POST(request: NextRequest) {
     // ── 5. Create asset ──
     // Determine GitHub URL (might include sub-path)
     const githubUrl = subPath
-      ? `${repoData.html_url as string}/tree/${(repoData.default_branch as string) || 'main'}/${subPath}`
+      ? `${repoData.html_url as string}/${isSingleFile ? 'blob' : 'tree'}/${(repoData.default_branch as string) || 'main'}/${subPath}`
       : (repoData.html_url as string);
 
-    // Determine display name (use sub-path folder name if applicable)
-    const displayName = subPath
-      ? subPath.split('/').filter(Boolean).pop() || (repoData.name as string)
-      : (repoData.name as string);
+    // Determine display name: single file → filename without extension; dir → folder name
+    let displayName: string;
+    if (isSingleFile) {
+      const fileName = subPath.split('/').pop() || subPath;
+      displayName = fileName.replace(/\.[^.]+$/, '').split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    } else if (subPath) {
+      displayName = subPath.split('/').filter(Boolean).pop() || (repoData.name as string);
+    } else {
+      displayName = repoData.name as string;
+    }
 
     const asset = createAsset({
       name: subPath ? displayName : (repoData.name as string),

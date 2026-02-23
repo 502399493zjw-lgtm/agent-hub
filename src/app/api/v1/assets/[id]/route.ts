@@ -8,10 +8,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // Auth required
-  const authResult = await authenticateRequest(request);
-  if (!authResult) return unauthorizedResponse();
-
+  // Public endpoint: asset detail is open (L2 inspect)
   const { id } = await params;
   const data = getAssetL2(id);
   if (!data) {

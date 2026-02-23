@@ -4,10 +4,7 @@ import { authenticateRequest, unauthorizedResponse } from '@/lib/api-auth';
 
 export async function GET(request: NextRequest) {
   try {
-    // Auth required: listing assets needs login
-    const authResult = await authenticateRequest(request);
-    if (!authResult) return unauthorizedResponse();
-
+    // Public endpoint: asset listing is open to all (explore page)
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') || undefined;
     const category = searchParams.get('category') || undefined;

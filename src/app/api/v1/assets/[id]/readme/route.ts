@@ -8,10 +8,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // Auth required
-  const authResult = await authenticateRequest(request);
-  if (!authResult) return unauthorizedResponse();
-
+  // Public endpoint: readme is open for Agent direct-read
   const { id } = await params;
   const data = getAssetReadme(id);
   if (!data) {

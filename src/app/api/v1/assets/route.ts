@@ -5,10 +5,7 @@ import { authenticateRequest, unauthorizedResponse } from '@/lib/api-auth';
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
-  // Auth required: listing assets needs login
-  const authResult = await authenticateRequest(request);
-  if (!authResult) return unauthorizedResponse();
-
+  // Public endpoint: asset listing/search is open
   const { searchParams } = new URL(request.url);
   const type = searchParams.get('type') || undefined;
   const tag = searchParams.get('tag') || undefined;

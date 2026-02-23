@@ -214,11 +214,6 @@ function ExploreContent({ initialAssets, initialTotal, typeCounts, categoryCount
         <p className="text-muted text-lg">发现社区分享的技能、经验、插件、触发器和通信器</p>
       </div>
 
-      {/* Agent 直读提示 */}
-      <div className="mb-8 px-5 py-4 rounded-xl bg-surface border border-card-border text-sm text-muted flex items-center gap-3">
-        <span>所有资产均支持 Agent 直读 — 通过 <code className="px-1.5 py-0.5 rounded-md bg-white border border-card-border text-foreground font-mono text-xs">GET /api/v1/assets/:id/readme</code> 获取完整内容，无需安装</span>
-      </div>
-
       {/* Search & Sort Bar */}
       <div className="flex flex-col sm:flex-row gap-4 mb-8">
         <div className="relative flex-1">
