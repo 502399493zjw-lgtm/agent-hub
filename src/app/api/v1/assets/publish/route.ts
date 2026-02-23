@@ -3,7 +3,9 @@ import { createAsset, getAssetById, updateAsset, findUserById, getDb } from '@/l
 import { authenticateAndCheckBan, unauthorizedResponse, bannedResponse, inviteRequiredResponse } from '@/lib/api-auth';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import crypto from 'crypto';
+import { execSync } from 'child_process';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const PACKAGES_DIR = path.join(process.cwd(), 'data', 'packages');
@@ -82,12 +84,66 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Extract file list from package (tar.gz / zip) if provided
+    let packageFilesMetadata: { path: string; size: number; sha256: string; contentType: string }[] = [];
+    if (packageFile) {
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'openclawmp-pkg-'));
+      const tmpPkg = path.join(tmpDir, `pkg.${packageFile.ext}`);
+      const extractDir = path.join(tmpDir, 'extracted');
+      fs.mkdirSync(extractDir, { recursive: true });
+      fs.writeFileSync(tmpPkg, packageFile.buffer);
+
+      try {
+        if (packageFile.ext === 'tar.gz') {
+          try {
+            execSync(`tar xzf "${tmpPkg}" -C "${extractDir}" --strip-components=1 2>/dev/null`, { stdio: 'pipe' });
+          } catch {
+            // Retry without --strip-components (flat archive)
+            try { execSync(`tar xzf "${tmpPkg}" -C "${extractDir}" 2>/dev/null`, { stdio: 'pipe' }); } catch { /* ignore */ }
+          }
+        } else {
+          try { execSync(`unzip -o -q "${tmpPkg}" -d "${extractDir}" 2>/dev/null`, { stdio: 'pipe' }); } catch { /* ignore */ }
+        }
+
+        // Walk extracted directory to build file list
+        const walkDir = (dir: string, prefix: string): void => {
+          for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+            const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+            if (entry.isDirectory()) {
+              walkDir(path.join(dir, entry.name), rel);
+            } else if (entry.isFile()) {
+              const fullPath = path.join(dir, entry.name);
+              const buf = fs.readFileSync(fullPath);
+              const sha = crypto.createHash('sha256').update(buf).digest('hex');
+              const ext = path.extname(entry.name).toLowerCase();
+              const ct = ext === '.md' ? 'text/markdown'
+                : ext === '.json' ? 'application/json'
+                : ext === '.js' || ext === '.ts' ? 'text/javascript'
+                : ext === '.py' ? 'text/x-python'
+                : ext === '.sh' ? 'text/x-shellscript'
+                : ext === '.yaml' || ext === '.yml' ? 'text/yaml'
+                : 'application/octet-stream';
+              packageFilesMetadata.push({ path: rel, size: buf.length, sha256: sha, contentType: ct });
+            }
+          }
+        };
+        walkDir(extractDir, '');
+      } finally {
+        // Cleanup temp dir
+        try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
+      }
+    }
+
+    // Use package-extracted files if available, otherwise fall back to uploaded files
+    const filesMetadata = packageFilesMetadata.length > 0
+      ? packageFilesMetadata
+      : uploadedFiles.filter(f => f.path !== (packageFile ? `pkg.${packageFile.ext}` : '')).map(f => ({ path: f.path, size: f.size, sha256: f.sha256, contentType: f.contentType }));
+
     // Check if asset already exists (update vs create)
     const db = getDb();
     const existingAssets = db.prepare('SELECT id FROM assets WHERE name = ? AND author_id = ?').all(name, authResult.userId) as { id: string }[];
 
     let asset;
-    const filesMetadata = uploadedFiles.map(f => ({ path: f.path, size: f.size, sha256: f.sha256, contentType: f.contentType }));
 
     if (existingAssets.length > 0) {
       // Update existing asset

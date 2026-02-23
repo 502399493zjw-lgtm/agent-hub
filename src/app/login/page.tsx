@@ -53,6 +53,8 @@ function LoginContent() {
                 ? '该账号尚未注册，请先注册后再登录'
                 : error === 'invite_required'
                 ? '需要邀请码才能注册新账号'
+                : error === 'OAuthAccountNotLinked'
+                ? '该账号已通过其他方式登录，请使用原登录方式（如已用飞书注册，请点击飞书登录）'
                 : '登录失败，请稍后重试'}
             </div>
           )}

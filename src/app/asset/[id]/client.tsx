@@ -95,29 +95,103 @@ function getNodesAtPath(files: FileNode[], pathParts: string[]): FileNode[] {
   return current;
 }
 
-function FileTree({ files }: { files: FileNode[] }) {
+/**
+ * Convert flat file list ({path, size, ...}) from API to FileNode tree.
+ * Handles both formats: legacy FileNode[] and flat {path, size}[].
+ */
+function flatFilesToTree(files: (FileNode | { path: string; size?: number; sha256?: string; contentType?: string })[]): FileNode[] {
+  // If already in FileNode format (has 'name' and 'type'), return as-is
+  if (files.length > 0 && 'name' in files[0] && 'type' in files[0]) {
+    return files as FileNode[];
+  }
+
+  const root: FileNode[] = [];
+  for (const file of files) {
+    const filePath = ('path' in file ? file.path : '') as string;
+    if (!filePath) continue;
+    const parts = filePath.split('/');
+    let current = root;
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      if (i === parts.length - 1) {
+        // Leaf file
+        current.push({ name: part, type: 'file', size: ('size' in file ? file.size : undefined) as number | undefined });
+      } else {
+        // Directory
+        let dir = current.find(n => n.name === part && n.type === 'directory');
+        if (!dir) {
+          dir = { name: part, type: 'directory', children: [] };
+          current.push(dir);
+        }
+        current = dir.children!;
+      }
+    }
+  }
+  return root;
+}
+
+function FileTree({ files: rawFiles, assetId }: { files: FileNode[]; assetId: string }) {
+  const files = flatFilesToTree(rawFiles);
   const [currentPath, setCurrentPath] = useState<string[]>([]);
   const [selectedFile, setSelectedFile] = useState<FileNode | null>(null);
+  const [fileContent, setFileContent] = useState<string | null>(null);
+  const [loadingContent, setLoadingContent] = useState(false);
 
   const currentNodes = getNodesAtPath(files, currentPath);
   const sorted = [...currentNodes].sort((a, b) => {
     if (a.type === 'directory' && b.type === 'file') return -1;
     if (a.type === 'file' && b.type === 'directory') return 1;
-    return a.name.localeCompare(b.name);
+    return (a.name || '').localeCompare(b.name || '');
   });
 
-  const handleClick = (node: FileNode) => {
+  // Build the full path for a file node at the current path level
+  const getFullPath = (nodeName: string) => [...currentPath, nodeName].join('/');
+
+  const handleClick = async (node: FileNode) => {
     if (node.type === 'directory') {
       setCurrentPath(prev => [...prev, node.name]);
       setSelectedFile(null);
-    } else if (node.content) {
-      setSelectedFile(prev => prev?.name === node.name ? null : node);
+      setFileContent(null);
+    } else {
+      // Toggle: clicking same file closes it
+      if (selectedFile?.name === node.name) {
+        setSelectedFile(null);
+        setFileContent(null);
+        return;
+      }
+
+      setSelectedFile(node);
+      setFileContent(null);
+
+      // If node already has content (legacy format), use it
+      if (node.content) {
+        setFileContent(node.content);
+        return;
+      }
+
+      // Otherwise fetch from API
+      const fullPath = getFullPath(node.name);
+      setLoadingContent(true);
+      try {
+        const resp = await fetch(`/api/v1/assets/${assetId}/files/${fullPath}`);
+        if (resp.ok) {
+          const text = await resp.text();
+          setFileContent(text);
+        } else {
+          setFileContent('// 无法加载文件内容');
+        }
+      } catch {
+        setFileContent('// 加载失败');
+      } finally {
+        setLoadingContent(false);
+      }
     }
   };
 
   const navigateTo = (index: number) => {
     setCurrentPath(prev => prev.slice(0, index));
     setSelectedFile(null);
+    setFileContent(null);
   };
 
   return (
@@ -148,7 +222,7 @@ function FileTree({ files }: { files: FileNode[] }) {
           <button key={node.name} onClick={() => handleClick(node)}
             className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-left ${
               i < sorted.length - 1 || selectedFile ? 'border-b border-card-border' : ''
-            } ${node.type === 'directory' || node.content ? 'hover:bg-card-hover cursor-pointer' : 'cursor-default'} ${
+            } hover:bg-card-hover cursor-pointer ${
               selectedFile?.name === node.name ? 'bg-blue/5' : ''
             }`}>
             <span>{node.type === 'directory' ? '📁' : '📄'}</span>
@@ -167,7 +241,7 @@ function FileTree({ files }: { files: FileNode[] }) {
       </div>
 
       {/* File content preview */}
-      {selectedFile && selectedFile.content && (
+      {selectedFile && (
         <div className="mt-4 rounded-lg bg-white border border-card-border overflow-hidden">
           <div className="flex items-center gap-2 px-4 py-2.5 bg-surface border-b border-card-border">
             <span className="text-xs">📄</span>
@@ -176,9 +250,15 @@ function FileTree({ files }: { files: FileNode[] }) {
               <span className="text-xs text-muted font-mono ml-auto">{formatFileSize(selectedFile.size)}</span>
             )}
           </div>
-          <pre className="p-4 text-sm font-mono text-foreground overflow-x-auto bg-surface/50 leading-relaxed">
-            <code>{selectedFile.content}</code>
-          </pre>
+          {loadingContent ? (
+            <div className="p-4 text-sm text-muted animate-pulse">加载中...</div>
+          ) : fileContent ? (
+            <pre className="p-4 text-sm font-mono text-foreground overflow-x-auto bg-surface/50 leading-relaxed max-h-[600px] overflow-y-auto">
+              <code>{fileContent}</code>
+            </pre>
+          ) : (
+            <div className="p-4 text-sm text-muted">暂无内容</div>
+          )}
         </div>
       )}
     </div>
@@ -479,7 +559,7 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
             <div>
               <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-4">文件浏览</h3>
               {asset.files && asset.files.length > 0 ? (
-                <FileTree files={asset.files} />
+                <FileTree files={asset.files} assetId={asset.id} />
               ) : (
                 <div className="text-center py-12 rounded-lg bg-white border border-card-border">
                   <div className="text-4xl mb-2">📂</div>
