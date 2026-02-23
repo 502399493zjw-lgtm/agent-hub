@@ -160,14 +160,14 @@ export function Navbar() {
                         onClick={() => setDropdownOpen(false)}
                         className="block px-4 py-2 text-sm text-muted hover:text-foreground hover:bg-surface transition-[color,background-color] duration-150"
                       >
-                        📊 我的主页
+                        我的主页
                       </Link>
                       <Link
                         href="/settings"
                         onClick={() => setDropdownOpen(false)}
                         className="block px-4 py-2 text-sm text-muted hover:text-foreground hover:bg-surface transition-[color,background-color] duration-150"
                       >
-                        ⚙️ 设置
+                        设置
                       </Link>
                     </div>
                     <div className="border-t border-card-border py-1">
@@ -175,7 +175,7 @@ export function Navbar() {
                         onClick={handleLogout}
                         className="w-full text-left px-4 py-2 text-sm text-red hover:bg-surface transition-[background-color] duration-150"
                       >
-                        🚪 退出登录
+                        退出登录
                       </button>
                     </div>
                   </div>
@@ -260,20 +260,20 @@ export function Navbar() {
                     onClick={() => setMobileOpen(false)}
                     className="block px-3 py-2 rounded-lg text-sm text-muted hover:bg-white"
                   >
-                    📊 我的主页
+                    我的主页
                   </Link>
                   <Link
                     href="/settings"
                     onClick={() => setMobileOpen(false)}
                     className="block px-3 py-2 rounded-lg text-sm text-muted hover:bg-white"
                   >
-                    ⚙️ 设置
+                    设置
                   </Link>
                   <button
                     onClick={() => { handleLogout(); setMobileOpen(false); }}
                     className="block w-full text-left px-3 py-2 rounded-lg text-sm text-red hover:bg-white"
                   >
-                    🚪 退出登录
+                    退出登录
                   </button>
                 </>
               ) : (

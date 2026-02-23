@@ -24,7 +24,7 @@ export default function HomePage() {
   const types: AssetType[] = ['template', 'skill', 'experience', 'plugin', 'trigger', 'channel'];
   const tabAssets: Record<string, ReturnType<typeof listAssets>['assets']> = {};
   for (const t of types) {
-    const result = listAssets({ type: t, sort: 'downloads', pageSize: 30 });
+    const result = listAssets({ type: t, sort: 'popular', pageSize: 30 });
     tabAssets[t] = result.assets;
   }
 

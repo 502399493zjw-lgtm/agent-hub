@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useState, useRef, useEffect } from 'react';
 import { AssetType, Asset, formatDownloads, typeConfig } from '@/data/types';
 import { StatsData } from '@/lib/db';
+import { showToast } from '@/components/toast';
 
 /* ── Tab definitions ── */
 const TAB_COLORS: Record<string, string> = {
@@ -195,11 +196,13 @@ export default function HomeClient({ stats, tabAssets }: HomeClientProps) {
               </p>
               <div className="inline-flex items-center gap-3 px-5 py-3 rounded-full bg-surface/60 border border-card-border/50 animate-fade-in-up animate-delay-300 max-w-md">
                 <div className="overflow-x-auto scrollbar-hide">
-                  <code className="text-xs font-mono text-muted/50 whitespace-nowrap">帮我安装技能，命令行指令是 curl -sL https://openclawmp.cc/api/v1/assets/openclawmp-skill/download | tar xzf - -C ~/.openclaw/skills/</code>
+                  <code className="text-xs font-mono text-muted/50 whitespace-nowrap">帮我安装技能，命令行指令是 curl -sL https://openclawmp.cc/api/v1/assets/openclawmp/download | tar xzf - -C ~/.openclaw/skills/</code>
                 </div>
                 <button
                   onClick={() => {
-                    navigator.clipboard.writeText('帮我安装技能，命令行指令是 curl -sL https://openclawmp.cc/api/v1/assets/openclawmp-skill/download | tar xzf - -C ~/.openclaw/skills/');
+                    navigator.clipboard.writeText('帮我安装技能，命令行指令是 curl -sL https://openclawmp.cc/api/v1/assets/openclawmp/download | tar xzf - -C ~/.openclaw/skills/')
+                      .then(() => showToast('已复制到剪贴板'))
+                      .catch(() => showToast('复制失败，请手动复制'));
                   }}
                   className="p-1 rounded-md text-muted hover:text-foreground transition-[color] duration-150 shrink-0"
                   aria-label="复制完整命令"
@@ -352,7 +355,8 @@ export default function HomeClient({ stats, tabAssets }: HomeClientProps) {
               <p className="text-sm text-muted mb-4 md:hidden">{currentTab?.desc}</p>
 
               {currentTabAssets.length > 0 ? (
-                <div className="h-[620px] overflow-y-auto scrollbar-hide">
+                <div className="relative">
+                <div className="h-[720px] overflow-y-auto scrollbar-hide">
                   {currentTabAssets.slice(0, 30).map((asset) => {
                     const stars = asset.totalStars ?? asset.githubStars ?? 0;
                     return (
@@ -413,6 +417,9 @@ export default function HomeClient({ stats, tabAssets }: HomeClientProps) {
                       </Link>
                     );
                   })}
+                </div>
+                {/* 底部渐变遮罩，暗示可滚动 */}
+                <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-white to-transparent pointer-events-none" />
                 </div>
               ) : (
                 <div className="flex items-center justify-center p-16 text-center text-muted">

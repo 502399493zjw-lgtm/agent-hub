@@ -110,7 +110,7 @@ export const typeConfig: Record<AssetType, { label: string; icon: string; color:
   skill: { label: '技能', icon: '', color: 'text-ink-light', bgColor: 'bg-surface', borderColor: 'border-card-border' },
   experience: { label: '经验/合集', icon: '', color: 'text-ink-light', bgColor: 'bg-surface', borderColor: 'border-card-border' },
   config: { label: '配置', icon: '', color: 'text-ink-light', bgColor: 'bg-surface', borderColor: 'border-card-border' },
-  plugin: { label: '工具', icon: '', color: 'text-ink-light', bgColor: 'bg-surface', borderColor: 'border-card-border' },
+  plugin: { label: '插件', icon: '', color: 'text-ink-light', bgColor: 'bg-surface', borderColor: 'border-card-border' },
   trigger: { label: '触发器', icon: '', color: 'text-ink-light', bgColor: 'bg-surface', borderColor: 'border-card-border' },
   channel: { label: '通信器', icon: '', color: 'text-ink-light', bgColor: 'bg-surface', borderColor: 'border-card-border' },
 };

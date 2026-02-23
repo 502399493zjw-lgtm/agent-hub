@@ -38,6 +38,7 @@ interface CoinEvent {
   amount: number;
   event: string;
   refId: string | null;
+  refName?: string | null;
   balanceAfter: number;
   createdAt: string;
 }
@@ -76,23 +77,24 @@ function relativeTime(iso: string): string {
 }
 
 function eventToDisplay(event: CoinEvent): { icon: string; text: string } {
+  const name = event.refName;
   switch (event.event) {
     case 'publish_asset':
-      return { icon: '🚀', text: '发布了资产' };
+      return { icon: '', text: name ? `发布了资产「${name}」` : '发布了资产' };
     case 'write_comment':
-      return { icon: '💬', text: '发表了评论' };
+      return { icon: '', text: name ? `评论了「${name}」` : '发表了评论' };
     case 'submit_issue':
-      return { icon: '🐛', text: '提交了 Issue' };
+      return { icon: '', text: name ? `向「${name}」提交了 Issue` : '提交了 Issue' };
     case 'register_bonus':
-      return { icon: '🎉', text: '加入了水产市场' };
+      return { icon: '', text: '加入了水产市场' };
     case 'install_asset':
     case 'asset_installed':
-      return { icon: '⬇️', text: '安装了资产' };
+      return { icon: '', text: name ? `安装了「${name}」` : '安装了资产' };
     default:
       if (event.coinType === 'reputation') {
-        return { icon: '⭐', text: `获得 +${event.amount} 声望` };
+        return { icon: '', text: `获得 +${event.amount} 声望` };
       }
-      return { icon: '🦐', text: `获得 +${event.amount} 养虾币` };
+      return { icon: '', text: `获得 +${event.amount} 养虾币` };
   }
 }
 
@@ -184,7 +186,6 @@ function ActivityTimeline({ userId }: { userId: string }) {
   if (loading) {
     return (
       <div className="text-center py-12">
-        <div className="text-2xl animate-pulse mb-2">📰</div>
         <p className="text-sm text-muted">加载动态...</p>
       </div>
     );
@@ -193,7 +194,6 @@ function ActivityTimeline({ userId }: { userId: string }) {
   if (events.length === 0) {
     return (
       <div className="text-center py-12">
-        <div className="text-4xl mb-3">📭</div>
         <p className="text-sm text-muted">暂无动态</p>
       </div>
     );
@@ -208,12 +208,9 @@ function ActivityTimeline({ userId }: { userId: string }) {
           const { icon, text } = eventToDisplay(ev);
           return (
             <div key={ev.id} className="flex items-start gap-3 py-3 px-4 rounded-lg hover:bg-surface/50 transition-colors">
-              <span className="text-lg mt-0.5 shrink-0">{icon}</span>
+              {icon && <span className="text-lg mt-0.5 shrink-0">{icon}</span>}
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-foreground">{text}</p>
-                {ev.refId && (
-                  <p className="text-xs text-muted truncate mt-0.5">{ev.refId}</p>
-                )}
               </div>
               <span className="text-xs text-muted shrink-0 mt-0.5">{relativeTime(ev.createdAt)}</span>
             </div>
@@ -556,9 +553,7 @@ export default function UserProfileClient({ profile, publishedAssets, isOwn }: U
   const [tab, setTab] = useState<TabKey>('assets');
   const [showEditModal, setShowEditModal] = useState(false);
 
-  const roleBadge = profile.role === 'admin'
-    ? { label: '🛡️ 管理员', color: 'text-red', bg: 'bg-red/10', border: 'border-red/30' }
-    : null;
+  const roleBadge = null;
 
   const tabs: { key: TabKey; label: string; show: boolean }[] = [
     { key: 'assets', label: `资产 (${publishedAssets.length})`, show: true },

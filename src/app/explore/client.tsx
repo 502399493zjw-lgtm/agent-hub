@@ -8,9 +8,7 @@ import { AssetType, typeConfig, Asset, formatDownloads } from '@/data/types';
 const categories = ['全部', '信息查询', '开发工具', '创意生成', '数据处理', '效率工具', '语言处理', '创意角色', '教育辅导', '商业顾问', '趣味角色', '存储引擎', '通信集成', '基础设施', '安全认证', '自动化', '语音处理', 'DevOps', '事件驱动', '数据工程', '通用助手', '专业开发', '内容创作', '系统工具', '事件触发', '知识工作', '开发运维', '客户服务', 'Agent 模板'];
 const sortOptions = [
   { value: 'popular', label: '最热' },
-  { value: 'trending', label: 'Trending' },
   { value: 'newest', label: '最新' },
-  { value: 'downloads', label: '下载最多' },
 ];
 
 function AuthorAvatar({ src, name }: { src: string; name: string }) {
@@ -154,7 +152,7 @@ function ExploreContent({ initialAssets, initialTotal, typeCounts, categoryCount
     if (selectedCategory !== '全部') params.set('category', selectedCategory);
     if (search) params.set('q', search);
     params.set('sort', sortBy);
-    params.set('pageSize', '100');
+    params.set('pageSize', '30');
 
     fetch(`/api/assets?${params.toString()}`)
       .then(res => res.json())
@@ -197,7 +195,7 @@ function ExploreContent({ initialAssets, initialTotal, typeCounts, categoryCount
     { value: 'all', label: '全部', icon: '' },
     { value: 'skill', label: '技能', icon: '' },
     { value: 'experience', label: '经验/合集', icon: '' },
-    { value: 'plugin', label: '工具', icon: '' },
+    { value: 'plugin', label: '插件', icon: '' },
     { value: 'trigger', label: '触发器', icon: '' },
     { value: 'channel', label: '通信器', icon: '' },
   ];
@@ -210,7 +208,7 @@ function ExploreContent({ initialAssets, initialTotal, typeCounts, categoryCount
         <h1 className="text-4xl md:text-5xl font-bold mb-3 text-foreground tracking-tight">
           探索资产
         </h1>
-        <p className="text-muted text-lg">发现社区分享的 Skills、Configs、Plugins、Triggers、Channels 和 Templates</p>
+        <p className="text-muted text-lg">发现社区分享的技能、经验、插件、触发器和通信器</p>
       </div>
 
       {/* Agent 直读提示 */}
@@ -228,7 +226,7 @@ function ExploreContent({ initialAssets, initialTotal, typeCounts, categoryCount
           <input
             id="explore-search"
             type="text"
-            placeholder="搜索 Skills, Configs, Plugins…"
+            placeholder="搜索技能、插件、触发器…"
             value={search}
             onChange={(e) => handleSearchChange(e.target.value)}
             className="w-full pl-11 pr-4 py-3 rounded-full bg-white border border-card-border text-foreground placeholder:text-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-blue/50 transition-[border-color] duration-150"
@@ -243,17 +241,22 @@ function ExploreContent({ initialAssets, initialTotal, typeCounts, categoryCount
             </button>
           )}
         </div>
-        <label htmlFor="explore-sort" className="sr-only">排序方式</label>
-        <select
-          id="explore-sort"
-          value={sortBy}
-          onChange={(e) => handleSortChange(e.target.value)}
-          className="px-5 py-3 rounded-full bg-white border border-card-border text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-blue/50 transition-[border-color] duration-150 cursor-pointer"
-        >
-          {sortOptions.map(opt => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
+        <div className="relative">
+          <label htmlFor="explore-sort" className="sr-only">排序方式</label>
+          <select
+            id="explore-sort"
+            value={sortBy}
+            onChange={(e) => handleSortChange(e.target.value)}
+            className="appearance-none pl-4 pr-9 py-3 rounded-full bg-white border border-card-border text-foreground text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue/50 transition-[border-color] duration-150 cursor-pointer"
+          >
+            {sortOptions.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+          <svg className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-10">

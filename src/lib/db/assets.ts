@@ -144,19 +144,19 @@ export function listAssets(params: ListParams): { assets: Asset[]; total: number
 
   let orderBy: string;
   switch (params.sort) {
-    case 'downloads': orderBy = 'a.downloads DESC'; break;
-    case 'rating': orderBy = 'a.rating DESC'; break;
-    case 'updated_at': case 'newest': orderBy = 'a.updated_at DESC'; break;
-    case 'created_at': orderBy = 'a.created_at DESC'; break;
-    case 'trending': orderBy = 'a.downloads DESC, a.updated_at DESC'; break;
-    default: orderBy = '(a.downloads * a.rating) DESC';
+    case 'newest': orderBy = 'a.updated_at DESC'; break;
+    case 'popular':
+    default:
+      // 综合热度：下载量(对数衰减) + 星标(github + user) + 时间衰减
+      orderBy = '(ln(a.downloads + 2) / ln(2) * 3 + (a.github_stars + COALESCE(us.cnt, 0)) * 2) DESC, a.updated_at DESC';
+      break;
   }
 
   // When FTS5 is active and sort is default/relevance, use hybrid relevance + business metrics scoring
   if (usingFtsRelevance && (!params.sort || params.sort === 'relevance')) {
     orderBy = `(
       (-fts.rank) * 0.6 +
-      (ln(a.downloads + 2) / ln(2) * 3 + a.rating * 2) * 0.4
+      (ln(a.downloads + 2) / ln(2) * 3 + a.github_stars * 2) * 0.4
     ) DESC`;
   }
 
@@ -334,22 +334,22 @@ export function listAssetsCompact(params: ListParams & { tag?: string }): { asse
 
   let orderBy: string;
   switch (params.sort) {
-    case 'installs': case 'downloads': orderBy = 'a.downloads DESC'; break;
-    case 'rating': orderBy = 'a.rating DESC'; break;
     case 'newest': case 'updated_at': orderBy = 'a.updated_at DESC'; break;
-    case 'created_at': orderBy = 'a.created_at DESC'; break;
-    case 'trending': orderBy = 'a.downloads DESC, a.updated_at DESC'; break;
-    default: orderBy = 'a.downloads DESC, a.updated_at DESC';
+    case 'popular':
+    default:
+      // 综合热度：下载量(对数衰减) + github_stars（V1 compact 无 user_stars JOIN）
+      orderBy = '(ln(a.downloads + 2) / ln(2) * 3 + a.github_stars * 2) DESC, a.updated_at DESC';
+      break;
   }
 
   // When FTS5 is active and sort is default/relevance, use hybrid relevance + business metrics scoring
   // Formula: relevance_score * 0.6 + normalized_business_score * 0.4
   // - FTS5 rank is negative (closer to 0 = more relevant), we negate it
-  // - Business score: log2(downloads+2) * 3 + rating * 2 (log-dampened to avoid download count domination)
+  // - Business score: log2(downloads+2) * 3 + github_stars * 2 (log-dampened to avoid download count domination)
   if (usingFtsRelevance && (!params.sort || params.sort === 'relevance')) {
     orderBy = `(
       (-fts.rank) * 0.6 +
-      (ln(a.downloads + 2) / ln(2) * 3 + a.rating * 2) * 0.4
+      (ln(a.downloads + 2) / ln(2) * 3 + a.github_stars * 2) * 0.4
     ) DESC`;
   }
 
