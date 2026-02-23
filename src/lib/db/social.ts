@@ -33,18 +33,7 @@ export function createComment(data: { assetId: string; userId: string; userName:
   const now = new Date().toISOString().split('T')[0];
   db.prepare(`INSERT INTO comments (id,asset_id,user_id,user_name,user_avatar,content,rating,created_at,commenter_type) VALUES (?,?,?,?,?,?,?,?,?)`).run(id, data.assetId, data.userId, data.userName, data.userAvatar, data.content, data.rating, now, data.commenterType ?? 'user');
 
-  addCoins(data.userId, 'reputation', USER_REP_EVENTS.write_comment, 'write_comment', data.assetId);
   addCoins(data.userId, 'shrimp_coin', SHRIMP_COIN_EVENTS.write_comment, 'write_comment', data.assetId);
-
-  const asset = db.prepare('SELECT author_id FROM assets WHERE id = ?').get(data.assetId) as { author_id: string } | undefined;
-  if (asset?.author_id && asset.author_id !== data.userId) {
-    if (data.rating >= 4) {
-      addCoins(asset.author_id, 'reputation', USER_REP_EVENTS.asset_rated_good, 'asset_rated_good', data.assetId);
-    }
-    if (data.rating === 5) {
-      addCoins(asset.author_id, 'shrimp_coin', SHRIMP_COIN_EVENTS.asset_rated_5star, 'asset_rated_5star', data.assetId);
-    }
-  }
 
   // recalculateHubScore(data.assetId); // @deprecated v3: hub score removed, display installs directly
 
