@@ -42,6 +42,9 @@ export function AssetCard({ asset }: { asset: Asset }) {
           >
             <AuthorAvatar src={asset.author.avatar} name={asset.author.name} authorId={asset.author.id} />
             <span className="truncate max-w-[80px]">{asset.author.name}</span>
+            {asset.author.reputation != null && asset.author.reputation > 0 && (
+              <span className="text-[10px] text-muted/70 font-mono ml-0.5" title="声望">★{asset.author.reputation}</span>
+            )}
           </Link>
         </div>
 
