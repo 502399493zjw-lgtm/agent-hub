@@ -65,13 +65,13 @@ function AssetListItem({ asset }: { asset: Asset }) {
         {/* Row 4: Tags left, Stats right */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {asset.tags.slice(0, 3).map(tag => (
+            {(asset.tags ?? []).slice(0, 3).map(tag => (
               <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full bg-surface text-muted border border-card-border">
                 {tag}
               </span>
             ))}
-            {asset.tags.length > 3 && (
-              <span className="text-[10px] px-1.5 py-0.5 text-muted">+{asset.tags.length - 3}</span>
+            {(asset.tags ?? []).length > 3 && (
+              <span className="text-[10px] px-1.5 py-0.5 text-muted">+{(asset.tags ?? []).length - 3}</span>
             )}
           </div>
           <div className="flex items-center gap-3 text-xs text-muted flex-shrink-0">

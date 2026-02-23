@@ -402,7 +402,7 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
               <div className="mb-8">
                 <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-3">标签</h3>
                 <div className="flex flex-wrap gap-2">
-                  {asset.tags.map(tag => (
+                  {(asset.tags ?? []).map(tag => (
                     <span key={tag} className="text-sm px-3 py-1 rounded-lg bg-surface text-muted border border-card-border hover:border-foreground/20 hover:text-foreground transition-colors cursor-pointer">#{tag}</span>
                   ))}
                 </div>

@@ -388,7 +388,7 @@ export default function HomeClient({ stats, tabAssets }: HomeClientProps) {
                           {/* Bottom: tags + star + downloads */}
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              {asset.tags.slice(0, 3).map(tag => (
+                              {(asset.tags ?? []).slice(0, 3).map(tag => (
                                 <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full bg-surface text-muted border border-card-border">
                                   {tag}
                                 </span>

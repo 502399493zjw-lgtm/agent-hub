@@ -54,13 +54,13 @@ export function AssetCard({ asset }: { asset: Asset }) {
 
         {/* Tags */}
         <div className="flex flex-wrap gap-1 sm:gap-1.5 mb-3 sm:mb-4">
-          {asset.tags.slice(0, 3).map(tag => (
+          {(asset.tags ?? []).slice(0, 3).map(tag => (
             <span key={tag} className="text-[10px] sm:text-xs px-2 sm:px-2.5 py-0.5 rounded-full bg-surface text-muted border border-card-border truncate max-w-[120px]">
               {tag}
             </span>
           ))}
-          {asset.tags.length > 3 && (
-            <span className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 text-muted">+{asset.tags.length - 3}</span>
+          {(asset.tags ?? []).length > 3 && (
+            <span className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 text-muted">+{(asset.tags ?? []).length - 3}</span>
           )}
         </div>
 
