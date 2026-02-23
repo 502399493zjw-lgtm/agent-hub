@@ -5,7 +5,7 @@ import crypto from 'crypto';
 import { Asset, User } from '@/data/types';
 import { getDb } from './connection';
 import { calculateHubScore } from './economy';
-import { addCoins, USER_REP_EVENTS, SHRIMP_COIN_EVENTS } from './economy';
+import { addCoins, USER_REP_EVENTS, SHRIMP_COIN_EVENTS, hasEnoughCoins } from './economy';
 import { getCached } from '../cache';
 
 // ════════════════════════════════════════════
@@ -147,8 +147,8 @@ export function listAssets(params: ListParams): { assets: Asset[]; total: number
     case 'newest': orderBy = 'a.updated_at DESC'; break;
     case 'popular':
     default:
-      // 综合热度：下载量(对数衰减) + 星标(github + user) + 时间衰减
-      orderBy = '((ln(a.downloads + 2) / ln(2) * 3 + (a.github_stars + COALESCE(us.cnt, 0)) * 2) * CASE WHEN has_chinese(a.display_name) OR has_chinese(a.description) OR has_chinese(a.readme) OR has_chinese(a.author_name) THEN 10 ELSE 1 END) DESC, a.updated_at DESC';
+      // 综合热度：下载量(对数衰减)*3 + github_stars(对数衰减,权重=下载的10%)*0.3 + 站内收藏*2 + 中文+30
+      orderBy = '(ln(a.downloads + 2) / ln(2) * 3 + ln(a.github_stars + 2) / ln(2) * 0.3 + COALESCE(us.cnt, 0) * 2 + CASE WHEN has_chinese(a.display_name) OR has_chinese(a.description) OR has_chinese(a.readme) OR has_chinese(a.author_name) THEN 30 ELSE 0 END) DESC, a.updated_at DESC';
       break;
   }
 
@@ -269,24 +269,52 @@ export function deleteAsset(id: string): boolean {
 
 export function incrementDownload(assetId: string, userId?: string): number | null {
   const db = getDb();
+
+  // Always increment the download counter
   const result = db.prepare('UPDATE assets SET downloads = downloads + 1 WHERE id = ?').run(assetId);
   if (result.changes === 0) return null;
-  // recalculateHubScore(assetId); // @deprecated v3: hub score removed, display installs directly
 
-  // Auto-star on download if userId is present
+  const asset = db.prepare('SELECT author_id, version, downloads FROM assets WHERE id = ?').get(assetId) as { author_id: string; version: string; downloads: number } | undefined;
+  if (!asset) return null;
+
   if (userId) {
-    db.prepare(
-      'INSERT OR IGNORE INTO user_stars (user_id, asset_id, source) VALUES (?, ?, ?)'
-    ).run(userId, assetId, 'download');
+    // Auto-star on download
+    db.prepare('INSERT OR IGNORE INTO user_stars (user_id, asset_id, source) VALUES (?, ?, ?)').run(userId, assetId, 'download');
+
+    // Deduct 1 shrimp coin from installer (if they have enough)
+    if (hasEnoughCoins(userId, 1)) {
+      addCoins(userId, 'shrimp_coin', SHRIMP_COIN_EVENTS.install_asset, 'install_asset', assetId);
+    }
+
+    // Dedup: check if this user already installed this asset at this version
+    const existing = db.prepare('SELECT last_version FROM user_installs WHERE user_id = ? AND asset_id = ?').get(userId, assetId) as { last_version: string } | undefined;
+    const now = new Date().toISOString();
+
+    if (!existing) {
+      // First install ever — reward author
+      db.prepare('INSERT INTO user_installs (user_id, asset_id, last_version, created_at, updated_at) VALUES (?, ?, ?, ?, ?)').run(userId, assetId, asset.version, now, now);
+      if (asset.author_id && asset.author_id !== userId) {
+        addCoins(asset.author_id, 'reputation', USER_REP_EVENTS.asset_installed, 'asset_installed', assetId);
+        addCoins(asset.author_id, 'shrimp_coin', SHRIMP_COIN_EVENTS.asset_installed, 'asset_installed', assetId);
+      }
+    } else if (existing.last_version !== asset.version) {
+      // Update install (new version) — reward author again
+      db.prepare('UPDATE user_installs SET last_version = ?, updated_at = ? WHERE user_id = ? AND asset_id = ?').run(asset.version, now, userId, assetId);
+      if (asset.author_id && asset.author_id !== userId) {
+        addCoins(asset.author_id, 'reputation', USER_REP_EVENTS.asset_installed, 'asset_installed', assetId);
+        addCoins(asset.author_id, 'shrimp_coin', SHRIMP_COIN_EVENTS.asset_installed, 'asset_installed', assetId);
+      }
+    }
+    // else: same user, same version — no author reward (dedup)
+  } else {
+    // Anonymous download — no dedup possible, reward author
+    if (asset.author_id) {
+      addCoins(asset.author_id, 'reputation', USER_REP_EVENTS.asset_installed, 'asset_installed', assetId);
+      addCoins(asset.author_id, 'shrimp_coin', SHRIMP_COIN_EVENTS.asset_installed, 'asset_installed', assetId);
+    }
   }
 
-  // Award coins to asset author
-  const asset = db.prepare('SELECT author_id, downloads FROM assets WHERE id = ?').get(assetId) as { author_id: string; downloads: number } | undefined;
-  if (asset?.author_id) {
-    addCoins(asset.author_id, 'reputation', USER_REP_EVENTS.asset_installed, 'asset_installed', assetId);
-    addCoins(asset.author_id, 'shrimp_coin', SHRIMP_COIN_EVENTS.asset_installed, 'asset_installed', assetId);
-  }
-  return asset?.downloads ?? null;
+  return asset.downloads;
 }
 
 // ════════════════════════════════════════════
@@ -337,8 +365,8 @@ export function listAssetsCompact(params: ListParams & { tag?: string }): { asse
     case 'newest': case 'updated_at': orderBy = 'a.updated_at DESC'; break;
     case 'popular':
     default:
-      // 综合热度：下载量(对数衰减) + github_stars（V1 compact 无 user_stars JOIN）
-      orderBy = '((ln(a.downloads + 2) / ln(2) * 3 + a.github_stars * 2) * CASE WHEN has_chinese(a.display_name) OR has_chinese(a.description) OR has_chinese(a.readme) OR has_chinese(a.author_name) THEN 10 ELSE 1 END) DESC, a.updated_at DESC';
+      // 综合热度：下载量(对数衰减)*3 + github_stars(对数衰减,权重=下载的10%)*0.3 + 中文+30（V1无user_stars）
+      orderBy = '(ln(a.downloads + 2) / ln(2) * 3 + ln(a.github_stars + 2) / ln(2) * 0.3 + CASE WHEN has_chinese(a.display_name) OR has_chinese(a.description) OR has_chinese(a.readme) OR has_chinese(a.author_name) THEN 30 ELSE 0 END) DESC, a.updated_at DESC';
       break;
   }
 

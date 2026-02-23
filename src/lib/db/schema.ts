@@ -167,6 +167,7 @@ export function initTables(db: import('better-sqlite3').Database): void {
   if (!hasColumn('assets', 'github_language')) { db.exec(`ALTER TABLE assets ADD COLUMN github_language TEXT NOT NULL DEFAULT ''`); }
   if (!hasColumn('assets', 'github_license')) { db.exec(`ALTER TABLE assets ADD COLUMN github_license TEXT NOT NULL DEFAULT ''`); }
   if (!hasColumn('assets', 'github_synced_at')) { db.exec(`ALTER TABLE assets ADD COLUMN github_synced_at TEXT NOT NULL DEFAULT ''`); }
+  if (!hasColumn('assets', 'github_star_rep_synced')) { db.exec(`ALTER TABLE assets ADD COLUMN github_star_rep_synced INTEGER NOT NULL DEFAULT 0`); }
   // Migration: add type column to users table (agent vs user)
   if (!hasColumn('users', 'type')) { db.exec(`ALTER TABLE users ADD COLUMN type TEXT NOT NULL DEFAULT 'user'`); }
 
@@ -229,6 +230,18 @@ export function initTables(db: import('better-sqlite3').Database): void {
       PRIMARY KEY (user_id, asset_id)
     );
     CREATE INDEX IF NOT EXISTS idx_user_stars_asset ON user_stars(asset_id);
+  `);
+
+  // Install dedup table: tracks which users installed which assets at which version
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS user_installs (
+      user_id TEXT NOT NULL,
+      asset_id TEXT NOT NULL,
+      last_version TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, asset_id)
+    )
   `);
 
   // ════════════════════════════════════════════
