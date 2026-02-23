@@ -53,6 +53,9 @@ function AssetListItem({ asset }: { asset: Asset }) {
             <AuthorAvatar src={asset.author.avatar} name={asset.author.name} />
           </div>
           <span className="text-xs text-muted">{asset.author.name}</span>
+          {asset.author.reputation != null && asset.author.reputation > 0 && (
+            <span className="text-[10px] text-muted/70 font-mono" title="声望">🎖️{asset.author.reputation}</span>
+          )}
         </div>
 
         {/* Row 3: Description */}

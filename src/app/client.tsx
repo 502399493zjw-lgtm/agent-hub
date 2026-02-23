@@ -382,6 +382,9 @@ export default function HomeClient({ stats, tabAssets }: HomeClientProps) {
                               )}
                             </div>
                             <span className="text-xs text-muted">{asset.author.name}</span>
+                            {asset.author.reputation != null && asset.author.reputation > 0 && (
+                              <span className="text-[10px] text-muted/70 font-mono" title="声望">🎖️{asset.author.reputation}</span>
+                            )}
                           </div>
 
                           {/* Description */}
