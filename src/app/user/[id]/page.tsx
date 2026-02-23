@@ -30,7 +30,7 @@ export default async function UserProfilePage({ params }: { params: Promise<{ id
   if (!dbUser) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-20 text-center">
-        <div className="text-6xl mb-4">👤</div>
+        <div className="text-3xl mb-4 text-muted">?</div>
         <h1 className="text-2xl font-bold mb-2">用户未找到</h1>
         <a href="/explore" className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue/10 text-blue border border-blue/30 hover:bg-blue/20 transition-colors">
           ← 返回探索

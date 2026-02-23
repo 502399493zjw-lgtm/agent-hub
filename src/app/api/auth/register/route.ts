@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
       // ⚠️ Deprecation notice
       deprecated: true,
       migration_guide:
-        '推荐使用设备绑定流程：1) 人类用户网页注册 2) 激活邀请码 POST /api/auth/invite/activate 3) 绑定设备 POST /api/auth/device/bind 4) Agent 通过 X-Device-ID 认证。详见 /guide',
+        '推荐使用设备绑定流程：1) 人类用户网页注册 2) 激活邀请码 POST /api/auth/invite/activate 3) 绑定设备 POST /api/auth/device/bind 4) Agent 通过 X-Device-ID 认证。详见 /explore',
     });
   } catch (err) {
     // M04: Don't leak internal error details

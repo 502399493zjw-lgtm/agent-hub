@@ -30,7 +30,7 @@ export function AssetCard({ asset }: { asset: Asset }) {
         {/* Header row: badge left, author right */}
         <div className="flex items-start justify-between mb-2 sm:mb-3">
           <span className="text-xs px-2.5 py-1 rounded-full bg-surface text-ink-light border border-card-border">
-            {config.icon} {config.label}
+            {config.icon ? `${config.icon} ` : ''}{config.label}
           </span>
           <Link
             href={`/user/${asset.author.id}`}

@@ -149,12 +149,11 @@ function ProfileAvatar({ src, name, userId, size = 'xl' }: { src: string; name: 
 
 // ── StatCard ───────────────────────────────────────
 
-function StatCard({ icon, label, value }: { icon: string; label: string; value: string | number }) {
+function StatCard({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="text-center p-4 rounded-lg bg-surface/50 border border-card-border">
-      <div className="text-xl mb-1">{icon}</div>
       <div className="text-xl font-bold font-mono text-foreground">{value}</div>
-      <div className="text-xs text-muted mt-0.5">{label}</div>
+      <div className="text-xs text-muted mt-1">{label}</div>
     </div>
   );
 }
@@ -562,10 +561,10 @@ export default function UserProfileClient({ profile, publishedAssets, isOwn }: U
     : null;
 
   const tabs: { key: TabKey; label: string; show: boolean }[] = [
-    { key: 'assets', label: `📦 资产 (${publishedAssets.length})`, show: true },
-    { key: 'activity', label: '📰 动态', show: true },
-    { key: 'data', label: '📊 数据', show: isOwn },
-    { key: 'about', label: '📝 关于', show: true },
+    { key: 'assets', label: `资产 (${publishedAssets.length})`, show: true },
+    { key: 'activity', label: '动态', show: true },
+    { key: 'data', label: '数据', show: isOwn },
+    { key: 'about', label: '关于', show: true },
   ];
 
   const handleSaved = () => {
@@ -575,6 +574,9 @@ export default function UserProfileClient({ profile, publishedAssets, isOwn }: U
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+      {/* ── Section Label ── */}
+      <p className="font-display text-xs uppercase tracking-[0.2em] text-muted mb-4">User Profile</p>
+
       {/* ── Profile Header ── */}
       <div className="relative mb-8 p-6 sm:p-8 rounded-xl bg-white border border-card-border shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
         <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
@@ -608,11 +610,13 @@ export default function UserProfileClient({ profile, publishedAssets, isOwn }: U
                 <span>{profile.providerName || profile.provider}</span>
               </div>
               <div className="flex items-center gap-1">
-                <span>📅</span>
+                <svg className="w-3.5 h-3.5 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
                 <span>加入于 {formatDate(profile.joinedAt)}</span>
               </div>
               <div className="flex items-center gap-1">
-                <span>⭐</span>
+                <span className="text-yellow-500">★</span>
                 <span>{profile.reputation} 声望</span>
               </div>
             </div>
@@ -642,11 +646,11 @@ export default function UserProfileClient({ profile, publishedAssets, isOwn }: U
 
       {/* ── Stats ── */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-8">
-        <StatCard icon="📦" label="资产" value={profile.stats.assetCount} />
-        <StatCard icon="⬇️" label="下载" value={formatDownloads(profile.stats.totalDownloads)} />
-        <StatCard icon="⭐" label="Star" value={profile.stats.totalStars} />
-        <StatCard icon="💬" label="评论" value={profile.stats.totalComments} />
-        <StatCard icon="🐛" label="Issue" value={profile.stats.totalIssues} />
+        <StatCard label="资产" value={profile.stats.assetCount} />
+        <StatCard label="下载" value={formatDownloads(profile.stats.totalDownloads)} />
+        <StatCard label="Star" value={profile.stats.totalStars} />
+        <StatCard label="评论" value={profile.stats.totalComments} />
+        <StatCard label="Issue" value={profile.stats.totalIssues} />
       </div>
 
       {/* ── Tabs ── */}

@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 
 export default function PublishPage() {
   return (
@@ -64,9 +63,7 @@ export default function PublishPage() {
           <span className="text-blue font-bold">POST</span> https://openclawmp.cc/api/assets
         </div>
         <p className="text-sm text-muted">
-          详细文档请参考{' '}
-          <Link href="/guide" className="text-blue hover:underline">安装指南</Link>
-          ，或让你的 Agent 直接访问 API。
+          让你的 Agent 直接访问 API 即可。
         </p>
       </div>
     </div>

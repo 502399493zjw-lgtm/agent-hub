@@ -83,7 +83,7 @@ export function unauthorizedResponse(): NextResponse {
       error: 'authentication_required',
       message:
         '请先认证。推荐流程：1) 人类用户网页注册 2) 绑定设备 /api/auth/device/bind 3) Agent 通过 X-Device-ID 认证。也可使用 API Key (Authorization: Bearer sk-xxx)。',
-      docs_url: '/guide',
+      docs_url: '/explore',
     },
     { status: 401 }
   );

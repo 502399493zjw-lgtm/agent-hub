@@ -2,16 +2,97 @@
 
 import { useState, useEffect, Suspense, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { AssetType, typeConfig, Asset } from '@/data/types';
-import { AssetCard } from '@/components/asset-card';
+import Link from 'next/link';
+import { AssetType, typeConfig, Asset, formatDownloads } from '@/data/types';
 
 const categories = ['全部', '信息查询', '开发工具', '创意生成', '数据处理', '效率工具', '语言处理', '创意角色', '教育辅导', '商业顾问', '趣味角色', '存储引擎', '通信集成', '基础设施', '安全认证', '自动化', '语音处理', 'DevOps', '事件驱动', '数据工程', '通用助手', '专业开发', '内容创作', '系统工具', '事件触发', '知识工作', '开发运维', '客户服务', 'Agent 模板'];
 const sortOptions = [
-  { value: 'popular', label: '🔥 最热' },
-  { value: 'trending', label: '📈 Trending' },
-  { value: 'newest', label: '✨ 最新' },
-  { value: 'downloads', label: '📥 下载最多' },
+  { value: 'popular', label: '最热' },
+  { value: 'trending', label: 'Trending' },
+  { value: 'newest', label: '最新' },
+  { value: 'downloads', label: '下载最多' },
 ];
+
+function AuthorAvatar({ src, name }: { src: string; name: string }) {
+  if (src?.startsWith('http') || src?.startsWith('/api/avatars/')) {
+    return <img src={src} alt={name} className="w-5 h-5 rounded-full object-cover border border-card-border" />;
+  }
+  return (
+    <div className="w-5 h-5 rounded-full bg-surface border border-card-border flex items-center justify-center text-[10px]">
+      {(name?.[0] ?? '?').toUpperCase()}
+    </div>
+  );
+}
+
+function formatCount(n: number): string {
+  if (n >= 10000) return (n / 10000).toFixed(1).replace(/\.0$/, '') + 'w';
+  if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+  return String(n);
+}
+
+/** Single asset row matching production list layout */
+function AssetListItem({ asset }: { asset: Asset }) {
+  const config = typeConfig[asset.type];
+  const stars = asset.totalStars ?? asset.githubStars ?? 0;
+
+  return (
+    <Link href={`/asset/${asset.id}`}>
+      <div className="group px-5 py-5 hover:bg-surface/50 transition-colors duration-150 border-b" style={{ borderColor: '#e5e7eb' }}>
+        {/* Row 1: Badge + Name + Version */}
+        <div className="flex items-center gap-2 mb-1.5">
+          <span className="text-[10px] px-2 py-0.5 rounded-full border bg-surface border-card-border text-ink-light">
+            {config.label}
+          </span>
+          <h3 className="text-base font-bold text-foreground group-hover:text-blue transition-colors duration-150 truncate">
+            {asset.displayName}
+          </h3>
+          <span className="text-xs text-muted font-mono flex-shrink-0">v{asset.version}</span>
+        </div>
+
+        {/* Row 2: Author */}
+        <div className="flex items-center gap-2 mb-2">
+          <div className="flex-shrink-0">
+            <AuthorAvatar src={asset.author.avatar} name={asset.author.name} />
+          </div>
+          <span className="text-xs text-muted">{asset.author.name}</span>
+        </div>
+
+        {/* Row 3: Description */}
+        <p className="text-sm text-muted leading-relaxed line-clamp-2 mb-3">
+          {asset.description}
+        </p>
+
+        {/* Row 4: Tags left, Stats right */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {asset.tags.slice(0, 3).map(tag => (
+              <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full bg-surface text-muted border border-card-border">
+                {tag}
+              </span>
+            ))}
+            {asset.tags.length > 3 && (
+              <span className="text-[10px] px-1.5 py-0.5 text-muted">+{asset.tags.length - 3}</span>
+            )}
+          </div>
+          <div className="flex items-center gap-3 text-xs text-muted flex-shrink-0">
+            {stars > 0 && (
+              <span className="flex items-center gap-0.5">
+                <span className="text-yellow-500">★</span>
+                <span className="font-mono">{formatCount(stars)}</span>
+              </span>
+            )}
+            <span className="flex items-center gap-0.5">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              <span className="font-mono font-bold text-foreground">{formatDownloads(asset.downloads)}</span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </Link>
+  );
+}
 
 interface ExploreContentProps {
   initialAssets: Asset[];
@@ -28,7 +109,7 @@ function ExploreContent({ initialAssets, initialTotal, initialAllAssets }: Explo
 
   const [search, setSearch] = useState(initialQ);
   const [selectedType, setSelectedType] = useState<'all' | AssetType>(
-    initialType && (initialType === 'all' || ['skill','experience','plugin','trigger','channel','template'].includes(initialType))
+    initialType && (initialType === 'all' || ['skill','experience','plugin','trigger','channel'].includes(initialType))
       ? initialType
       : 'all'
   );
@@ -50,7 +131,7 @@ function ExploreContent({ initialAssets, initialTotal, initialAllAssets }: Explo
     const sort = searchParams.get('sort');
 
     if (q) setSearch(q);
-    if (type && (type === 'all' || ['skill','experience','plugin','trigger','channel','template'].includes(type))) {
+    if (type && (type === 'all' || ['skill','experience','plugin','trigger','channel'].includes(type))) {
       setSelectedType(type);
     }
     if (sort && sortOptions.some(o => o.value === sort)) {
@@ -61,7 +142,14 @@ function ExploreContent({ initialAssets, initialTotal, initialAllAssets }: Explo
   const fetchAssets = useCallback(() => {
     setLoading(true);
     const params = new URLSearchParams();
-    if (selectedType !== 'all') params.set('type', selectedType);
+    if (selectedType !== 'all') {
+      // "经验/合集" filter: fetch both experience and template
+      if (selectedType === 'experience' || selectedType === 'template') {
+        params.set('type', selectedType);
+      } else {
+        params.set('type', selectedType);
+      }
+    }
     if (selectedCategory !== '全部') params.set('category', selectedCategory);
     if (search) params.set('q', search);
     params.set('sort', sortBy);
@@ -106,9 +194,8 @@ function ExploreContent({ initialAssets, initialTotal, initialAllAssets }: Explo
 
   const typeFilters: { value: 'all' | AssetType; label: string; icon: string }[] = [
     { value: 'all', label: '全部', icon: '' },
-    { value: 'template', label: '合集', icon: '' },
     { value: 'skill', label: '技能', icon: '' },
-    { value: 'experience', label: '经验', icon: '' },
+    { value: 'experience', label: '经验/合集', icon: '' },
     { value: 'plugin', label: '工具', icon: '' },
     { value: 'trigger', label: '触发器', icon: '' },
     { value: 'channel', label: '通信器', icon: '' },
@@ -116,7 +203,7 @@ function ExploreContent({ initialAssets, initialTotal, initialAllAssets }: Explo
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      {/* Header — larger, more dramatic */}
+      {/* Header */}
       <div className="mb-10">
         <p className="font-display text-xs uppercase tracking-[0.2em] text-muted mb-3">Explore</p>
         <h1 className="text-4xl md:text-5xl font-bold mb-3 text-foreground tracking-tight">
@@ -127,8 +214,7 @@ function ExploreContent({ initialAssets, initialTotal, initialAllAssets }: Explo
 
       {/* Agent 直读提示 */}
       <div className="mb-8 px-5 py-4 rounded-xl bg-surface border border-card-border text-sm text-muted flex items-center gap-3">
-        <span className="text-lg">💡</span>
-        <span>所有资产均支持 Agent 直读 — 通过 <code className="px-1.5 py-0.5 rounded-md bg-white border border-card-border text-foreground font-mono text-xs">GET /api/assets/:id/raw</code> 获取完整内容，无需安装</span>
+        <span>所有资产均支持 Agent 直读 — 通过 <code className="px-1.5 py-0.5 rounded-md bg-white border border-card-border text-foreground font-mono text-xs">GET /api/v1/assets/:id/readme</code> 获取完整内容，无需安装</span>
       </div>
 
       {/* Search & Sort Bar */}
@@ -176,23 +262,35 @@ function ExploreContent({ initialAssets, initialTotal, initialAllAssets }: Explo
           <div className="mb-8">
             <h3 className="text-xs font-semibold text-muted uppercase tracking-[0.15em] mb-3 font-sans">资产类型</h3>
             <div className="space-y-1">
-              {typeFilters.map(tf => (
-                <button
-                  key={tf.value}
-                  onClick={() => handleTypeChange(tf.value)}
-                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-[color,background-color,border-color] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue/50 ${
-                    selectedType === tf.value
-                      ? 'bg-surface text-foreground border border-card-border'
-                      : 'text-muted hover:bg-white hover:text-foreground border border-transparent'
-                  }`}
-                >
-                  <span>{tf.icon}</span>
-                  <span>{tf.label}</span>
-                  <span className="ml-auto text-xs opacity-60">
-                    {tf.value === 'all' ? allAssets.length : allAssets.filter(a => a.type === tf.value).length}
-                  </span>
-                </button>
-              ))}
+              {typeFilters.map(tf => {
+                // Count: "经验/合集" combines experience + template
+                const count = tf.value === 'all'
+                  ? allAssets.length
+                  : tf.value === 'experience'
+                    ? allAssets.filter(a => a.type === 'experience' || a.type === 'template').length
+                    : allAssets.filter(a => a.type === tf.value).length;
+
+                // Hide zero-count types (except 全部)
+                if (tf.value !== 'all' && count === 0) return null;
+
+                return (
+                  <button
+                    key={tf.value}
+                    onClick={() => handleTypeChange(tf.value)}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-[color,background-color,border-color] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue/50 ${
+                      selectedType === tf.value
+                        ? 'bg-surface text-foreground border border-card-border'
+                        : 'text-muted hover:bg-white hover:text-foreground border border-transparent'
+                    }`}
+                  >
+                    <span>{tf.icon}</span>
+                    <span>{tf.label}</span>
+                    <span className="ml-auto text-xs opacity-60">
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -222,7 +320,7 @@ function ExploreContent({ initialAssets, initialTotal, initialAllAssets }: Explo
           </div>
         </aside>
 
-        {/* Results Grid */}
+        {/* Results List */}
         <div className="flex-1">
           <div className="flex items-center justify-between mb-6">
             <span className="text-sm text-muted">
@@ -238,20 +336,26 @@ function ExploreContent({ initialAssets, initialTotal, initialAllAssets }: Explo
           </div>
 
           {loading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            <div className="rounded-lg border border-card-border bg-white overflow-hidden">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="rounded-xl border border-card-border bg-white p-6 animate-pulse">
-                  <div className="h-4 bg-surface rounded w-1/3 mb-4" />
-                  <div className="h-5 bg-surface rounded w-2/3 mb-3" />
-                  <div className="h-3 bg-surface rounded w-full mb-2" />
-                  <div className="h-3 bg-surface rounded w-4/5" />
+                <div key={i} className="px-5 py-5 border-b animate-pulse" style={{ borderColor: '#e5e7eb' }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="h-4 bg-surface rounded-full w-12" />
+                    <div className="h-5 bg-surface rounded w-1/3" />
+                  </div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-5 h-5 bg-surface rounded-full" />
+                    <div className="h-3 bg-surface rounded w-20" />
+                  </div>
+                  <div className="h-4 bg-surface rounded w-full mb-2" />
+                  <div className="h-4 bg-surface rounded w-3/4" />
                 </div>
               ))}
             </div>
           ) : assets.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            <div className="rounded-lg border border-card-border bg-white overflow-hidden">
               {assets.map(asset => (
-                <AssetCard key={asset.id} asset={asset} />
+                <AssetListItem key={asset.id} asset={asset} />
               ))}
             </div>
           ) : (

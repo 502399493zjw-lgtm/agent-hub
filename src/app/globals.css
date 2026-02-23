@@ -2,6 +2,10 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+@source "../../src";
+@source not "../../data";
+@source not "../../tools";
+
 :root {
   --color-paper: #ffffff;
   --color-ink: #111111;

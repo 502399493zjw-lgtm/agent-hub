@@ -7,7 +7,6 @@ import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
 import { formatDownloads, typeConfig, Asset, Comment, Issue, FileNode } from '@/data/types';
 import { useState, useEffect, useCallback } from 'react';
-import { InstallDialog } from '@/components/install-dialog';
 import { useAuth } from '@/lib/auth-context';
 
 type TabId = 'overview' | 'files' | 'versions' | 'issues' | 'comments' | 'dependencies';
@@ -200,7 +199,6 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
   const [asset] = useState<Asset | null>(initialAsset);
   const [allAssets] = useState<Asset[]>(initialAllAssets);
   const [copied, setCopied] = useState(false);
-  const [rawCopied, setRawCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [toast, setToast] = useState<string | null>(null);
   const [localComments, setLocalComments] = useState<Comment[]>([]);
@@ -278,13 +276,6 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const copyRawUrl = () => {
-    const url = `${window.location.origin}/api/assets/${asset.id}/raw`;
-    navigator.clipboard.writeText(url);
-    setRawCopied(true);
-    setTimeout(() => setRawCopied(false), 2000);
-  };
-
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
@@ -307,12 +298,11 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
   };
 
   const tabs: { id: TabId; label: string; icon: string; count?: number }[] = [
-    { id: 'overview', label: 'Overview', icon: '📖' },
-    { id: 'files', label: '文件', icon: '📂', count: asset.files?.length },
-    { id: 'versions', label: 'Versions', icon: '📦', count: asset.versions.length },
-    { id: 'dependencies', label: '依赖图', icon: '🔗', count: depAssets.length + dependents.length },
-    { id: 'issues', label: 'Issues', icon: '🐛', count: issuesList.length },
-    { id: 'comments', label: '评论', icon: '💬', count: allComments.length },
+    { id: 'overview', label: 'Overview', icon: '' },
+    { id: 'files', label: '文件', icon: '', count: asset.files?.length },
+    { id: 'versions', label: 'Versions', icon: '', count: asset.versions.length },
+    { id: 'issues', label: 'Issues', icon: '', count: issuesList.length },
+    { id: 'comments', label: '评论', icon: '', count: allComments.length },
   ];
 
   return (
@@ -328,6 +318,7 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
       </div>
 
       <div className="mb-6">
+        <p className="text-xs font-semibold text-muted uppercase tracking-widest mb-3">Asset Detail</p>
         <div className="flex items-center gap-3 mb-4 flex-wrap">
           <span className={`text-sm px-3 py-1 rounded-full border ${config.bgColor} ${config.borderColor} ${config.color}`}>
             {config.icon} {config.label}
@@ -337,9 +328,6 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
 
         <div className="flex flex-wrap items-center gap-4 mb-3">
           <h1 className="text-3xl sm:text-4xl font-bold">{asset.displayName}</h1>
-          <div className="flex items-center gap-2">
-            <InstallDialog asset={asset} />
-          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-4 mb-4">
@@ -393,7 +381,7 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
         {tabs.map(t => (
           <button key={t.id} onClick={() => setActiveTab(t.id)}
             className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === t.id ? 'border-foreground text-foreground' : 'border-transparent text-muted hover:text-foreground'}`}>
-            <span>{t.icon}</span><span>{t.label}</span>
+            {t.icon && <span>{t.icon}</span>}<span>{t.label}</span>
             {t.count !== undefined && <span className={`text-xs px-1.5 py-0.5 rounded-full ${activeTab === t.id ? 'bg-surface text-foreground' : 'bg-surface text-muted'}`}>{t.count}</span>}
           </button>
         ))}
@@ -405,31 +393,12 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
             <>
               <div className="mb-8 p-4 rounded-lg bg-white border border-card-border">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-semibold text-foreground">⚡ 安装命令</span>
+                  <span className="text-sm font-semibold text-foreground">安装命令</span>
                   <button onClick={handleCopy} className="text-xs px-3 py-1 rounded-lg bg-surface text-muted border border-card-border hover:text-foreground transition-colors">
                     {copied ? '✓ 已复制' : '复制'}
                   </button>
                 </div>
                 <code className="block text-sm font-mono text-foreground bg-surface p-3 rounded-lg overflow-x-auto">{installCmd}</code>
-              </div>
-
-              <div className="mb-8 p-4 rounded-lg bg-surface border border-card-border">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-lg">🤖</span>
-                  <h3 className="font-semibold text-sm">Agent 直读</h3>
-                  <span className="text-xs text-muted">— Agent 可以直接阅读并使用此资产</span>
-                </div>
-                <p className="text-xs text-muted mb-3">
-                  此资产可被任何 AI Agent 直接读取。Agent 通过访问下方链接获取完整内容，无需安装，即可在此基础上理解、修改和创作。
-                </p>
-                <div className="flex items-center gap-2 bg-background rounded-md p-2 border border-card-border/50">
-                  <code className="text-xs text-foreground flex-1 truncate">
-                    curl {typeof window !== 'undefined' ? window.location.origin : ''}/api/assets/{asset.id}/raw
-                  </code>
-                  <button onClick={copyRawUrl} className="text-xs px-2 py-1 rounded bg-surface text-muted hover:text-foreground transition-colors flex-shrink-0">
-                    {rawCopied ? '✓ 已复制' : '复制'}
-                  </button>
-                </div>
               </div>
 
               <div className="mb-8">
@@ -768,7 +737,7 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
         <aside className="lg:w-72 shrink-0">
           <div className="sticky top-24 space-y-6">
             <div className="p-5 rounded-lg bg-white border border-card-border">
-              <h3 className="text-sm font-semibold mb-4">📊 安装统计</h3>
+              <h3 className="text-sm font-semibold mb-4">安装统计</h3>
               <div className="text-center mb-2">
                 <span className="text-4xl font-bold text-foreground">{formatDownloads(asset.downloads)}</span>
                 <span className="text-sm text-muted ml-1">次安装</span>
@@ -790,9 +759,6 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
                 <div className="flex justify-between"><span className="text-muted">下载量</span><span className="text-foreground font-semibold">{asset.downloads.toLocaleString()}</span></div>
                 <div className="flex justify-between"><span className="text-muted">Issues</span><span>{asset.issueCount}</span></div>
               </div>
-              <div className="mt-5">
-                <InstallDialog asset={asset} />
-              </div>
             </div>
 
             {depAssets.length > 0 && (
@@ -810,35 +776,6 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
               </div>
             )}
 
-            <div className="p-5 rounded-lg bg-white border border-card-border">
-              <h3 className="text-sm font-semibold mb-4">📖 安装指南</h3>
-              <div className="space-y-4">
-                <div className="flex gap-3">
-                  <div className="flex-shrink-0 w-6 h-6 rounded-full bg-surface text-foreground text-xs font-bold flex items-center justify-center mt-0.5">1</div>
-                  <div>
-                    <p className="text-sm font-medium mb-1">安装 Seafood Market CLI</p>
-                    <code className="block text-xs font-mono text-muted bg-surface p-2 rounded-lg">npm install -g seafood-market</code>
-                  </div>
-                </div>
-                <div className="flex gap-3">
-                  <div className="flex-shrink-0 w-6 h-6 rounded-full bg-surface text-foreground text-xs font-bold flex items-center justify-center mt-0.5">2</div>
-                  <div>
-                    <p className="text-sm font-medium mb-1">安装此{config.label}</p>
-                    <code className="block text-xs font-mono text-muted bg-surface p-2 rounded-lg">{installCmd}</code>
-                  </div>
-                </div>
-                <div className="flex gap-3">
-                  <div className="flex-shrink-0 w-6 h-6 rounded-full bg-surface text-foreground text-xs font-bold flex items-center justify-center mt-0.5">3</div>
-                  <div>
-                    <p className="text-sm font-medium mb-1">重启 Agent 生效</p>
-                    <code className="block text-xs font-mono text-muted bg-surface p-2 rounded-lg">seafood-market gateway restart</code>
-                  </div>
-                </div>
-              </div>
-              <div className="mt-4 pt-3 border-t border-card-border">
-                <p className="text-xs text-muted">💡 安装后在 Agent 对话中即可使用新能力，也可通过 <code className="bg-surface px-1 rounded text-foreground">seafood-market status</code> 查看已安装列表。</p>
-              </div>
-            </div>
           </div>
         </aside>
       </div>

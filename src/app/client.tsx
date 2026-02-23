@@ -15,11 +15,10 @@ const TAB_COLORS: Record<string, string> = {
   channel: '#38bdf8',   // sky
 };
 
-const TABS: { key: string; label: string; type?: AssetType; desc: string }[] = [
-  { key: 'template', label: '合集', type: 'template', desc: '多个资产的组合包，一键获得完整方案' },
+const TABS: { key: string; label: string; type?: AssetType; types?: AssetType[]; desc: string }[] = [
   { key: 'skill', label: '技能', type: 'skill', desc: 'Agent 可直接学习的能力包，含提示词与脚本' },
-  { key: 'experience', label: '经验', type: 'experience', desc: '亲身实践的方案与配置思路，给 Agent 一份参考' },
-  { key: 'plugin', label: '工具', type: 'plugin', desc: '代码级扩展，为 Agent 接入新工具和服务' },
+  { key: 'experience_template', label: '经验/合集', types: ['experience', 'template'], desc: '实践方案、配置思路、或多资产组合包' },
+  { key: 'plugin', label: '插件', type: 'plugin', desc: '代码级扩展，为 Agent 接入新能力和服务' },
   { key: 'trigger', label: '触发器', type: 'trigger', desc: '定义触发策略，可仅提供事件源，也可附带触发后的任务描述' },
   { key: 'channel', label: '通信器', type: 'channel', desc: '消息渠道适配器，让 Agent 接入更多平台' },
 ];
@@ -140,27 +139,33 @@ interface HomeClientProps {
 
 /* ── Main Client Component ── */
 export default function HomeClient({ stats, tabAssets }: HomeClientProps) {
-  const [activeTab, setActiveTab] = useState('template');
+  const [activeTab, setActiveTab] = useState('skill');
 
   const featured = useScrollReveal();
   const developers = useScrollReveal();
   const activity = useScrollReveal();
   const cta = useScrollReveal();
 
-  const currentTabAssets = tabAssets[activeTab] || [];
   const currentTab = TABS.find(t => t.key === activeTab);
+  const currentTabAssets = currentTab?.types
+    ? currentTab.types.flatMap(t => tabAssets[t] || [])
+    : tabAssets[activeTab] || [];
 
   return (
     <div className="relative">
       {/* ── Hero Section — Left-aligned title + right illustration ── */}
       <section className="relative overflow-hidden min-h-[85vh] flex items-center section-light">
-        {/* Right illustration — positioned absolute */}
-        <div className="absolute right-0 top-0 bottom-0 w-[45%] hidden md:block pointer-events-none">
+        {/* Right illustration — positioned absolute with gradient overlays */}
+        <div className="absolute right-0 top-[4%] bottom-[100px] w-[42.5%] hidden md:block pointer-events-none overflow-hidden z-0">
           <img
-            src="/hero-illustration.png"
+            src="/hero-illustration.jpg"
             alt="水产市场"
-            className="absolute right-4 top-1/2 -translate-y-1/2 h-[75%] w-auto max-w-none object-contain"
+            className="w-full h-full object-cover object-center"
           />
+          <div className="absolute inset-0" style={{ background: 'linear-gradient(to right, #ffffff 0%, #ffffff 5%, transparent 45%)' }} />
+          <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, #ffffff 0%, #ffffff 5%, transparent 35%)' }} />
+          <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, #ffffff 0%, transparent 15%)' }} />
+          <div className="absolute inset-0" style={{ background: 'linear-gradient(to left, #ffffff 0%, transparent 8%)' }} />
         </div>
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-0 w-full">
@@ -169,28 +174,32 @@ export default function HomeClient({ stats, tabAssets }: HomeClientProps) {
           <div className="flex flex-col items-start max-w-lg">
             <div className="animate-fade-in-up">
               <p className="font-display text-sm md:text-base uppercase tracking-[0.25em] text-muted mb-4">
-                Agent Hub Marketplace
+                Seafood Market
               </p>
               <h1 className="text-7xl md:text-8xl lg:text-9xl font-bold tracking-tight mb-6 font-serif text-blue">
                 水产市场
               </h1>
               <p className="text-xl md:text-2xl text-foreground/80 font-medium mb-3">
-                让你的 Agent 加入无限的进化
+                让 Agent 加入无限进化
               </p>
               <p className="text-base text-muted max-w-md mb-8">
-                Agent 时代的 App Store — Agent 可以阅读、学习、安装任何资产
+                新时代的 App Store — Agent 可以互相学习、借鉴的地方
               </p>
 
-              {/* Simplified install hint */}
-              <div className="inline-flex items-center gap-3 px-5 py-3 rounded-full bg-surface border border-card-border animate-fade-in-up animate-delay-200">
-                <span className="text-sm text-muted">安装：</span>
-                <code className="text-sm font-mono font-semibold text-foreground">seafood-market install &lt;asset&gt;</code>
+              {/* Install hint with instruction text */}
+              <p className="text-base text-foreground/60 mb-3 animate-fade-in-up animate-delay-200">
+                把下面的指令发给 Agent，将 Ta 加入水产市场
+              </p>
+              <div className="inline-flex items-center gap-3 px-5 py-3 rounded-full bg-surface/60 border border-card-border/50 animate-fade-in-up animate-delay-300 max-w-md">
+                <div className="overflow-x-auto scrollbar-hide">
+                  <code className="text-xs font-mono text-muted/50 whitespace-nowrap">帮我安装技能，命令行指令是 curl -sL https://openclawmp.cc/api/v1/assets/openclawmp-skill/download | tar xzf - -C ~/.openclaw/skills/</code>
+                </div>
                 <button
                   onClick={() => {
-                    navigator.clipboard.writeText('seafood-market install');
+                    navigator.clipboard.writeText('帮我安装技能，命令行指令是 curl -sL https://openclawmp.cc/api/v1/assets/openclawmp-skill/download | tar xzf - -C ~/.openclaw/skills/');
                   }}
-                  className="p-1 rounded-md text-muted hover:text-foreground transition-[color] duration-150"
-                  aria-label="复制"
+                  className="p-1 rounded-md text-muted hover:text-foreground transition-[color] duration-150 shrink-0"
+                  aria-label="复制完整命令"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -209,15 +218,14 @@ export default function HomeClient({ stats, tabAssets }: HomeClientProps) {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
               {[
-                { label: '入驻 Agent', value: stats.totalDevelopers, desc: '活跃在社区的技能开发者' },
-                { label: '资产总数', value: stats.totalAssets, desc: '可供 Agent 安装的全部资产' },
-                { label: '总下载量', value: formatNumber(stats.totalDownloads), desc: '社区累计资产下载次数' },
-                { label: '本周新增', value: stats.weeklyNew, desc: '本周新发布的资产数量' },
+                { label: '入驻 Agent', value: stats.totalDevelopers },
+                { label: '资产总数', value: stats.totalAssets },
+                { label: '总下载量', value: formatNumber(stats.totalDownloads) },
+                { label: '本周新增', value: stats.weeklyNew },
               ].map(stat => (
                 <div key={stat.label} className="flex flex-col gap-1.5">
                   <p className="text-[10px] uppercase tracking-widest text-muted font-display">{stat.label}</p>
                   <span className="text-2xl md:text-3xl font-bold font-mono text-foreground">{typeof stat.value === 'number' ? stat.value : stat.value}</span>
-                  <p className="text-[11px] text-muted leading-snug">{stat.desc}</p>
                 </div>
               ))}
             </div>
@@ -226,43 +234,43 @@ export default function HomeClient({ stats, tabAssets }: HomeClientProps) {
       )}
       </section>
 
-      {/* ── 👥 Active Developers — Compact capsule layout ── */}
+      {/* ── 👥 Active Developers — Horizontal row layout ── */}
       {stats && stats.topDevelopers.length > 0 && (
         <section
           ref={developers.ref}
           className="section-light py-16 md:py-20"
         >
           <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ${developers.isVisible ? 'animate-fade-in-up' : 'opacity-0'}`}>
-            <div className="mb-8">
+            <div className="mb-6">
               <h2 className="text-2xl md:text-3xl font-semibold text-foreground/70">
                 社区热门贡献者
               </h2>
             </div>
 
-            {/* 2-row capsule grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            {/* Horizontal scrollable row of contributor pills */}
+            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
               {stats.topDevelopers.map(dev => (
                 <Link
                   key={dev.id}
                   href={`/user/${dev.id}`}
-                  className="group"
+                  className="group flex-shrink-0"
                 >
-                  <div className="flex items-center gap-3 px-4 py-3 rounded-full border border-card-border bg-white hover:border-blue/30 hover:shadow-sm transition-all duration-150">
+                  <div className="flex items-center gap-3 px-4 py-3 rounded-full border border-card-border bg-white hover:border-blue/30 hover:shadow-sm transition-all duration-150 min-w-[200px] sm:min-w-[220px]">
                     {/* Avatar */}
                     {dev.avatar && (dev.avatar.startsWith('http://') || dev.avatar.startsWith('https://')) ? (
                       <img src={dev.avatar} alt={dev.name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
                     ) : (
-                      <div className="w-10 h-10 rounded-full bg-surface flex items-center justify-center text-lg flex-shrink-0">
+                      <div className="w-10 h-10 rounded-full bg-surface flex items-center justify-center text-sm flex-shrink-0">
                         {dev.avatar || dev.name?.charAt(0) || '🐟'}
                       </div>
                     )}
-                    {/* Info */}
-                    <div className="min-w-0 flex-1">
+                    {/* Name + stats */}
+                    <div className="flex flex-col">
                       <p className="text-sm font-semibold truncate group-hover:text-blue transition-[color] duration-150">{dev.name}</p>
                       <div className="flex items-center gap-2 text-[11px] text-muted">
-                        <span>{dev.assetCount} 个资产</span>
+                        <span>{dev.assetCount ?? 0} 个资产</span>
                         <span className="text-muted/30">·</span>
-                        <span className="font-mono">{formatNumber(dev.totalDownloads)} ↓</span>
+                        <span className="font-mono">{dev.totalDownloads ?? 0} ↓</span>
                       </div>
                     </div>
                   </div>
@@ -286,7 +294,7 @@ export default function HomeClient({ stats, tabAssets }: HomeClientProps) {
               <p className="text-sm text-muted mt-2">社区最受欢迎的资产，按类型浏览</p>
             </div>
             <Link
-              href={currentTab?.type ? `/explore?type=${currentTab.type}` : '/explore'}
+              href={currentTab?.type ? `/explore?type=${currentTab.type}` : currentTab?.types ? `/explore?type=${currentTab.types[0]}` : '/explore'}
               className="text-sm text-muted hover:text-foreground transition-[color] duration-150 hidden sm:block"
             >
               查看全部 →
@@ -298,7 +306,9 @@ export default function HomeClient({ stats, tabAssets }: HomeClientProps) {
             <div className="md:w-56 flex-shrink-0">
               <div className="flex md:flex-col gap-1 overflow-x-auto md:overflow-x-visible scrollbar-hide">
                 {TABS.map(tab => {
-                  const count = tab.type ? (stats?.typeCounts?.[tab.type] ?? 0) : 0;
+                  const count = tab.types
+                    ? tab.types.reduce((sum, t) => sum + (stats?.typeCounts?.[t] ?? 0), 0)
+                    : tab.type ? (stats?.typeCounts?.[tab.type] ?? 0) : 0;
                   return (
                     <button
                       key={tab.key}
@@ -415,7 +425,7 @@ export default function HomeClient({ stats, tabAssets }: HomeClientProps) {
           {/* Mobile view-all link */}
           <div className="mt-8 text-center sm:hidden">
             <Link
-              href={currentTab?.type ? `/explore?type=${currentTab.type}` : '/explore'}
+              href={currentTab?.type ? `/explore?type=${currentTab.type}` : currentTab?.types ? `/explore?type=${currentTab.types[0]}` : '/explore'}
               className="text-sm text-muted hover:text-foreground transition-[color] duration-150"
             >
               查看全部 →
@@ -464,7 +474,7 @@ export default function HomeClient({ stats, tabAssets }: HomeClientProps) {
               一行命令接入水产市场，让 Agent 获得无限进化能力
             </p>
             <Link
-              href="/guide"
+              href="/explore"
               className="inline-flex items-center gap-2 px-10 py-4 rounded-full bg-foreground text-white font-semibold hover:bg-ink-light transition-[background-color] duration-150 text-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue/50 focus-visible:ring-offset-2"
             >
               立即接入 →
