@@ -35,13 +35,13 @@ export function recalculateHubScore(assetId: string): void {
 // ════════════════════════════════════════════
 
 export const USER_REP_EVENTS = {
-  publish_asset: 20,
-  asset_installed: 3,
-  write_comment: 2,
+  publish_asset: 1,
+  asset_installed: 5,
   submit_issue: 1,
-  asset_rated_good: 3,
-  invite_user: 10,
-  publish_version: 8,
+  invite_user: 5,
+  publish_version: 1,
+  asset_starred: 5,
+  github_star_synced: 2,
 } as const;
 
 export const SHRIMP_COIN_EVENTS = {
@@ -50,9 +50,9 @@ export const SHRIMP_COIN_EVENTS = {
   asset_installed: 10,
   write_comment: 3,
   submit_issue: 2,
-  asset_rated_5star: 5,
   invite_user: 20,
   publish_version: 20,
+  install_asset: -1,
 } as const;
 
 // ════════════════════════════════════════════
