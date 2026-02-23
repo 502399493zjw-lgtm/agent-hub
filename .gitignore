@@ -34,3 +34,5 @@ npm-debug.log*
 src/data/hub.db
 yarn-debug.log*
 yarn-error.log*
+data/hub-test.db.bak
+*.db.bak
