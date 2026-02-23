@@ -31,10 +31,10 @@ export function findUserById(id: string): DbUser | null {
 
 export function createUser(data: { id: string; email: string | null; name: string; avatar: string; provider: string; providerId: string; }): DbUser {
   const now = new Date().toISOString();
-  getDb().prepare(`INSERT INTO users (id,email,name,avatar,provider,provider_id,bio,invite_code,created_at,updated_at,reputation,shrimp_coins,onboarding_completed,provider_name,provider_avatar) VALUES (?,?,?,?,?,?,'',NULL,?,?,0,?,0,?,?)`).run(data.id, data.email, data.name, data.avatar, data.provider, data.providerId, now, now, SHRIMP_COIN_EVENTS.register, data.name, data.avatar);
+  getDb().prepare(`INSERT INTO users (id,email,name,avatar,provider,provider_id,bio,invite_code,created_at,updated_at,reputation,shrimp_coins,onboarding_completed,provider_name,provider_avatar) VALUES (?,?,?,?,?,?,'',NULL,?,?,0,0,0,?,?)`).run(data.id, data.email, data.name, data.avatar, data.provider, data.providerId, now, now, data.name, data.avatar);
 
-  // Record the welcome bonus in coin_events
-  addCoins(data.id, 'shrimp_coin', 0, 'register_bonus');
+  // Award register bonus via addCoins for proper audit trail
+  addCoins(data.id, 'shrimp_coin', SHRIMP_COIN_EVENTS.register, 'register');
 
   return findUserById(data.id)!;
 }
