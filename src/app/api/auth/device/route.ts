@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { findUserById, authorizeDevice, listAuthorizedDevices } from '@/lib/db';
+import { getDb } from '@/lib/db/connection';
 
 // GET — List my authorized devices
 export async function GET() {
@@ -54,11 +55,34 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// DELETE — Disabled. Device binding is permanent (admin operation only).
-// Kept as a stub to return a clear error message.
-export async function DELETE() {
-  return NextResponse.json(
-    { success: false, error: '设备绑定为永久绑定，不支持主动解绑。如需帮助请联系管理员。' },
-    { status: 403 }
-  );
+// DELETE — Unbind a specific device
+export async function DELETE(request: NextRequest) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
+    }
+
+    const body = await request?.json().catch(() => ({})) as { deviceId?: string };
+    const deviceId = body.deviceId;
+    if (!deviceId) {
+      return NextResponse.json({ success: false, error: 'Missing deviceId' }, { status: 400 });
+    }
+
+    const db = getDb();
+    const deleted = db.prepare('DELETE FROM authorized_devices WHERE user_id = ? AND device_id = ?')
+      .run(session.user.id, deviceId).changes > 0;
+
+    if (!deleted) {
+      return NextResponse.json({ success: false, error: '设备未找到或不属于当前用户' }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: { message: '设备已解绑' },
+    });
+  } catch (err) {
+    console.error('DELETE /api/auth/device error:', err);
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+  }
 }

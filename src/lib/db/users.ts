@@ -70,8 +70,23 @@ export function createUser(data: { id: string; email: string | null; name: strin
 }
 
 export function softDeleteUser(id: string): boolean {
+  const db = getDb();
   const now = new Date().toISOString();
-  return getDb().prepare('UPDATE users SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL').run(now, now, id).changes > 0;
+
+  // 1. Set deleted_at on user row
+  const updated = db.prepare('UPDATE users SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL').run(now, now, id).changes > 0;
+  if (!updated) return false;
+
+  // 2. Clear OAuth binding so the external account can re-register
+  db.prepare('UPDATE users SET provider_id = NULL WHERE id = ?').run(id);
+
+  // 3. Remove all authorized devices (unbind)
+  db.prepare('DELETE FROM authorized_devices WHERE user_id = ?').run(id);
+
+  // 4. Revoke all API keys
+  db.prepare("UPDATE api_keys SET revoked = 1 WHERE user_id = ? AND revoked = 0").run(id);
+
+  return true;
 }
 
 export function completeOnboarding(userId: string, data: { name: string; avatar: string }): boolean {

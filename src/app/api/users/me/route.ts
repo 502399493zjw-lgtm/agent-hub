@@ -3,13 +3,10 @@ import { auth } from '@/lib/auth';
 import { softDeleteUser, findUserById } from '@/lib/db';
 
 /**
- * DELETE /api/users/me — Soft-delete the current user's account.
+ * DELETE /api/users/me — 注销当前账号（Web Session 专用）
  *
- * - Clears OAuth binding (provider_id) so the external account can re-register
- * - Revokes all API keys
- * - Removes authorized devices
- * - Sets deleted_at timestamp
- * - Does NOT delete the user row or their published assets
+ * 完整注销流程：软删除 + OAuth 解绑 + 设备解绑 + API Key 撤销
+ * 已发布的资产保留，不删除。
  */
 export async function DELETE() {
   const session = await auth();
@@ -31,5 +28,8 @@ export async function DELETE() {
     return NextResponse.json({ success: false, error: '注销失败，请重试' }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true, message: '账号已注销' });
+  return NextResponse.json({
+    success: true,
+    message: '账号已注销。设备已解绑，API Key 已撤销，OAuth 已解除关联。',
+  });
 }
