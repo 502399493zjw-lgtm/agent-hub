@@ -161,6 +161,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         allowDangerousEmailAccountLinking: true,
       }),
       token: 'https://github-oauth.openclawmp.cc/login/oauth/access_token',
+      // Force client_secret_post: send credentials in body instead of
+      // Authorization: Basic header. The Worker proxy doesn't forward
+      // auth headers, causing GitHub to return 404 with Basic auth.
+      client: { token_endpoint_auth_method: 'client_secret_post' },
     },
     // Google OAuth removed — ECS in China cannot reach Google servers
     // Feishu OAuth — UI entry removed (self-built app can't cross tenants)
