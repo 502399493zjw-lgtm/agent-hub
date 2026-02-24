@@ -32,7 +32,7 @@ function RegisterContent() {
   }, []);
 
   // Poll session to detect magic-link auth in another tab
-  const pollRef = useRef<ReturnType<typeof setInterval>>();
+  const pollRef = useRef<ReturnType<typeof setInterval>>(undefined);
   useEffect(() => {
     if (!emailSent) return;
     pollRef.current = setInterval(async () => {
@@ -207,6 +207,17 @@ function RegisterContent() {
                   请检查你的邮箱 <span className="font-medium text-foreground">{email || '收件箱'}</span>，
                   点击邮件中的链接完成注册。
                 </p>
+
+                {/* Cross-device hint */}
+                <div className="mx-auto max-w-sm px-4 py-3 rounded-lg bg-amber-50 border border-amber-200 text-left space-y-1.5">
+                  <p className="text-xs font-medium text-amber-800">
+                    在手机上打开的邮件？
+                  </p>
+                  <p className="text-xs text-amber-700 leading-relaxed">
+                    点击邮件中的链接注册后，复制浏览器地址栏的链接，粘贴到当前电脑浏览器访问即可同步登录。
+                  </p>
+                </div>
+
                 <p className="text-xs text-muted">没收到？检查垃圾邮件文件夹，或</p>
                 <button
                   onClick={() => { setEmailSent(false); setEmail(''); }}
