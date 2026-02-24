@@ -13,7 +13,7 @@ type TabId = 'overview' | 'files' | 'versions' | 'issues' | 'comments' | 'depend
 
 function AuthorAvatar({ src, size = 'md' }: { src: string; size?: 'sm' | 'md' | 'lg' }) {
   const sizeClass = size === 'sm' ? 'w-5 h-5' : size === 'lg' ? 'w-10 h-10' : 'w-7 h-7';
-  if (src.startsWith('http')) {
+  if (src.startsWith('http') || src.startsWith('/api/avatars/') || src.startsWith('data:')) {
     return <img src={src} alt="" className={`${sizeClass} rounded-full object-cover`} />;
   }
   return <span className={size === 'sm' ? 'text-base' : size === 'lg' ? 'text-2xl' : 'text-xl'}>{src}</span>;

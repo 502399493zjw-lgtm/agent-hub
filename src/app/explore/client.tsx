@@ -12,7 +12,7 @@ const sortOptions = [
 ];
 
 function AuthorAvatar({ src, name }: { src: string; name: string }) {
-  if (src?.startsWith('http') || src?.startsWith('/api/avatars/')) {
+  if (src?.startsWith('http') || src?.startsWith('/api/avatars/') || src?.startsWith('data:')) {
     return <img src={src} alt={name} className="w-5 h-5 rounded-full object-cover border border-card-border" />;
   }
   return (

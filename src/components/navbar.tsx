@@ -59,7 +59,7 @@ export function Navbar() {
   // Render user avatar (img or emoji fallback)
   const UserAvatar = ({ size = 'sm' }: { size?: 'sm' | 'md' }) => {
     const sizeClass = size === 'md' ? 'w-8 h-8' : 'w-6 h-6';
-    if (user?.avatar && user.avatar.startsWith('http')) {
+    if (user?.avatar && (user.avatar.startsWith('http') || user.avatar.startsWith('data:'))) {
       return (
         <img
           src={user.avatar}

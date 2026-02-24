@@ -138,7 +138,7 @@ function ProfileAvatar({ src, name, userId, size = 'xl' }: { src: string; name: 
   const sizeClass = size === 'xl' ? 'w-28 h-28' : 'w-20 h-20';
   const px = size === 'xl' ? 112 : 80;
 
-  if (src?.startsWith('http') || src?.startsWith('/api/avatars/')) {
+  if (src?.startsWith('http') || src?.startsWith('/api/avatars/') || src?.startsWith('data:')) {
     return (
       <img
         src={src}

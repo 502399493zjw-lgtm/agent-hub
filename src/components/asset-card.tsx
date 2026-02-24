@@ -8,7 +8,7 @@ import { LetterAvatar } from '@/components/letter-avatar';
 function AuthorAvatar({ src, name, authorId, size = 'sm' }: { src: string; name: string; authorId: string; size?: 'sm' | 'md' }) {
   const sizeClass = size === 'sm' ? 'w-5 h-5' : 'w-7 h-7';
   const px = size === 'sm' ? 20 : 28;
-  if (src?.startsWith('http') || src?.startsWith('/api/avatars/')) {
+  if (src?.startsWith('http') || src?.startsWith('/api/avatars/') || src?.startsWith('data:')) {
     return <img src={src} alt="" className={`${sizeClass} rounded-full object-cover`} />;
   }
   return <LetterAvatar name={name} userId={authorId} size={px} className="rounded-full" />;

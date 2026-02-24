@@ -387,7 +387,7 @@ export default function HomeClient({ stats, tabAssets }: HomeClientProps) {
                           {/* Author: avatar + name */}
                           <div className="flex items-center gap-2 mb-2">
                             <div className="flex-shrink-0">
-                              {asset.author.avatar && (asset.author.avatar.startsWith('http') || asset.author.avatar.startsWith('/api/avatars/')) ? (
+                              {asset.author.avatar && (asset.author.avatar.startsWith('http') || asset.author.avatar.startsWith('/api/avatars/') || asset.author.avatar.startsWith('data:')) ? (
                                 <img src={asset.author.avatar} alt={asset.author.name} className="w-5 h-5 rounded-full object-cover border border-card-border" />
                               ) : (
                                 <div className="w-5 h-5 rounded-full bg-surface border border-card-border flex items-center justify-center text-[10px]">
