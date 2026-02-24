@@ -7,7 +7,7 @@ import { Suspense, useState, useEffect } from 'react';
 
 function RegisterContent() {
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get('callbackUrl') || '/';
+  const callbackUrl = searchParams.get('callbackUrl') || '/settings?section=devices';
   const error = searchParams.get('error');
   const codeParam = searchParams.get('code');
 

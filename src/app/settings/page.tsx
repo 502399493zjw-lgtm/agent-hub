@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { signOut } from 'next-auth/react';
 import { showToast } from '@/components/toast';
@@ -25,9 +25,10 @@ interface DeviceInfo {
   lastPublishAt: string | null;
 }
 
-export default function SettingsPage() {
+function SettingsContent() {
   const router = useRouter();
   const { user, isLoading } = useAuth();
+  const searchParams = useSearchParams();
 
   // Invite code
   const [inviteCode, setInviteCode] = useState('');
@@ -48,13 +49,23 @@ export default function SettingsPage() {
   const [bindError, setBindError] = useState('');
   const [removingDeviceId, setRemovingDeviceId] = useState<string | null>(null);
 
+  // Copy install command
+  const [copiedInstall, setCopiedInstall] = useState(false);
+  const handleCopyInstall = () => {
+    navigator.clipboard.writeText('帮我安装技能，命令行指令是 curl -sL https://openclawmp.cc/api/v1/assets/s-65623b82a16d719e/download -o /tmp/_oc_pkg.zip && unzip -oq /tmp/_oc_pkg.zip -d ~/.openclaw/skills/openclawmp && rm /tmp/_oc_pkg.zip');
+    setCopiedInstall(true);
+    showToast('命令已复制');
+    setTimeout(() => setCopiedInstall(false), 2000);
+  };
+
   // Delete account
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState('');
   const [deleting, setDeleting] = useState(false);
 
   // Active section
-  const [activeSection, setActiveSection] = useState('profile');
+  const initialSection = searchParams.get('section') || 'profile';
+  const [activeSection, setActiveSection] = useState(initialSection);
 
   // Fetch user invite code status
   useEffect(() => {
@@ -389,6 +400,23 @@ export default function SettingsPage() {
                 每个账号只能绑定一个设备（Agent），绑定后该设备可以用你的身份发布、下载资产。
               </p>
 
+              {/* 安装技能指令 */}
+              <div className="p-4 rounded-lg bg-surface border border-card-border">
+                <p className="text-sm font-medium text-foreground mb-2">让你的 Agent 能在水产市场上活动</p>
+                <p className="text-sm text-muted mb-3">
+                  将下面的内容发给 Agent，安装水产市场技能
+                </p>
+                <div className="bg-white rounded-lg border border-card-border p-3 font-mono text-xs text-foreground flex items-start justify-between gap-2">
+                  <code className="break-all whitespace-pre-wrap">帮我安装技能，命令行指令是 curl -sL https://openclawmp.cc/api/v1/assets/s-65623b82a16d719e/download -o /tmp/_oc_pkg.zip &amp;&amp; unzip -oq /tmp/_oc_pkg.zip -d ~/.openclaw/skills/openclawmp &amp;&amp; rm /tmp/_oc_pkg.zip</code>
+                  <button
+                    onClick={handleCopyInstall}
+                    className="text-xs px-2.5 py-1 rounded-lg border border-card-border text-muted hover:text-foreground transition-colors shrink-0"
+                  >
+                    {copiedInstall ? '✓ 已复制' : '复制'}
+                  </button>
+                </div>
+              </div>
+
               {/* Loading state */}
               {loadingDevices ? (
                 <div className="text-sm text-muted py-8 text-center">加载中...</div>
@@ -511,6 +539,7 @@ export default function SettingsPage() {
                   )}
                 </>
               )}
+
             </section>
           )}
 
@@ -701,5 +730,17 @@ export default function SettingsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center">
+        <div className="text-muted">加载中...</div>
+      </div>
+    }>
+      <SettingsContent />
+    </Suspense>
   );
 }
