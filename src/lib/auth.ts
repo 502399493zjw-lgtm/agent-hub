@@ -52,7 +52,7 @@ const minimalAdapter: Adapter = {
       email: data.email ?? null,
       name: data.name ?? data.email?.split('@')[0] ?? 'Anonymous',
       avatar: data.image ?? '',
-      provider: 'email',
+      provider: 'resend',
       providerId: data.email ?? id,
     });
     // Auto-activate invite code for new email user
@@ -289,6 +289,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
       if (!dbUser && token.provider && token.providerId) {
         dbUser = findUserByProvider(token.provider as string, token.providerId as string);
+        // Fallback: old email users stored provider='email' but NextAuth uses 'resend'
+        if (!dbUser && token.provider === 'resend') {
+          dbUser = findUserByProvider('email', token.providerId as string);
+        }
       }
       // Fallback: look up by email for email-based login
       if (!dbUser && session.user.email) {

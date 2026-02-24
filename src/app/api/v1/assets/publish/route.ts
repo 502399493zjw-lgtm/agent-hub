@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAsset, getAssetById, updateAsset, findUserById, getDb } from '@/lib/db';
 import { addCoins, USER_REP_EVENTS, SHRIMP_COIN_EVENTS } from '@/lib/db/economy';
 import { authenticateAndCheckBan, unauthorizedResponse, bannedResponse, inviteRequiredResponse } from '@/lib/api-auth';
+import { computePackageSha256, findDuplicateByHash, findSimilarAssets } from '@/lib/dedup';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
@@ -339,20 +340,74 @@ export async function POST(request: NextRequest) {
     const finalDescription = metadata.description || validation.extractedDescription || '';
     const finalReadme = metadata.readme || validation.extractedReadme || '';
 
+    // ─── Dedup L2: Package SHA256 fingerprint check ─────────────────────
+
+    const packageSha256 = computePackageSha256(packageFile.buffer);
+
+    // For updates, find the existing asset ID to exclude from dedup check
+    const db = getDb();
+    const existingAssets = db.prepare('SELECT id FROM assets WHERE name = ? AND author_id = ?').all(name, authResult.userId) as { id: string }[];
+    const existingId = existingAssets.length > 0 ? existingAssets[0].id : undefined;
+
+    const hashDuplicate = findDuplicateByHash(packageSha256, existingId);
+    if (hashDuplicate) {
+      return NextResponse.json({
+        success: false,
+        error: 'duplicate_package',
+        message: '此资产包已由其他用户发布，内容完全相同（SHA256 匹配）。',
+        duplicate: {
+          assetId: hashDuplicate.assetId,
+          assetName: hashDuplicate.assetName,
+          authorName: hashDuplicate.authorName,
+        },
+      }, { status: 400 });
+    }
+
+    // ─── Dedup L3: Content similarity check ─────────────────────────────
+
+    const warnings: string[] = [];
+
+    if (finalReadme) {
+      const similarAssets = findSimilarAssets(type, finalReadme, existingId);
+
+      // Check for near-identical content (>95% similarity) → reject
+      const tooSimilar = similarAssets.filter(a => a.similarity > 0.95);
+      if (tooSimilar.length > 0) {
+        const top = tooSimilar[0];
+        return NextResponse.json({
+          success: false,
+          error: 'content_too_similar',
+          message: `资产内容与已有资产过于相似（相似度 ${(top.similarity * 100).toFixed(1)}%），疑似重复发布。`,
+          similar: tooSimilar.map(a => ({
+            assetId: a.assetId,
+            assetName: a.assetName,
+            authorName: a.authorName,
+            similarity: `${(a.similarity * 100).toFixed(1)}%`,
+          })),
+        }, { status: 400 });
+      }
+
+      // Check for moderate similarity (80%-95%) → warn but allow
+      const moderatelySimilar = similarAssets.filter(a => a.similarity > 0.8 && a.similarity <= 0.95);
+      if (moderatelySimilar.length > 0) {
+        for (const a of moderatelySimilar) {
+          warnings.push(
+            `内容与「${a.assetName}」（by ${a.authorName}）相似度 ${(a.similarity * 100).toFixed(1)}%，请确认非重复发布。`
+          );
+        }
+      }
+    }
+
     // ─── Save to DB ─────────────────────────────────────────────────────
 
     const filesMetadata = packageFilesMetadata.length > 0
       ? packageFilesMetadata
       : uploadedFiles.filter(f => f.path !== (packageFile ? `pkg.${packageFile.ext}` : '')).map(f => ({ path: f.path, size: f.size, sha256: f.sha256, contentType: f.contentType }));
 
-    const db = getDb();
-    const existingAssets = db.prepare('SELECT id FROM assets WHERE name = ? AND author_id = ?').all(name, authResult.userId) as { id: string }[];
-
     let asset;
 
     if (existingAssets.length > 0) {
-      const existingId = existingAssets[0].id;
-      updateAsset(existingId, {
+      updateAsset(existingId!, {
         displayName: finalDisplayName,
         description: finalDescription,
         version,
@@ -361,11 +416,12 @@ export async function POST(request: NextRequest) {
         longDescription: metadata.longDescription,
         readme: finalReadme,
         files: filesMetadata as unknown as Array<{ name: string; type: string }>,
+        packageSha256,
       });
-      asset = getAssetById(existingId)!;
+      asset = getAssetById(existingId!)!;
 
-      addCoins(authResult.userId, 'reputation', USER_REP_EVENTS.publish_version, 'publish_version', existingId);
-      addCoins(authResult.userId, 'shrimp_coin', SHRIMP_COIN_EVENTS.publish_version, 'publish_version', existingId);
+      addCoins(authResult.userId, 'reputation', USER_REP_EVENTS.publish_version, 'publish_version', existingId!);
+      addCoins(authResult.userId, 'shrimp_coin', SHRIMP_COIN_EVENTS.publish_version, 'publish_version', existingId!);
     } else {
       asset = createAsset({
         name,
@@ -381,6 +437,7 @@ export async function POST(request: NextRequest) {
         longDescription: metadata.longDescription,
         readme: finalReadme,
         configSubtype: metadata.configSubtype,
+        packageSha256,
       });
       if (filesMetadata.length > 0) {
         updateAsset(asset.id, { files: filesMetadata as unknown as Array<{ name: string; type: string }> });
@@ -394,7 +451,7 @@ export async function POST(request: NextRequest) {
       fs.writeFileSync(packagePath, packageFile.buffer);
     }
 
-    return NextResponse.json({
+    const response: Record<string, unknown> = {
       success: true,
       data: {
         id: asset.id,
@@ -403,7 +460,14 @@ export async function POST(request: NextRequest) {
         files: filesMetadata,
         packageFile: packageFile ? `${asset.id}.${packageFile.ext}` : null,
       },
-    }, { status: existingAssets.length > 0 ? 200 : 201 });
+    };
+
+    // Attach warnings if any (L3 moderate similarity)
+    if (warnings.length > 0) {
+      response.warnings = warnings;
+    }
+
+    return NextResponse.json(response, { status: existingAssets.length > 0 ? 200 : 201 });
   } catch (err) {
     console.error('POST /api/v1/assets/publish error:', err instanceof Error ? err.message : 'Unknown');
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });

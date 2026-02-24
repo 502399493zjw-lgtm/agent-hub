@@ -195,6 +195,8 @@ export function createAsset(data: {
   githubUrl?: string; githubStars?: number; githubForks?: number; githubLanguage?: string; githubLicense?: string;
   /** Skip coin rewards (e.g. for GitHub imports where user didn't manually publish) */
   skipCoinReward?: boolean;
+  /** SHA256 hash of the uploaded package file (for dedup) */
+  packageSha256?: string;
 }): Asset {
   const db = getDb();
   const typePrefixes: Record<string, string> = { skill: 's', config: 'c', plugin: 'p', trigger: 'tr', channel: 'ch', template: 't' };
@@ -223,7 +225,7 @@ export function createAsset(data: {
     githubLanguage: data.githubLanguage, githubLicense: data.githubLicense,
   };
   const row = assetToRow(asset);
-  db.prepare(`INSERT INTO assets (id,name,display_name,type,author_id,author_name,author_avatar,description,long_description,version,downloads,rating,rating_count,tags,category,created_at,updated_at,install_command,readme,versions,dependencies,issue_count,config_subtype,hub_score,hub_score_breakdown,upgrade_rate,compatibility,files,github_url,github_stars,github_forks,github_language,github_license,github_synced_at) VALUES (@id,@name,@display_name,@type,@author_id,@author_name,@author_avatar,@description,@long_description,@version,@downloads,@rating,@rating_count,@tags,@category,@created_at,@updated_at,@install_command,@readme,@versions,@dependencies,@issue_count,@config_subtype,@hub_score,@hub_score_breakdown,@upgrade_rate,@compatibility,@files,@github_url,@github_stars,@github_forks,@github_language,@github_license,@github_synced_at)`).run({ ...row, github_url: data.githubUrl ?? '', github_stars: data.githubStars ?? 0, github_forks: data.githubForks ?? 0, github_language: data.githubLanguage ?? '', github_license: data.githubLicense ?? '', github_synced_at: data.githubUrl ? new Date().toISOString() : '' });
+  db.prepare(`INSERT INTO assets (id,name,display_name,type,author_id,author_name,author_avatar,description,long_description,version,downloads,rating,rating_count,tags,category,created_at,updated_at,install_command,readme,versions,dependencies,issue_count,config_subtype,hub_score,hub_score_breakdown,upgrade_rate,compatibility,files,github_url,github_stars,github_forks,github_language,github_license,github_synced_at,package_sha256) VALUES (@id,@name,@display_name,@type,@author_id,@author_name,@author_avatar,@description,@long_description,@version,@downloads,@rating,@rating_count,@tags,@category,@created_at,@updated_at,@install_command,@readme,@versions,@dependencies,@issue_count,@config_subtype,@hub_score,@hub_score_breakdown,@upgrade_rate,@compatibility,@files,@github_url,@github_stars,@github_forks,@github_language,@github_license,@github_synced_at,@package_sha256)`).run({ ...row, github_url: data.githubUrl ?? '', github_stars: data.githubStars ?? 0, github_forks: data.githubForks ?? 0, github_language: data.githubLanguage ?? '', github_license: data.githubLicense ?? '', github_synced_at: data.githubUrl ? new Date().toISOString() : '', package_sha256: data.packageSha256 ?? '' });
 
   // Award coins to publisher (skip for imports / non-user actions)
   if (data.authorId && !data.skipCoinReward) {
@@ -239,6 +241,8 @@ export function updateAsset(id: string, data: Partial<{
   version: string; tags: string[]; category: string; readme: string;
   files: Array<{ name: string; type: string; size?: number; children?: unknown[]; content?: string }>;
   githubUrl: string; githubStars: number; githubForks: number; githubLanguage: string; githubLicense: string;
+  /** SHA256 hash of the uploaded package file (for dedup) */
+  packageSha256: string;
 }>): Asset | null {
   const db = getDb();
   const existing = db.prepare('SELECT * FROM assets WHERE id = ?').get(id) as DbRow | undefined;
@@ -260,6 +264,7 @@ export function updateAsset(id: string, data: Partial<{
   if (data.githubLanguage !== undefined) { updates.push('github_language = @ghl'); bindings.ghl = data.githubLanguage; }
   if (data.githubLicense !== undefined) { updates.push('github_license = @ghli'); bindings.ghli = data.githubLicense; }
   if (data.githubUrl !== undefined) { updates.push('github_synced_at = @ghsa'); bindings.ghsa = new Date().toISOString(); }
+  if (data.packageSha256 !== undefined) { updates.push('package_sha256 = @psha'); bindings.psha = data.packageSha256; }
   updates.push('updated_at = @ua'); bindings.ua = new Date().toISOString().split('T')[0];
   db.prepare(`UPDATE assets SET ${updates.join(', ')} WHERE id = @id`).run(bindings);
   return rowToAsset(db.prepare('SELECT * FROM assets WHERE id = ?').get(id) as DbRow);

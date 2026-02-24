@@ -220,6 +220,12 @@ export function initTables(db: import('better-sqlite3').Database): void {
     db.exec(`ALTER TABLE users ADD COLUMN banned_by TEXT`);
   }
 
+  // Migration: add package_sha256 column to assets (for dedup L2)
+  if (!hasColumn('assets', 'package_sha256')) {
+    db.exec(`ALTER TABLE assets ADD COLUMN package_sha256 TEXT NOT NULL DEFAULT ''`);
+  }
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_assets_sha256 ON assets(package_sha256)`);
+
   // Star system: user_stars table
   db.exec(`
     CREATE TABLE IF NOT EXISTS user_stars (
