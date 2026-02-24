@@ -2,11 +2,12 @@
 
 import { signIn } from 'next-auth/react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
-import { Suspense, useState } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { Suspense, useState, useEffect, useRef } from 'react';
 
 function LoginContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const callbackUrl = searchParams.get('callbackUrl') || '/';
   const error = searchParams.get('error');
   const verify = searchParams.get('verify');
@@ -15,6 +16,23 @@ function LoginContent() {
   const [email, setEmail] = useState('');
   const [emailSending, setEmailSending] = useState(false);
   const [emailSent, setEmailSent] = useState(!!verify);
+
+  // Poll session to detect magic-link auth in another tab
+  const pollRef = useRef<ReturnType<typeof setInterval>>();
+  useEffect(() => {
+    if (!emailSent) return;
+    pollRef.current = setInterval(async () => {
+      try {
+        const res = await fetch('/api/auth/session');
+        const data = await res.json();
+        if (data?.user) {
+          clearInterval(pollRef.current);
+          router.push(callbackUrl);
+        }
+      } catch { /* ignore */ }
+    }, 2000);
+    return () => clearInterval(pollRef.current);
+  }, [emailSent, callbackUrl, router]);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
