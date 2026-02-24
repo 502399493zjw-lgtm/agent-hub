@@ -209,13 +209,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           tryAutoApproveCliAuth(existing.id, qualifyDeviceId);
           return true;
         }
-        // New user via email → must come through register flow with invite code
-        // Use peek (non-destructive) — the adapter's createUser will consume it
+        // New user via email → auto-create (open registration after DB loss incident)
+        // If invite code provided and valid, activate it; otherwise just create without invite
         const effectiveInviteCode = inviteCode || (user.email ? peekPendingEmailInvite(user.email) : null);
-        if (!effectiveInviteCode) return '/login?error=not_registered';
-        const validation = validateInviteCode(effectiveInviteCode);
-        if (!validation.valid) return '/register?error=invite_required';
-        // User will be created by the adapter's createUser; it will consume the stash and activate invite
+        if (effectiveInviteCode) {
+          const validation = validateInviteCode(effectiveInviteCode);
+          if (!validation.valid) {
+            console.log('[auth] signIn email: invalid invite code, proceeding without invite');
+          }
+        }
+        // User will be created by the adapter's createUser
         return true;
       }
 
