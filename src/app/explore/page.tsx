@@ -2,7 +2,7 @@ import { listAssetsCompact, getAssetCountByType, getAssetCountByCategory, getTot
 import ExploreClientPage from './client';
 import type { Metadata } from 'next';
 
-export const revalidate = 60;
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: '探索 Agent 资产 — 水产市场',
