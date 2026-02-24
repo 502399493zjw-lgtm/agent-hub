@@ -82,27 +82,19 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { invite_code, device_id, device_name } = body;
 
-    if (!invite_code || typeof invite_code !== 'string') {
-      return NextResponse.json(
-        { success: false, error: 'missing_invite_code', message: '请提供邀请码。' },
-        { status: 400 }
-      );
-    }
-
-    const codeStr = invite_code.trim().toUpperCase();
-
-    // Validate invite code (does NOT consume it)
-    const validation = validateInviteCode(codeStr);
-    if (!validation.valid) {
-      return NextResponse.json(
-        { success: false, error: 'invalid_invite_code', message: validation.error || '邀请码无效或已用完。' },
-        { status: 403 }
-      );
+    // Invite code is now optional — open registration via OAuth
+    let codeStr = '';
+    let codeValid = false;
+    if (invite_code && typeof invite_code === 'string') {
+      codeStr = invite_code.trim().toUpperCase();
+      const validation = validateInviteCode(codeStr);
+      codeValid = !!validation.valid;
     }
 
     // Generate qualification token (10 min TTL)
+    // Pass invite code only if valid; otherwise create token without invite
     const qt = createQualificationToken(
-      codeStr,
+      codeValid ? codeStr : '',
       typeof device_id === 'string' ? device_id : undefined,
       typeof device_name === 'string' ? device_name : undefined,
     );
@@ -127,7 +119,7 @@ export async function POST(request: NextRequest) {
       expires_in: 600,
       available_methods: methods,
       ...(pollCode ? { poll_code: pollCode, poll_url: pollUrl } : {}),
-      message: '邀请码有效！请选择以下方式之一完成注册。',
+      message: codeValid ? '邀请码有效！请选择以下方式之一完成注册。' : '请选择以下方式之一完成登录/注册。',
       agent_hint: pollCode
         ? '引导用户打开 auth_url 完成 OAuth 注册，然后轮询 poll_url 等待 authorized 状态。'
         : '根据 available_methods 引导用户选择登录方式。OAuth 类型需要在浏览器打开 auth_url；email 类型需要用户提供邮箱地址。',

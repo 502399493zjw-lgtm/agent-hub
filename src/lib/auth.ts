@@ -193,7 +193,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       const providerId = account.providerAccountId;
 
       // Read invite code from cookie (set during register page step 1)
-      const inviteCode = await getInviteCodeFromCookie();
+      let inviteCode = await getInviteCodeFromCookie();
       // Read qualification_token cookie to auto-approve CLI auth
       const qualifyDeviceId = await getQualificationDeviceId();
 
@@ -235,12 +235,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         return true;
       }
 
-      // New user via OAuth → must come through register flow with invite code
-      if (!inviteCode) return '/login?error=not_registered';
-      const validation = validateInviteCode(inviteCode);
-      if (!validation.valid) return '/register?error=invite_required';
+      // New user via OAuth → auto-create account (open registration)
+      // If invite code provided and valid, activate it; otherwise just create without invite
+      if (inviteCode) {
+        const validation = validateInviteCode(inviteCode);
+        if (!validation.valid) {
+          // Bad invite code → still create user, just skip activation
+          console.log('[auth] signIn: invalid invite code, creating user without invite');
+          inviteCode = '';
+        }
+      }
 
-      // New user registration with valid invite code
       const newUserId = generateUserId();
       const newAvatar = (oauthProfile as Record<string, unknown>)?.picture as string
         || (oauthProfile as Record<string, unknown>)?.image as string
@@ -254,8 +259,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         providerId,
       });
 
-      // Activate invite code for new user
-      activateInviteCode(newUserId, inviteCode);
+      // Activate invite code for new user (if provided)
+      if (inviteCode) {
+        activateInviteCode(newUserId, inviteCode);
+      }
 
       // Auto-approve CLI auth if qualify flow created one
       tryAutoApproveCliAuth(newUserId, qualifyDeviceId);
@@ -306,6 +313,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.image = dbUser.avatar;
         session.user.provider = dbUser.provider;
         session.user.inviteCode = dbUser.invite_code;
+      } else {
+        // User not found in DB (data loss / deleted) → invalidate session
+        // Frontend SessionProvider will detect unauthenticated and show login state
+        console.log('[auth] session: dbUser not found, invalidating session. provider:', token.provider, 'providerId:', token.providerId);
+        return { ...session, user: undefined as unknown as typeof session.user, expires: new Date(0).toISOString() };
       }
 
       return session;
