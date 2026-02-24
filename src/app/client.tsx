@@ -194,24 +194,38 @@ export default function HomeClient({ stats, tabAssets }: HomeClientProps) {
               <p className="text-base text-foreground/60 mb-3 animate-fade-in-up animate-delay-200">
                 把下面的指令发给 Agent，将 Ta 加入水产市场
               </p>
-              <div className="inline-flex items-center gap-3 px-5 py-3 rounded-full bg-surface/60 border border-card-border/50 animate-fade-in-up animate-delay-300 max-w-md">
-                <div className="overflow-x-auto scrollbar-hide">
-                  <code className="text-xs font-mono text-muted/50 whitespace-nowrap">帮我安装技能，命令行指令是 curl -sL https://openclawmp.cc/api/v1/assets/s-65623b82a16d719e/download -o /tmp/_oc_pkg.zip &amp;&amp; unzip -oq /tmp/_oc_pkg.zip -d ~/.openclaw/skills/openclawmp &amp;&amp; rm /tmp/_oc_pkg.zip</code>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText('帮我安装技能，命令行指令是 curl -sL https://openclawmp.cc/api/v1/assets/s-65623b82a16d719e/download -o /tmp/_oc_pkg.zip && unzip -oq /tmp/_oc_pkg.zip -d ~/.openclaw/skills/openclawmp && rm /tmp/_oc_pkg.zip')
+                    .then(() => showToast('已复制到剪贴板'))
+                    .catch(() => showToast('复制失败，请手动复制'));
+                }}
+                className="flex items-center gap-3 px-4 sm:px-5 py-3 rounded-2xl sm:rounded-full bg-surface/60 border border-card-border/50 animate-fade-in-up animate-delay-300 max-w-full sm:max-w-lg cursor-pointer hover:bg-surface/80 active:bg-surface transition-colors duration-150 text-left"
+                aria-label="点击复制安装命令"
+              >
+                <div className="flex-1 min-w-0 overflow-hidden">
+                  <code className="text-xs font-mono text-muted/50 whitespace-nowrap block overflow-x-auto scrollbar-hide pointer-events-none">帮我安装技能，命令行指令是 curl -sL https://openclawmp.cc/api/v1/assets/s-65623b82a16d719e/download -o /tmp/_oc_pkg.zip &amp;&amp; unzip -oq /tmp/_oc_pkg.zip -d ~/.openclaw/skills/openclawmp &amp;&amp; rm /tmp/_oc_pkg.zip</code>
                 </div>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText('帮我安装技能，命令行指令是 curl -sL https://openclawmp.cc/api/v1/assets/s-65623b82a16d719e/download -o /tmp/_oc_pkg.zip && unzip -oq /tmp/_oc_pkg.zip -d ~/.openclaw/skills/openclawmp && rm /tmp/_oc_pkg.zip')
-                      .then(() => showToast('已复制到剪贴板'))
-                      .catch(() => showToast('复制失败，请手动复制'));
-                  }}
-                  className="p-1 rounded-md text-muted hover:text-foreground transition-[color] duration-150 shrink-0"
-                  aria-label="复制完整命令"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <span className="shrink-0 text-muted hidden sm:block">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                   </svg>
-                </button>
-              </div>
+                </span>
+              </button>
+              {/* Mobile: explicit copy button below the command bar */}
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText('帮我安装技能，命令行指令是 curl -sL https://openclawmp.cc/api/v1/assets/s-65623b82a16d719e/download -o /tmp/_oc_pkg.zip && unzip -oq /tmp/_oc_pkg.zip -d ~/.openclaw/skills/openclawmp && rm /tmp/_oc_pkg.zip')
+                    .then(() => showToast('已复制到剪贴板'))
+                    .catch(() => showToast('复制失败，请手动复制'));
+                }}
+                className="sm:hidden mt-3 inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-foreground/10 hover:bg-foreground/15 active:bg-foreground/20 text-foreground/70 text-sm font-medium transition-colors duration-150 animate-fade-in-up animate-delay-300"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                复制安装指令
+              </button>
             </div>
           </div>
         </div>

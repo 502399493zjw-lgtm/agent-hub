@@ -77,7 +77,7 @@ export function getStats(): StatsData {
   return getCached('stats', 30_000, () => {
     const db = getDb();
     const totalAssets = (db.prepare('SELECT COUNT(*) as cnt FROM assets').get() as { cnt: number }).cnt;
-    const totalDevelopers = (db.prepare("SELECT COUNT(DISTINCT author_id) as cnt FROM assets WHERE author_id != ''").get() as { cnt: number }).cnt;
+    const totalDevelopers = (db.prepare("SELECT COUNT(*) as cnt FROM users").get() as { cnt: number }).cnt;
     const totalDownloads = (db.prepare('SELECT COALESCE(SUM(downloads), 0) as total FROM assets').get() as { total: number }).total;
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const weeklyNew = (db.prepare('SELECT COUNT(*) as cnt FROM assets WHERE created_at >= ?').get(sevenDaysAgo) as { cnt: number }).cnt;

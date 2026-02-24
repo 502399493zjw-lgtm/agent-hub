@@ -152,11 +152,16 @@ function tryAutoApproveCliAuth(userId: string, deviceId: string | null): void {
 export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: minimalAdapter,
   providers: [
-    GitHub({
-      clientId: process.env.AUTH_GITHUB_ID,
-      clientSecret: process.env.AUTH_GITHUB_SECRET,
-      allowDangerousEmailAccountLinking: true,
-    }),
+    {
+      // GitHub provider with token exchange routed through Cloudflare Worker
+      // to bypass China ECS → github.com connectivity issues
+      ...GitHub({
+        clientId: process.env.AUTH_GITHUB_ID,
+        clientSecret: process.env.AUTH_GITHUB_SECRET,
+        allowDangerousEmailAccountLinking: true,
+      }),
+      token: 'https://github-oauth.openclawmp.cc/login/oauth/access_token',
+    },
     // Google OAuth removed — ECS in China cannot reach Google servers
     // Feishu OAuth — UI entry removed (self-built app can't cross tenants)
     // Backend kept so existing feishu users (Commander) can still sign in
