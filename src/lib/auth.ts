@@ -57,11 +57,11 @@ const minimalAdapter: Adapter = {
     });
     // Auto-activate invite code for new email user
     // Try cookie first, then server-side stash (for cross-browser magic link)
+    // Fallback to SEAFOOD so every new user gets an invite code on record
     const inviteCode = await getInviteCodeFromCookie()
-      || (data.email ? consumePendingEmailInvite(data.email) : null);
-    if (inviteCode) {
-      activateInviteCode(id, inviteCode);
-    }
+      || (data.email ? consumePendingEmailInvite(data.email) : null)
+      || 'SEAFOOD';
+    activateInviteCode(id, inviteCode);
     return toAdapterUser(user);
   },
   getUserByEmail: async (email) => {
@@ -262,10 +262,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         providerId,
       });
 
-      // Activate invite code for new user (if provided)
-      if (inviteCode) {
-        activateInviteCode(newUserId, inviteCode);
-      }
+      // Activate invite code for new user (if provided, else default SEAFOOD)
+      if (!inviteCode) inviteCode = 'SEAFOOD';
+      activateInviteCode(newUserId, inviteCode);
 
       // Auto-approve CLI auth if qualify flow created one
       tryAutoApproveCliAuth(newUserId, qualifyDeviceId);
