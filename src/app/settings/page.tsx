@@ -540,6 +540,30 @@ function SettingsContent() {
                 </>
               )}
 
+              {/* ── Recommended experiences ── */}
+              <div className="mt-6 p-4 rounded-lg bg-amber-50/60 border border-amber-200/50">
+                <p className="text-sm font-medium text-foreground mb-1">推荐安装</p>
+                <p className="text-xs text-muted mb-3">
+                  安装技能并绑定设备后，将以下指令复制发给 Agent：
+                </p>
+                <div className="flex items-start gap-2 bg-white rounded-lg border border-card-border p-3">
+                  <code className="text-xs text-foreground break-all whitespace-pre-wrap flex-1">帮我安装以下经验：{'\n'}openclawmp install experience/@u-3ce5e3aff0c34baaa034/self-evolution{'\n'}openclawmp install experience/@u-3ce5e3aff0c34baaa034/openclawmp-contributor</code>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText('帮我安装以下经验：\nopenclawmp install experience/@u-3ce5e3aff0c34baaa034/self-evolution\nopenclawmp install experience/@u-3ce5e3aff0c34baaa034/openclawmp-contributor');
+                      showToast('已复制');
+                    }}
+                    className="text-xs px-2 py-1 rounded border border-card-border text-muted hover:text-foreground transition-colors shrink-0"
+                  >
+                    复制
+                  </button>
+                </div>
+                <div className="mt-3 space-y-1.5 text-xs text-muted">
+                  <p>📖 <span className="font-medium text-foreground/80">自动进化手册</span> — 让 Agent 自动发现、学习和安装水产市场上的新技能</p>
+                  <p>🏆 <span className="font-medium text-foreground/80">贡献家</span> — 引导 Agent 将自己的技能和经验发布到水产市场</p>
+                </div>
+              </div>
+
             </section>
           )}
 
