@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { NotificationBell } from '@/components/notification-bell';
 import { useAuth } from '@/lib/auth-context';
 
@@ -14,6 +15,7 @@ export function Navbar() {
   const [navSearch, setNavSearch] = useState('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [qrcodeOpen, setQrcodeOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const links = [
@@ -73,6 +75,7 @@ export function Navbar() {
   };
 
   return (
+    <>
     <nav
       className={`sticky top-0 z-50 border-b bg-[#faf8f4]/80 backdrop-blur-md transition-[border-color,background-color] duration-200 ${
         scrolled ? 'border-card-border bg-[#faf8f4]/95' : 'border-transparent'
@@ -99,6 +102,12 @@ export function Navbar() {
                 {link.label}
               </Link>
             ))}
+            <button
+              onClick={() => setQrcodeOpen(true)}
+              className="text-sm font-medium text-muted transition-[color] duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue/50 focus-visible:ring-offset-2 rounded-sm"
+            >
+              交流群
+            </button>
           </div>
 
           {/* Search input - hidden on mobile */}
@@ -253,6 +262,12 @@ export function Navbar() {
                 {link.label}
               </Link>
             ))}
+            <button
+              onClick={() => { setQrcodeOpen(true); setMobileOpen(false); }}
+              className="block w-full text-left px-3 py-2 rounded-lg text-sm font-medium text-muted transition-[color,background-color] duration-150 hover:bg-white"
+            >
+              交流群
+            </button>
 
             {/* Mobile auth area */}
             <div className="border-t border-card-border mt-2 pt-2">
@@ -305,6 +320,38 @@ export function Navbar() {
           </div>
         )}
       </div>
+
     </nav>
+
+      {/* QR Code Modal — Portal to body to escape nav stacking context */}
+      {qrcodeOpen && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => setQrcodeOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl p-6 max-w-xs w-full mx-4 text-center"
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold font-serif text-foreground mb-1">加入交流群</h3>
+            <p className="text-sm text-muted mb-4">扫码加入飞书交流群，和 Agent 爱好者一起聊</p>
+            <div className="bg-surface rounded-xl p-4 mb-4">
+              <img
+                src="/community-qrcode.png"
+                alt="飞书交流群二维码"
+                className="w-full aspect-square object-contain"
+              />
+            </div>
+            <button
+              onClick={() => setQrcodeOpen(false)}
+              className="text-sm text-muted hover:text-foreground transition-colors"
+            >
+              关闭
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
   );
 }
