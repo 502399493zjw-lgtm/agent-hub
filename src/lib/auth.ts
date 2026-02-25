@@ -12,7 +12,7 @@ import {
   generateLetterAvatar,
   type DbUser,
 } from '@/lib/db';
-import { peekQualificationToken, approveCliAuthByDevice, consumePendingEmailInvite, peekPendingEmailInvite } from '@/lib/db/auth';
+import { peekQualificationToken, approveCliAuthByDevice, consumePendingEmailInvite, peekPendingEmailInvite, listAuthorizedDevices } from '@/lib/db/auth';
 import type { Adapter } from 'next-auth/adapters';
 
 declare module 'next-auth' {
@@ -24,6 +24,7 @@ declare module 'next-auth' {
       image: string;
       provider: string;
       inviteCode: string | null;
+      isNewUser?: boolean;
     };
   }
 }
@@ -197,28 +198,24 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       // Read qualification_token cookie to auto-approve CLI auth
       const qualifyDeviceId = await getQualificationDeviceId();
 
-      // Email provider: user is created by adapter, just check soft-delete + auto-activate
+      // Email provider: signIn callback is called TWICE in the magic-link flow:
+      //   1st call: before sendVerificationRequest (pre-check) — must return true to allow email sending
+      //   2nd call: after user clicks the link (actual sign-in) — user.id is set by adapter
+      // We detect which phase by checking if the user has a DB id already.
       if (provider === 'resend') {
         const existing = findUserByEmail(user.email ?? '');
         if (existing?.deleted_at) return false;
         if (existing) {
           // Existing user → allow login, auto-activate invite if they have one
-          // Use consume here since createUser adapter won't be called for existing users
           const effectiveInviteCode = inviteCode || (user.email ? consumePendingEmailInvite(user.email) : null);
           tryAutoActivateInvite(existing.id, effectiveInviteCode);
           tryAutoApproveCliAuth(existing.id, qualifyDeviceId);
           return true;
         }
-        // New user via email → auto-create (open registration after DB loss incident)
-        // If invite code provided and valid, activate it; otherwise just create without invite
-        const effectiveInviteCode = inviteCode || (user.email ? peekPendingEmailInvite(user.email) : null);
-        if (effectiveInviteCode) {
-          const validation = validateInviteCode(effectiveInviteCode);
-          if (!validation.valid) {
-            console.log('[auth] signIn email: invalid invite code, proceeding without invite');
-          }
-        }
-        // User will be created by the adapter's createUser
+        // New user — 1st call (pre-check before sending email): user not in DB yet
+        // Must return true so NextAuth proceeds to send the verification email.
+        // The adapter's createUser will be called after the user clicks the link.
+        // Invite code validation happens in the adapter's createUser.
         return true;
       }
 
@@ -269,7 +266,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       // Auto-approve CLI auth if qualify flow created one
       tryAutoApproveCliAuth(newUserId, qualifyDeviceId);
 
-      return true;
+      // New user → redirect to device binding page (override callbackUrl)
+      return '/settings?section=devices&welcome=1';
     },
 
     async jwt({ token, user, account }) {
@@ -315,6 +313,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.image = dbUser.avatar;
         session.user.provider = dbUser.provider;
         session.user.inviteCode = dbUser.invite_code;
+        // New user detection: no devices bound yet → frontend should redirect to onboarding
+        const devices = listAuthorizedDevices(dbUser.id);
+        session.user.isNewUser = devices.length === 0;
       } else {
         // User not found in DB (data loss / deleted) → invalidate session
         // Frontend SessionProvider will detect unauthenticated and show login state

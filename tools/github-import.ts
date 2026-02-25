@@ -26,7 +26,7 @@ import fs from 'fs';
 // Config
 // ═══════════════════════════════════════════
 
-const DB_PATH = path.join(process.cwd(), 'data', 'hub.db');
+let DB_PATH = path.join(process.cwd(), 'data', 'hub.db');  // overridable via --db
 const GITHUB_API = 'https://api.github.com';
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || '';
 
@@ -55,6 +55,7 @@ interface RepoInfo {
 interface RepoContent {
   readme: string;
   files: FileNode[];
+  flatFiles: FlatFile[];
   issues: IssueInfo[];
   latestRelease: ReleaseInfo | null;
 }
@@ -65,6 +66,12 @@ interface FileNode {
   size?: number;
   children?: FileNode[];
   content?: string;
+}
+
+/** Flat file entry for DB storage & package generation */
+interface FlatFile {
+  path: string;
+  content: string;
 }
 
 interface IssueInfo {
@@ -118,9 +125,16 @@ async function ghFetch(endpoint: string): Promise<any> {
 
     // L10: Check rate limit headers
     const remaining = res.headers.get('x-ratelimit-remaining');
+    const reset = res.headers.get('x-ratelimit-reset');
+
     if (res.status === 403 && remaining === '0') {
-      const reset = res.headers.get('x-ratelimit-reset');
       const resetDate = reset ? new Date(parseInt(reset) * 1000).toLocaleTimeString() : 'unknown';
+      const waitMs = reset ? (parseInt(reset) * 1000 - Date.now() + 2000) : 61000;
+      if (waitMs > 0 && waitMs < 600000) { // wait up to 10 minutes
+        console.log(`\n  ⏳ Rate limit hit. Waiting ${Math.ceil(waitMs / 1000)}s until reset (${resetDate})...`);
+        await new Promise(r => setTimeout(r, waitMs));
+        continue; // retry after waiting
+      }
       throw new Error(`GitHub API rate limit exceeded. Resets at ${resetDate}. Set GITHUB_TOKEN for higher limits.`);
     }
 
@@ -141,7 +155,7 @@ async function ghFetch(endpoint: string): Promise<any> {
     if (!res.ok) throw new Error(`GitHub API ${res.status}: ${await res.text()}`);
 
     // L10: Warn when rate limit is getting low
-    if (remaining && parseInt(remaining) < 10) {
+    if (remaining && parseInt(remaining) < 5) {
       console.log(`  ⚠️  GitHub API rate limit low: ${remaining} remaining`);
     }
 
@@ -165,6 +179,115 @@ function parseGitHubUrl(url: string): { owner: string; repo: string } | null {
   const match = cleaned.match(/(?:(?:https?:\/\/)?github\.com\/)?([^\/\s]+)\/([^\/\s#?]+)/);
   if (!match) return null;
   return { owner: match[1], repo: match[2] };
+}
+
+// ═══════════════════════════════════════════
+// File content fetching
+// ═══════════════════════════════════════════
+
+const TEXT_EXTENSIONS = new Set([
+  '.md', '.txt', '.js', '.ts', '.jsx', '.tsx', '.json', '.yml', '.yaml',
+  '.toml', '.cfg', '.ini', '.env', '.sh', '.bash', '.zsh', '.py', '.rb',
+  '.go', '.rs', '.java', '.c', '.h', '.cpp', '.css', '.scss', '.html',
+  '.xml', '.svg', '.dockerfile', '.gitignore', '.gitattributes',
+  '.prettierrc', '.prettierignore', '.eslintrc', '.mjs', '.cjs',
+  '.lock', '.example', '.bat', '.ps1',
+]);
+
+const TEXT_FILENAMES = new Set([
+  'Dockerfile', 'Makefile', 'LICENSE', 'Procfile', 'Gemfile',
+  '.gitignore', '.gitattributes', '.prettierrc', '.prettierignore',
+  '.dockerignore', '.env', '.env.example', 'CLAUDE.md',
+]);
+
+const MAX_FILE_SIZE = 20 * 1024;  // 20KB per file
+const MAX_FILES = 80;             // max files to fetch content for
+
+function isTextFile(filepath: string): boolean {
+  const basename = path.basename(filepath);
+  if (TEXT_FILENAMES.has(basename)) return true;
+  const ext = path.extname(filepath).toLowerCase();
+  if (TEXT_EXTENSIONS.has(ext)) return true;
+  // No-extension files in root are often text
+  if (!ext && !filepath.includes('/')) return true;
+  return false;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+/**
+ * Fetch flat file list with content from GitHub Trees + Blobs API.
+ * Returns {path, content}[] suitable for DB storage and package generation.
+ */
+async function fetchFlatFilesWithContent(owner: string, repo: string, branch: string): Promise<FlatFile[]> {
+  const data = await ghFetch(`/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`);
+  if (!data?.tree) return [];
+
+  // Filter to text blobs within size limit
+  let blobs = data.tree.filter((item: any) =>
+    item.type === 'blob' && item.size <= MAX_FILE_SIZE && isTextFile(item.path)
+  );
+
+  // Top-level directories (for tree structure)
+  const dirs = data.tree.filter((item: any) =>
+    item.type === 'tree' && !item.path.includes('/')
+  );
+
+  console.log(`    📄 ${blobs.length} text files, ${dirs.length} top dirs`);
+
+  // For large repos, prioritize key files
+  if (blobs.length > MAX_FILES) {
+    const PRIORITY_PATTERNS = [
+      /^README/i, /^LICENSE/i, /^CONTRIBUTING/i, /^CHANGELOG/i, /^CLAUDE\.md$/i,
+      /^package\.json$/, /^Dockerfile$/, /^docker-compose/,
+      /^\.gitignore$/, /^\.env\.example$/,
+      /^src\//, /^lib\//, /^skills\//, /^scripts\//,
+    ];
+    // Sort: priority files first, then alphabetical
+    blobs.sort((a: any, b: any) => {
+      const aPriority = PRIORITY_PATTERNS.some(p => p.test(a.path)) ? 0 : 1;
+      const bPriority = PRIORITY_PATTERNS.some(p => p.test(b.path)) ? 0 : 1;
+      if (aPriority !== bPriority) return aPriority - bPriority;
+      return a.path.localeCompare(b.path);
+    });
+    console.log(`    ⚠️  Truncating to ${MAX_FILES} files (prioritized)`);
+    blobs = blobs.slice(0, MAX_FILES);
+  }
+
+  const files: FlatFile[] = [];
+
+  // Add directory entries
+  for (const dir of dirs) {
+    files.push({ path: dir.path, content: '' });
+  }
+
+  // Fetch content for each blob
+  let fetched = 0;
+  for (const blob of blobs) {
+    try {
+      const blobData = await ghFetch(`/repos/${owner}/${repo}/git/blobs/${blob.sha}`);
+      let content = '';
+      if (blobData?.encoding === 'base64') {
+        content = Buffer.from(blobData.content, 'base64').toString('utf8');
+      } else if (blobData?.content) {
+        content = blobData.content;
+      }
+      files.push({ path: blob.path, content });
+      fetched++;
+      process.stdout.write('.');
+      // Rate limit: 80ms between blob fetches
+      await sleep(80);
+    } catch (err: any) {
+      // Log but continue
+      console.log(`\n    ⚠️ ${blob.path}: ${err.message.split('\n')[0]}`);
+      files.push({ path: blob.path, content: '' });
+    }
+  }
+  if (fetched > 0) console.log(''); // newline after dots
+
+  return files;
 }
 
 // ═══════════════════════════════════════════
@@ -280,13 +403,16 @@ async function fetchAllRepoData(owner: string, repo: string): Promise<{ info: Re
   console.log(`  📂 Fetching file tree...`);
   const files = await fetchFileTree(owner, repo, info.defaultBranch);
 
+  console.log(`  📥 Fetching file contents...`);
+  const flatFiles = await fetchFlatFilesWithContent(owner, repo, info.defaultBranch);
+
   console.log(`  🐛 Fetching issues...`);
   const issues = await fetchIssues(owner, repo);
 
   console.log(`  📦 Fetching latest release...`);
   const latestRelease = await fetchLatestRelease(owner, repo);
 
-  return { info, content: { readme, files, issues, latestRelease } };
+  return { info, content: { readme, files, flatFiles, issues, latestRelease } };
 }
 
 // ═══════════════════════════════════════════
@@ -441,7 +567,7 @@ function insertAsset(db: Database.Database, info: RepoInfo, content: RepoContent
     versions: JSON.stringify(versions),
     issue_count: content.issues.filter(i => i.state === 'open').length,
     compatibility: JSON.stringify({ models: ['Any'], platforms: ['OpenClaw'], frameworks: [info.language || 'N/A'] }),
-    files: JSON.stringify(content.files.slice(0, 200)), // limit file tree size
+    files: JSON.stringify(content.flatFiles.length > 0 ? content.flatFiles : content.files.slice(0, 200)),
     github_url: `https://github.com/${info.fullName}`,
     github_stars: info.stars,
     github_forks: info.forks,
@@ -466,6 +592,38 @@ function insertAsset(db: Database.Database, info: RepoInfo, content: RepoContent
   return id;
 }
 
+// ═══════════════════════════════════════════
+// Package generation
+// ═══════════════════════════════════════════
+
+const PACKAGES_DIR = path.join(process.cwd(), 'data', 'packages');
+
+function generatePackage(assetId: string, flatFiles: FlatFile[]): string | null {
+  const contentFiles = flatFiles.filter(f => f.content);
+  if (contentFiles.length === 0) return null;
+
+  fs.mkdirSync(PACKAGES_DIR, { recursive: true });
+
+  const tmpDir = `/tmp/ghimport-${assetId}`;
+  if (fs.existsSync(tmpDir)) fs.rmSync(tmpDir, { recursive: true });
+  fs.mkdirSync(tmpDir, { recursive: true });
+
+  for (const f of contentFiles) {
+    const filePath = path.join(tmpDir, f.path);
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, f.content);
+  }
+
+  const tarPath = path.join(PACKAGES_DIR, `${assetId}.tar.gz`);
+  execSync(`tar czf "${tarPath}" -C "${tmpDir}" .`, { stdio: 'pipe' });
+  const size = (fs.statSync(tarPath).size / 1024).toFixed(1);
+
+  // Cleanup
+  fs.rmSync(tmpDir, { recursive: true });
+
+  return `${size}KB`;
+}
+
 function findByGitHubUrl(db: Database.Database, url: string): string | null {
   const row = db.prepare(`SELECT id FROM assets WHERE github_url = ?`).get(url) as { id: string } | undefined;
   return row?.id || null;
@@ -487,6 +645,7 @@ Usage:
 
 Options:
   --type <type>        资产类型 (skill|plugin|trigger|channel|config|template) 默认: 自动检测
+  --db <name>          数据库 (test → hub-test.db, prod → hub.db) 默认: hub.db
   --file <path>        从文件读取 URL（每行一个）
   --dry-run            只预览不写入
   --category <cat>     分类
@@ -515,6 +674,17 @@ Examples:
   for (let i = 0; i < args.length; i++) {
     switch (args[i]) {
       case '--type': type = args[++i]; break;
+      case '--db': {
+        const dbName = args[++i];
+        if (dbName === 'test') {
+          DB_PATH = path.join(process.cwd(), 'data', 'hub-test.db');
+        } else if (dbName === 'prod' || dbName === 'hub') {
+          DB_PATH = path.join(process.cwd(), 'data', 'hub.db');
+        } else {
+          DB_PATH = path.join(process.cwd(), 'data', `hub-${dbName}.db`);
+        }
+        break;
+      }
       case '--file': filePath = args[++i]; break;
       case '--dry-run': dryRun = true; break;
       case '--category': category = args[++i]; break;
@@ -550,6 +720,7 @@ Examples:
   console.log(`\n🐟 水产市场 GitHub 批量导入`);
   console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━`);
   console.log(`📦 ${repos.length} repos to import`);
+  console.log(`💾 DB: ${path.basename(DB_PATH)}`);
   console.log(`${GITHUB_TOKEN ? '🔑 Using GitHub token' : '⚠️  No GitHub token (rate limit: 60 req/h). Set GITHUB_TOKEN for 5000/h'}`);
   if (dryRun) console.log(`🔍 DRY RUN — no database writes`);
   console.log();
@@ -587,6 +758,13 @@ Examples:
       }
 
       const assetId = insertAsset(db!, info, content, { type: assetType, category, authorId, authorName });
+
+      // Generate .tar.gz package
+      const pkgSize = generatePackage(assetId, content.flatFiles);
+      if (pkgSize) {
+        console.log(`  📦 Package: ${pkgSize}`);
+      }
+
       console.log(`  💾 Saved as ${assetId}\n`);
       results.push({ url, success: true, assetId });
 
