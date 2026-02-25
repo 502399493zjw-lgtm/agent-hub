@@ -36,3 +36,6 @@ yarn-debug.log*
 yarn-error.log*
 data/hub-test.db.bak
 *.db.bak
+
+# data directory: DB files, packages, backups — never commit
+data/
