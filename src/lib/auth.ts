@@ -47,6 +47,7 @@ function toAdapterUser(user: DbUser) {
 
 const minimalAdapter: Adapter = {
   createUser: async (data) => {
+    console.log('[auth/adapter] createUser called:', { email: data.email, name: data.name });
     const id = generateUserId();
     const user = createUser({
       id,
@@ -82,10 +83,14 @@ const minimalAdapter: Adapter = {
   },
   linkAccount: async () => undefined,
   createVerificationToken: async (data) => {
+    console.log('[auth/adapter] createVerificationToken:', { identifier: data.identifier, tokenLen: data.token?.length, expires: data.expires });
     return createVerificationToken(data);
   },
   useVerificationToken: async (data) => {
-    return useVerificationToken(data);
+    console.log('[auth/adapter] useVerificationToken:', { identifier: data.identifier, tokenLen: data.token?.length });
+    const result = useVerificationToken(data);
+    console.log('[auth/adapter] useVerificationToken result:', result ? { found: true, expires: result.expires } : { found: false });
+    return result;
   },
   createSession: async () => ({ sessionToken: '', userId: '', expires: new Date() }),
   getSessionAndUser: async () => null,
@@ -184,6 +189,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   ],
   pages: {
     signIn: '/login',
+    error: '/login',
     verifyRequest: '/login?verify=true',
   },
   callbacks: {
@@ -203,10 +209,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       //   2nd call: after user clicks the link (actual sign-in) — user.id is set by adapter
       // We detect which phase by checking if the user has a DB id already.
       if (provider === 'resend') {
+        console.log('[auth] signIn resend callback:', { email: user.email, userId: user.id });
         const existing = findUserByEmail(user.email ?? '');
-        if (existing?.deleted_at) return false;
+        if (existing?.deleted_at) {
+          console.log('[auth] signIn resend: user deleted, rejecting');
+          return false;
+        }
         if (existing) {
           // Existing user → allow login, auto-activate invite if they have one
+          console.log('[auth] signIn resend: existing user', existing.id);
           const effectiveInviteCode = inviteCode || (user.email ? consumePendingEmailInvite(user.email) : null);
           tryAutoActivateInvite(existing.id, effectiveInviteCode);
           tryAutoApproveCliAuth(existing.id, qualifyDeviceId);
@@ -216,6 +227,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         // Must return true so NextAuth proceeds to send the verification email.
         // The adapter's createUser will be called after the user clicks the link.
         // Invite code validation happens in the adapter's createUser.
+        console.log('[auth] signIn resend: new user, allowing email send');
         return true;
       }
 
