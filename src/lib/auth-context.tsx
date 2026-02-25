@@ -1,8 +1,7 @@
 'use client';
 
 import { SessionProvider, useSession, signOut } from 'next-auth/react';
-import { type ReactNode, useEffect } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { type ReactNode } from 'react';
 import useSWR from 'swr';
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
@@ -11,31 +10,9 @@ const fetcher = (url: string) => fetch(url).then(r => r.json());
 export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <SessionProvider>
-      <NewUserRedirect />
       {children}
     </SessionProvider>
   );
-}
-
-/**
- * Detect new users (no devices bound) and redirect to onboarding.
- * Works for both OAuth and email login flows.
- */
-function NewUserRedirect() {
-  const { data: session, status } = useSession();
-  const router = useRouter();
-  const pathname = usePathname();
-
-  useEffect(() => {
-    if (status !== 'authenticated') return;
-    const isNew = (session?.user as Record<string, unknown>)?.isNewUser;
-    // Only redirect if not already on settings/login/register pages
-    if (isNew && pathname && !pathname.startsWith('/settings') && !pathname.startsWith('/login') && !pathname.startsWith('/register')) {
-      router.replace('/settings?section=devices&welcome=1');
-    }
-  }, [status, session, pathname, router]);
-
-  return null;
 }
 
 // Compatibility hook that mirrors the old useAuth interface

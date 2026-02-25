@@ -191,6 +191,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     signIn: '/login',
     error: '/login',
     verifyRequest: '/login?verify=true',
+    newUser: '/settings?section=devices&welcome=1',
   },
   callbacks: {
         async signIn({ user, account, profile: oauthProfile }) {
@@ -325,9 +326,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.image = dbUser.avatar;
         session.user.provider = dbUser.provider;
         session.user.inviteCode = dbUser.invite_code;
-        // New user detection: no devices bound yet → frontend should redirect to onboarding
-        const devices = listAuthorizedDevices(dbUser.id);
-        session.user.isNewUser = devices.length === 0;
+        // isNewUser no longer needed — redirect is handled in signIn callback directly
       } else {
         // User not found in DB (data loss / deleted) → invalidate session
         // Frontend SessionProvider will detect unauthenticated and show login state
