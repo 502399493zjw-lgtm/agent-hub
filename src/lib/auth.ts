@@ -33,6 +33,17 @@ function generateUserId(): string {
   return 'u-' + crypto.randomUUID().replace(/-/g, '').substring(0, 20);
 }
 
+// Stash OAuth context so adapter.createUser can pick it up.
+// signIn callback runs synchronously before handleLoginOrRegister → createUser,
+// so this is safe in a single-request context.
+let _pendingOAuthContext: {
+  provider: string;
+  providerId: string;
+  avatar: string;
+  inviteCode: string;
+  qualifyDeviceId: string | null;
+} | null = null;
+
 // Minimal adapter: only implements what Email/Magic Link provider needs
 // (verification tokens + user lookup by email)
 function toAdapterUser(user: DbUser) {
@@ -47,23 +58,33 @@ function toAdapterUser(user: DbUser) {
 
 const minimalAdapter: Adapter = {
   createUser: async (data) => {
-    console.log('[auth/adapter] createUser called:', { email: data.email, name: data.name });
+    console.log('[auth/adapter] createUser called:', { email: data.email, name: data.name, hasOAuthCtx: !!_pendingOAuthContext });
     const id = generateUserId();
+    const oauthCtx = _pendingOAuthContext;
+    _pendingOAuthContext = null; // consume it
+
     const user = createUser({
       id,
       email: data.email ?? null,
       name: data.name ?? data.email?.split('@')[0] ?? 'Anonymous',
-      avatar: data.image ?? '',
-      provider: 'resend',
-      providerId: data.email ?? id,
+      avatar: oauthCtx?.avatar || (data.image ?? ''),
+      provider: oauthCtx?.provider ?? 'resend',
+      providerId: oauthCtx?.providerId ?? data.email ?? id,
     });
-    // Auto-activate invite code for new email user
-    // Try cookie first, then server-side stash (for cross-browser magic link)
-    // Fallback to SEAFOOD so every new user gets an invite code on record
-    const inviteCode = await getInviteCodeFromCookie()
+
+    // Invite code: OAuth stash > cookie > pending email stash > default SEAFOOD
+    const inviteCode = oauthCtx?.inviteCode
+      || await getInviteCodeFromCookie()
       || (data.email ? consumePendingEmailInvite(data.email) : null)
       || 'SEAFOOD';
     activateInviteCode(id, inviteCode);
+
+    // Auto-approve CLI auth if qualify flow created one
+    const qualifyDeviceId = oauthCtx?.qualifyDeviceId || await getQualificationDeviceId();
+    if (qualifyDeviceId) {
+      tryAutoApproveCliAuth(id, qualifyDeviceId);
+    }
+
     return toAdapterUser(user);
   },
   getUserByEmail: async (email) => {
@@ -248,39 +269,32 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         return true;
       }
 
-      // New user via OAuth → auto-create account (open registration)
-      // If invite code provided and valid, activate it; otherwise just create without invite
+      // New user via OAuth — stash context for adapter.createUser, then return true.
+      // NextAuth's handleLoginOrRegister will call adapter.createUser (with proper session setup),
+      // then pages.newUser will redirect to the device binding page.
+      // We do NOT createUser here because returning a URL string from signIn skips
+      // handleLoginOrRegister entirely → no JWT/session cookie gets created.
       if (inviteCode) {
         const validation = validateInviteCode(inviteCode);
         if (!validation.valid) {
-          // Bad invite code → still create user, just skip activation
-          console.log('[auth] signIn: invalid invite code, creating user without invite');
+          console.log('[auth] signIn: invalid invite code, will create user without invite');
           inviteCode = '';
         }
       }
 
-      const newUserId = generateUserId();
       const newAvatar = (oauthProfile as Record<string, unknown>)?.picture as string
         || (oauthProfile as Record<string, unknown>)?.image as string
         || user.image || '';
-      createUser({
-        id: newUserId,
-        email: user.email ?? null,
-        name: user.name ?? 'Anonymous',
-        avatar: newAvatar,
+
+      _pendingOAuthContext = {
         provider,
         providerId,
-      });
-
-      // Activate invite code for new user (if provided, else default SEAFOOD)
-      if (!inviteCode) inviteCode = 'SEAFOOD';
-      activateInviteCode(newUserId, inviteCode);
-
-      // Auto-approve CLI auth if qualify flow created one
-      tryAutoApproveCliAuth(newUserId, qualifyDeviceId);
-
-      // New user → redirect to device binding page (override callbackUrl)
-      return '/settings?section=devices&welcome=1';
+        avatar: newAvatar,
+        inviteCode: inviteCode || 'SEAFOOD',
+        qualifyDeviceId,
+      };
+      console.log('[auth] signIn: new OAuth user, stashed context for adapter.createUser');
+      return true;
     },
 
     async jwt({ token, user, account }) {
