@@ -45,6 +45,8 @@ lint:
   stage: lint
   image: ${NODE_IMAGE}
   before_script:
+    # 安装编译工具链（better-sqlite3 需要）
+    - apk add --no-cache python3 make g++
     # 配置淘宝镜像源
     - npm config set registry $NPM_REGISTRY
     # 安装依赖（总是执行 npm ci，利用缓存加速）
@@ -65,6 +67,8 @@ build:
   stage: build
   image: ${NODE_IMAGE}
   before_script:
+    # 安装编译工具链（better-sqlite3 需要）
+    - apk add --no-cache python3 make g++
     # 配置淘宝镜像源
     - npm config set registry $NPM_REGISTRY
     # 安装依赖（总是执行 npm ci，利用缓存加速）
