@@ -12,6 +12,8 @@ stages:
 variables:
   # 镜像仓库
   DOCKER_REGISTRY: "hub.stepfun-inc.com/busi"
+  # 基础镜像（Node 22）
+  NODE_IMAGE: "hub.stepfun-inc.com/ndp-data/node-build:22-alpine"
   # npm 镜像源（淘宝镜像）
   NPM_REGISTRY: "https://registry.npmmirror.com"
   # 缓存配置
@@ -39,7 +41,8 @@ workflow:
 # ═══════════════════════════════════════════════
 lint:
   stage: lint
-  image: hub.stepfun-inc.com/ndp-data/node-build:22-alpine
+  image:
+    name: ${NODE_IMAGE}
   before_script:
     # 配置淘宝镜像源
     - npm config set registry $NPM_REGISTRY
@@ -59,7 +62,8 @@ lint:
 # ═══════════════════════════════════════════════
 build:
   stage: build
-  image: hub.stepfun-inc.com/ndp-data/node-build:22-alpine
+  image:
+    name: ${NODE_IMAGE}
   before_script:
     # 配置淘宝镜像源
     - npm config set registry $NPM_REGISTRY
