@@ -92,20 +92,13 @@ docker:
     name: hub.stepfun-inc.com/devops/stepbase-kaniko:latest
     entrypoint: [""]
   script:
-    - echo "Branch: ${CI_COMMIT_BRANCH}"
-    - echo "Commit SHA: ${CI_COMMIT_SHORT_SHA}"
-    - echo "Project: ${CI_PROJECT_NAMESPACE}/${CI_PROJECT_NAME}"
+    - echo "Branch:${CI_COMMIT_BRANCH}"
+    - echo "Commit SHA:${CI_COMMIT_SHORT_SHA}"
+    - echo "Project:${CI_PROJECT_NAMESPACE}/${CI_PROJECT_NAME}"
     - export APP_PATH=$(echo ${CI_PROJECT_NAMESPACE} | tr '/' '-')
     - export IMAGE_TAG="${DOCKER_REGISTRY}/${APP_PATH}-${CI_PROJECT_NAME}:${CI_COMMIT_SHORT_SHA}"
-    - echo "✓ Image tag: ${IMAGE_TAG}"
-    # 使用 Kaniko 构建并推送镜像
-    - |
-      /kaniko/executor \
-        --context "${CI_PROJECT_DIR}" \
-        --dockerfile "${CI_PROJECT_DIR}/Dockerfile" \
-        --destination "${IMAGE_TAG}" \
-        --cache=true \
-        --cleanup
+    - echo "Image tag:${IMAGE_TAG}"
+    - /kaniko/executor --context "${CI_PROJECT_DIR}" --dockerfile "${CI_PROJECT_DIR}/Dockerfile" --destination "${IMAGE_TAG}" --cache=true --cleanup
   dependencies:
     - build
   only:
