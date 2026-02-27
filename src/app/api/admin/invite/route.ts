@@ -1,11 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSuperInviteCode, listAllInviteCodes, deleteInviteCode, getInviteCodeDetail } from '@/lib/db';
+import crypto from 'crypto';
+import { createSuperInviteCode, listAllInviteCodes, deleteInviteCode, getInviteCodeDetail, findUserByApiKey, isAdmin as isAdminUser } from '@/lib/db';
 
-function isAdmin(request: NextRequest): boolean {
+// S06: Use constant-time comparison to prevent timing attacks
+function hasAdminSecret(request: NextRequest): boolean {
   const secret = request.headers.get('x-admin-secret');
   const adminSecret = process.env.ADMIN_SECRET;
   if (!adminSecret || !secret) return false;
-  return secret === adminSecret;
+  const secretBuf = Buffer.from(secret);
+  const adminSecretBuf = Buffer.from(adminSecret);
+  if (secretBuf.length !== adminSecretBuf.length) {
+    const padded = Buffer.alloc(adminSecretBuf.length);
+    secretBuf.copy(padded);
+    crypto.timingSafeEqual(padded, adminSecretBuf);
+    return false;
+  }
+  return crypto.timingSafeEqual(secretBuf, adminSecretBuf);
+}
+
+/** Check admin access: X-Admin-Secret header OR authenticated admin-role user via API key */
+function isAdmin(request: NextRequest): boolean {
+  // Method 1: X-Admin-Secret header (backwards compatible)
+  if (hasAdminSecret(request)) return true;
+
+  // Method 2: Authenticated user with admin role
+  const authHeader = request.headers.get('authorization');
+  if (authHeader?.startsWith('Bearer ')) {
+    const apiKey = authHeader.slice(7);
+    const user = findUserByApiKey(apiKey);
+    if (user && isAdminUser(user.id)) return true;
+  }
+
+  return false;
 }
 
 /** GET /api/admin/invite — list all invite codes (paginated, optional type filter) */
@@ -17,7 +43,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const type = searchParams.get('type') || undefined;
   const page = searchParams.get('page') ? parseInt(searchParams.get('page')!, 10) : undefined;
-  const pageSize = searchParams.get('pageSize') ? parseInt(searchParams.get('pageSize')!, 10) : undefined;
+  const pageSize = searchParams.get('pageSize') ? Math.min(parseInt(searchParams.get('pageSize')!, 10), 100) : undefined;
 
   const result = listAllInviteCodes({ type, page, pageSize });
   return NextResponse.json({ success: true, data: result });
@@ -37,14 +63,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'maxUses must be a positive number' }, { status: 400 });
     }
 
-    // Generate code if not provided
+    // Generate code if not provided — M11: use crypto.randomBytes instead of Math.random()
     let finalCode = code?.trim()?.toUpperCase();
     if (!finalCode) {
-      // Generate a 7-char random code
       const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      const bytes = crypto.randomBytes(7);
       finalCode = '';
       for (let i = 0; i < 7; i++) {
-        finalCode += chars.charAt(Math.floor(Math.random() * chars.length));
+        finalCode += chars.charAt(bytes[i] % chars.length);
       }
     }
 

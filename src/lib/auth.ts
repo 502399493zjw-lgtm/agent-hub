@@ -1,7 +1,19 @@
+import crypto from 'crypto';
 import NextAuth from 'next-auth';
 import GitHub from 'next-auth/providers/github';
-import Google from 'next-auth/providers/google';
-import { findUserByProvider, createUser, findUserById, isOnboardingCompleted, updateProviderInfo, type DbUser } from '@/lib/db';
+// Google OAuth removed (ECS in China cannot reach Google servers)
+import Resend from 'next-auth/providers/resend';
+import Feishu from '@/lib/auth-feishu';
+import { cookies } from 'next/headers';
+import {
+  findUserByProvider, findUserByEmail, createUser, findUserById,
+  updateProviderInfo, activateInviteCode, validateInviteCode,
+  createVerificationToken, useVerificationToken,
+  generateLetterAvatar,
+  type DbUser,
+} from '@/lib/db';
+import { peekQualificationToken, approveCliAuthByDevice, consumePendingEmailInvite, peekPendingEmailInvite } from '@/lib/db/auth';
+import type { Adapter } from 'next-auth/adapters';
 
 declare module 'next-auth' {
   interface Session {
@@ -12,69 +24,253 @@ declare module 'next-auth' {
       image: string;
       provider: string;
       inviteCode: string | null;
-      onboardingCompleted: boolean;
     };
   }
 }
 
 function generateUserId(): string {
-  return 'u-' + Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
+  return 'u-' + crypto.randomUUID().replace(/-/g, '').substring(0, 20);
+}
+
+// Minimal adapter: only implements what Email/Magic Link provider needs
+// (verification tokens + user lookup by email)
+function toAdapterUser(user: DbUser) {
+  return {
+    id: user.id,
+    email: user.email ?? '',
+    name: user.name,
+    image: user.avatar,
+    emailVerified: null,
+  };
+}
+
+const minimalAdapter: Adapter = {
+  createUser: async (data) => {
+    const id = generateUserId();
+    const user = createUser({
+      id,
+      email: data.email ?? null,
+      name: data.name ?? data.email?.split('@')[0] ?? 'Anonymous',
+      avatar: data.image ?? '',
+      provider: 'email',
+      providerId: data.email ?? id,
+    });
+    // Auto-activate invite code for new email user
+    // Try cookie first, then server-side stash (for cross-browser magic link)
+    const inviteCode = await getInviteCodeFromCookie()
+      || (data.email ? consumePendingEmailInvite(data.email) : null);
+    if (inviteCode) {
+      activateInviteCode(id, inviteCode);
+    }
+    return toAdapterUser(user);
+  },
+  getUserByEmail: async (email) => {
+    const user = findUserByEmail(email);
+    return user ? toAdapterUser(user) : null;
+  },
+  getUserByAccount: async ({ provider, providerAccountId }) => {
+    const user = findUserByProvider(provider, providerAccountId);
+    return user ? toAdapterUser(user) : null;
+  },
+  getUser: async (id) => {
+    const user = findUserById(id);
+    return user ? toAdapterUser(user) : null;
+  },
+  updateUser: async (data) => {
+    return { id: data.id!, email: data.email ?? '', name: data.name ?? '', image: data.image ?? '', emailVerified: null };
+  },
+  linkAccount: async () => undefined,
+  createVerificationToken: async (data) => {
+    return createVerificationToken(data);
+  },
+  useVerificationToken: async (data) => {
+    return useVerificationToken(data);
+  },
+  createSession: async () => ({ sessionToken: '', userId: '', expires: new Date() }),
+  getSessionAndUser: async () => null,
+  updateSession: async () => null,
+  deleteSession: async () => {},
+  deleteUser: async () => {},
+  unlinkAccount: async () => {},
+};
+
+/**
+ * Read the invite_code cookie set by the login page.
+ * Returns the code string or null.
+ */
+async function getInviteCodeFromCookie(): Promise<string | null> {
+  try {
+    const cookieStore = await cookies();
+    const cookie = cookieStore.get('invite_code');
+    return cookie?.value ? decodeURIComponent(cookie.value).trim().toUpperCase() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Try to auto-activate invite code for a user if they don't have one yet.
+ */
+function tryAutoActivateInvite(userId: string, code: string | null): void {
+  if (!code) return;
+  const user = findUserById(userId);
+  if (!user || user.invite_code) return; // already activated or user not found
+  activateInviteCode(userId, code);
+}
+
+/**
+ * Read the qualification_token cookie set by the redirect route.
+ * If valid, returns the device_id (if any) to auto-approve CLI auth.
+ */
+async function getQualificationDeviceId(): Promise<string | null> {
+  try {
+    const cookieStore = await cookies();
+    const cookie = cookieStore.get('qualification_token');
+    if (!cookie?.value) return null;
+    const peek = peekQualificationToken(cookie.value);
+    return peek.valid && peek.deviceId ? peek.deviceId : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Auto-approve pending CLI auth request for a device after successful OAuth sign-in.
+ */
+function tryAutoApproveCliAuth(userId: string, deviceId: string | null): void {
+  if (!deviceId) return;
+  try {
+    const result = approveCliAuthByDevice(deviceId, userId);
+    if (result.success) {
+      console.log(`[auth] Auto-approved CLI auth for device ${deviceId.slice(0, 12)}... user ${userId}`);
+    }
+  } catch (e) {
+    console.error('[auth] Auto-approve CLI auth error:', e);
+  }
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  adapter: minimalAdapter,
   providers: [
-    GitHub({
-      clientId: process.env.AUTH_GITHUB_ID,
-      clientSecret: process.env.AUTH_GITHUB_SECRET,
+    {
+      // GitHub provider with token exchange routed through Cloudflare Worker
+      // to bypass China ECS → github.com connectivity issues
+      ...GitHub({
+        clientId: process.env.AUTH_GITHUB_ID,
+        clientSecret: process.env.AUTH_GITHUB_SECRET,
+        allowDangerousEmailAccountLinking: true,
+      }),
+      token: 'https://github-oauth.openclawmp.cc/login/oauth/access_token',
+    },
+    // Google OAuth removed — ECS in China cannot reach Google servers
+    // Feishu OAuth — UI entry removed (self-built app can't cross tenants)
+    // Backend kept so existing feishu users (Commander) can still sign in
+    Feishu({
+      appId: process.env.AUTH_FEISHU_APP_ID || '',
+      appSecret: process.env.AUTH_FEISHU_APP_SECRET || '',
+      clientId: process.env.AUTH_FEISHU_APP_ID || '',
+      clientSecret: process.env.AUTH_FEISHU_APP_SECRET || '',
+      allowDangerousEmailAccountLinking: true,
     }),
-    Google({
-      clientId: process.env.AUTH_GOOGLE_ID,
-      clientSecret: process.env.AUTH_GOOGLE_SECRET,
+    Resend({
+      apiKey: process.env.AUTH_RESEND_KEY,
+      from: process.env.AUTH_EMAIL_FROM || 'noreply@openclawmp.cc',
     }),
   ],
   pages: {
     signIn: '/login',
+    verifyRequest: '/login?verify=true',
   },
   callbacks: {
-    async signIn({ user, account }) {
+        async signIn({ user, account, profile: oauthProfile }) {
       if (!account) return false;
 
       const provider = account.provider;
       const providerId = account.providerAccountId;
 
-      // Check if user exists
-      const existing = findUserByProvider(provider, providerId);
-      if (existing) {
-        // Soft-deleted users cannot log in
-        if (existing.deleted_at) {
-          return false;
+      // Read invite code from cookie (set during register page step 1)
+      const inviteCode = await getInviteCodeFromCookie();
+      // Read qualification_token cookie to auto-approve CLI auth
+      const qualifyDeviceId = await getQualificationDeviceId();
+
+      // Email provider: user is created by adapter, just check soft-delete + auto-activate
+      if (provider === 'resend') {
+        const existing = findUserByEmail(user.email ?? '');
+        if (existing?.deleted_at) return false;
+        if (existing) {
+          // Existing user → allow login, auto-activate invite if they have one
+          // Use consume here since createUser adapter won't be called for existing users
+          const effectiveInviteCode = inviteCode || (user.email ? consumePendingEmailInvite(user.email) : null);
+          tryAutoActivateInvite(existing.id, effectiveInviteCode);
+          tryAutoApproveCliAuth(existing.id, qualifyDeviceId);
+          return true;
         }
-        // Always update provider info (name/avatar might change on OAuth side)
-        updateProviderInfo(existing.id, user.name ?? existing.name, user.image ?? existing.avatar);
+        // New user via email → must come through register flow with invite code
+        // Use peek (non-destructive) — the adapter's createUser will consume it
+        const effectiveInviteCode = inviteCode || (user.email ? peekPendingEmailInvite(user.email) : null);
+        if (!effectiveInviteCode) return '/login?error=not_registered';
+        const validation = validateInviteCode(effectiveInviteCode);
+        if (!validation.valid) return '/register?error=invite_required';
+        // User will be created by the adapter's createUser; it will consume the stash and activate invite
         return true;
       }
 
-      // Create new user
+      // OAuth providers
+      const existing = findUserByProvider(provider, providerId);
+      if (existing) {
+        if (existing.deleted_at) return false;
+        // user.image may be stale (from DB); prefer fresh avatar from OAuth profile
+        const freshAvatar = (oauthProfile as Record<string, unknown>)?.picture as string
+          || (oauthProfile as Record<string, unknown>)?.image as string
+          || user.image || existing.avatar;
+        console.log('[auth] signIn existing user, freshAvatar:', freshAvatar?.substring(0, 60));
+        updateProviderInfo(existing.id, user.name ?? existing.name, freshAvatar);
+        // Existing user → allow login, auto-activate invite if they have one
+        tryAutoActivateInvite(existing.id, inviteCode);
+        tryAutoApproveCliAuth(existing.id, qualifyDeviceId);
+        return true;
+      }
+
+      // New user via OAuth → must come through register flow with invite code
+      if (!inviteCode) return '/login?error=not_registered';
+      const validation = validateInviteCode(inviteCode);
+      if (!validation.valid) return '/register?error=invite_required';
+
+      // New user registration with valid invite code
+      const newUserId = generateUserId();
+      const newAvatar = (oauthProfile as Record<string, unknown>)?.picture as string
+        || (oauthProfile as Record<string, unknown>)?.image as string
+        || user.image || '';
       createUser({
-        id: generateUserId(),
+        id: newUserId,
         email: user.email ?? null,
         name: user.name ?? 'Anonymous',
-        avatar: user.image ?? '',
+        avatar: newAvatar,
         provider,
         providerId,
       });
 
+      // Activate invite code for new user
+      activateInviteCode(newUserId, inviteCode);
+
+      // Auto-approve CLI auth if qualify flow created one
+      tryAutoApproveCliAuth(newUserId, qualifyDeviceId);
+
       return true;
     },
 
-    async jwt({ token, account }) {
+    async jwt({ token, user, account }) {
       if (account) {
-        // On initial sign-in, store provider info in token
         token.provider = account.provider;
         token.providerId = account.providerAccountId;
 
-        // Find the DB user and store their ID
-        const dbUser = findUserByProvider(account.provider, account.providerAccountId);
+        // For email login, look up by email; for OAuth, by provider
+        let dbUser: DbUser | null = null;
+        if (account.provider === 'resend' && user?.email) {
+          dbUser = findUserByEmail(user.email);
+        } else {
+          dbUser = findUserByProvider(account.provider, account.providerAccountId);
+        }
         if (dbUser) {
           token.dbUserId = dbUser.id;
         }
@@ -83,13 +279,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
 
     async session({ session, token }) {
-      // Look up current user from DB
       let dbUser: DbUser | null = null;
       if (token.dbUserId) {
         dbUser = findUserById(token.dbUserId as string);
       }
       if (!dbUser && token.provider && token.providerId) {
         dbUser = findUserByProvider(token.provider as string, token.providerId as string);
+      }
+      // Fallback: look up by email for email-based login
+      if (!dbUser && session.user.email) {
+        dbUser = findUserByEmail(session.user.email);
       }
 
       if (dbUser) {
@@ -99,7 +298,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.image = dbUser.avatar;
         session.user.provider = dbUser.provider;
         session.user.inviteCode = dbUser.invite_code;
-        session.user.onboardingCompleted = !!dbUser.onboarding_completed;
       }
 
       return session;
@@ -107,6 +305,58 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   session: {
     strategy: 'jwt',
+    maxAge: 7 * 24 * 60 * 60, // M05: 7-day session expiration
   },
   trustHost: true,
+  // Fix PKCE cookie issue behind Cloudflare Tunnel (HTTPS→HTTP proxy).
+  // Without this, NextAuth uses __Secure- prefixed cookies which require
+  // the origin request to be HTTPS, but the container sees HTTP from the tunnel.
+  // In local dev (http://localhost), secure must be false or cookies won't be set.
+  cookies: {
+    pkceCodeVerifier: {
+      name: 'next-auth.pkce.code_verifier',
+      options: {
+        httpOnly: true,
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' as const : 'lax' as const,
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+      },
+    },
+    state: {
+      name: 'next-auth.state',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax' as const,
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+      },
+    },
+    nonce: {
+      name: 'next-auth.nonce',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax' as const,
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+      },
+    },
+    callbackUrl: {
+      name: 'next-auth.callback-url',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax' as const,
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+      },
+    },
+    csrfToken: {
+      name: 'next-auth.csrf-token',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax' as const,
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+      },
+    },
+  },
 });

@@ -5,7 +5,7 @@ FROM base AS deps
 RUN apk add --no-cache libc6-compat python3 make g++
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm ci
+RUN npm ci --registry=https://registry.npmmirror.com
 
 # Build stage
 FROM base AS builder
@@ -13,6 +13,8 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+# Create data dir so Next.js can open SQLite during static page generation
+RUN mkdir -p data
 RUN npm run build
 
 # Production stage
@@ -30,9 +32,8 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Data directory for SQLite
+# Data directory for SQLite (do NOT copy hub.db — volume mount provides it)
 RUN mkdir -p /app/data && chown nextjs:nodejs /app/data
-COPY --chown=nextjs:nodejs data/hub.db /app/data/hub.db
 
 EXPOSE 3000
 ENV PORT=3000
@@ -40,4 +41,5 @@ ENV HOSTNAME="0.0.0.0"
 
 # Run as root to avoid volume mount permission issues with SQLite
 # (mounted /app/data is owned by host root)
+# DB is provided by volume mount at runtime — schema auto-creates tables if needed
 CMD ["node", "server.js"]

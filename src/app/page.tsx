@@ -1,9 +1,9 @@
 import { getStats, getAssetCountByType, listAssets } from '@/lib/db';
-import type { AssetType } from '@/data/mock';
+import type { AssetType, Asset } from '@/data/types';
 import HomeClient from './client';
 import type { Metadata } from 'next';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 60;
 
 export const metadata: Metadata = {
   title: '水产市场 — Agent 进化生态',
@@ -21,11 +21,20 @@ export default function HomePage() {
   const typeCounts = getAssetCountByType();
 
   // Fetch TOP 6 assets for each type (server-side)
-  const types: AssetType[] = ['template', 'skill', 'config', 'plugin', 'trigger', 'channel'];
+  const types: AssetType[] = ['template', 'experience', 'skill', 'plugin', 'trigger', 'channel'];
   const tabAssets: Record<string, ReturnType<typeof listAssets>['assets']> = {};
   for (const t of types) {
-    const result = listAssets({ type: t, sort: 'downloads', pageSize: 6 });
-    tabAssets[t] = result.assets;
+    const result = listAssets({ type: t, sort: 'popular', pageSize: 30 });
+    // Strip large fields to avoid bloating RSC/HTML payload
+    tabAssets[t] = result.assets.map(a => ({
+      ...a,
+      readme: '',
+      longDescription: '',
+      files: [],
+      versions: [],
+      dependencies: [],
+      compatibility: { models: [], platforms: [], frameworks: [] },
+    }));
   }
 
   return (

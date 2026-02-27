@@ -4,22 +4,30 @@ import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { formatDownloads, typeConfig, Asset, Comment, Issue, FileNode } from '@/data/mock';
-import { useState } from 'react';
-import { InstallDialog } from '@/components/install-dialog';
+import rehypeSanitize from 'rehype-sanitize';
+import { formatDownloads, typeConfig, Asset, Comment, Issue, FileNode } from '@/data/types';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/auth-context';
 
 type TabId = 'overview' | 'files' | 'versions' | 'issues' | 'comments' | 'dependencies';
 
+function AuthorAvatar({ src, size = 'md' }: { src: string; size?: 'sm' | 'md' | 'lg' }) {
+  const sizeClass = size === 'sm' ? 'w-5 h-5' : size === 'lg' ? 'w-10 h-10' : 'w-7 h-7';
+  if (src.startsWith('http')) {
+    return <img src={src} alt="" className={`${sizeClass} rounded-full object-cover`} />;
+  }
+  return <span className={size === 'sm' ? 'text-base' : size === 'lg' ? 'text-2xl' : 'text-xl'}>{src}</span>;
+}
+
 function Badge({ children, variant = 'default' }: { children: React.ReactNode; variant?: 'default' | 'gold' | 'red' | 'green' | 'purple' | 'cyan' | 'amber' }) {
   const styles: Record<string, string> = {
     default: 'bg-surface text-muted border-card-border',
-    gold: 'bg-blue/10 text-blue border-blue/30',
-    red: 'bg-red/10 text-red border-red/30',
-    green: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
-    purple: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
-    cyan: 'bg-cyan-400/10 text-cyan-400 border-cyan-400/30',
-    amber: 'bg-amber-400/10 text-amber-400 border-amber-400/30',
+    gold: 'bg-surface text-foreground border-card-border',
+    red: 'bg-surface text-muted border-card-border',
+    green: 'bg-surface text-muted border-card-border',
+    purple: 'bg-surface text-muted border-card-border',
+    cyan: 'bg-surface text-muted border-card-border',
+    amber: 'bg-surface text-muted border-card-border',
   };
   return (
     <span className={`inline-flex items-center text-xs px-2 py-0.5 rounded-full border ${styles[variant]}`}>
@@ -31,13 +39,41 @@ function Badge({ children, variant = 'default' }: { children: React.ReactNode; v
 function Toast({ message, onClose }: { message: string; onClose: () => void }) {
   return (
     <div className="fixed bottom-6 right-6 z-50">
-      <div className="px-5 py-3 rounded-lg bg-white border border-blue/30 shadow-lg shadow-black/5 flex items-center gap-3">
-        <span className="text-blue">✓</span>
+      <div className="px-5 py-3 rounded-lg bg-white border border-card-border shadow-lg shadow-black/5 flex items-center gap-3">
+        <span className="text-foreground">✓</span>
         <span className="text-sm">{message}</span>
         <button onClick={onClose} className="text-muted hover:text-foreground ml-2">✕</button>
       </div>
     </div>
   );
+}
+
+/** Rewrite relative image/link paths in GitHub README to raw.githubusercontent.com URLs */
+function rewriteGitHubReadmeUrls(readme: string, githubUrl?: string): string {
+  if (!githubUrl) return readme;
+  // Extract owner/repo from https://github.com/owner/repo
+  const match = githubUrl.match(/github\.com\/([^/]+\/[^/]+)/);
+  if (!match) return readme;
+  const ownerRepo = match[1].replace(/\.git$/, '');
+  const rawBase = `https://raw.githubusercontent.com/${ownerRepo}/main`;
+  const blobBase = `https://github.com/${ownerRepo}/blob/main`;
+
+  return readme
+    // ![alt](relative/path.png) → ![alt](raw url)
+    .replace(/!\[([^\]]*)\]\((?!https?:\/\/|data:)([^)]+)\)/g, (_, alt, path) => {
+      const clean = path.replace(/^\.\//, '');
+      return `![${alt}](${rawBase}/${clean})`;
+    })
+    // [text](relative/path) → [text](blob url)  (non-image links)
+    .replace(/(?<!!)\[([^\]]*)\]\((?!https?:\/\/|#|mailto:)([^)]+)\)/g, (_, text, path) => {
+      const clean = path.replace(/^\.\//, '');
+      return `[${text}](${blobBase}/${clean})`;
+    })
+    // <img src="relative/path"> → <img src="raw url">
+    .replace(/(<img\s[^>]*src=["'])(?!https?:\/\/|data:)([^"']+)(["'])/g, (_, pre, path, post) => {
+      const clean = path.replace(/^\.\//, '');
+      return `${pre}${rawBase}/${clean}${post}`;
+    });
 }
 
 function formatFileSize(bytes: number): string {
@@ -59,29 +95,103 @@ function getNodesAtPath(files: FileNode[], pathParts: string[]): FileNode[] {
   return current;
 }
 
-function FileTree({ files }: { files: FileNode[] }) {
+/**
+ * Convert flat file list ({path, size, ...}) from API to FileNode tree.
+ * Handles both formats: legacy FileNode[] and flat {path, size}[].
+ */
+function flatFilesToTree(files: (FileNode | { path: string; size?: number; sha256?: string; contentType?: string })[]): FileNode[] {
+  // If already in FileNode format (has 'name' and 'type'), return as-is
+  if (files.length > 0 && 'name' in files[0] && 'type' in files[0]) {
+    return files as FileNode[];
+  }
+
+  const root: FileNode[] = [];
+  for (const file of files) {
+    const filePath = ('path' in file ? file.path : '') as string;
+    if (!filePath) continue;
+    const parts = filePath.split('/');
+    let current = root;
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      if (i === parts.length - 1) {
+        // Leaf file
+        current.push({ name: part, type: 'file', size: ('size' in file ? file.size : undefined) as number | undefined });
+      } else {
+        // Directory
+        let dir = current.find(n => n.name === part && n.type === 'directory');
+        if (!dir) {
+          dir = { name: part, type: 'directory', children: [] };
+          current.push(dir);
+        }
+        current = dir.children!;
+      }
+    }
+  }
+  return root;
+}
+
+function FileTree({ files: rawFiles, assetId }: { files: FileNode[]; assetId: string }) {
+  const files = flatFilesToTree(rawFiles);
   const [currentPath, setCurrentPath] = useState<string[]>([]);
   const [selectedFile, setSelectedFile] = useState<FileNode | null>(null);
+  const [fileContent, setFileContent] = useState<string | null>(null);
+  const [loadingContent, setLoadingContent] = useState(false);
 
   const currentNodes = getNodesAtPath(files, currentPath);
   const sorted = [...currentNodes].sort((a, b) => {
     if (a.type === 'directory' && b.type === 'file') return -1;
     if (a.type === 'file' && b.type === 'directory') return 1;
-    return a.name.localeCompare(b.name);
+    return (a.name || '').localeCompare(b.name || '');
   });
 
-  const handleClick = (node: FileNode) => {
+  // Build the full path for a file node at the current path level
+  const getFullPath = (nodeName: string) => [...currentPath, nodeName].join('/');
+
+  const handleClick = async (node: FileNode) => {
     if (node.type === 'directory') {
       setCurrentPath(prev => [...prev, node.name]);
       setSelectedFile(null);
-    } else if (node.content) {
-      setSelectedFile(prev => prev?.name === node.name ? null : node);
+      setFileContent(null);
+    } else {
+      // Toggle: clicking same file closes it
+      if (selectedFile?.name === node.name) {
+        setSelectedFile(null);
+        setFileContent(null);
+        return;
+      }
+
+      setSelectedFile(node);
+      setFileContent(null);
+
+      // If node already has content (legacy format), use it
+      if (node.content) {
+        setFileContent(node.content);
+        return;
+      }
+
+      // Otherwise fetch from API
+      const fullPath = getFullPath(node.name);
+      setLoadingContent(true);
+      try {
+        const resp = await fetch(`/api/v1/assets/${assetId}/files/${fullPath}`);
+        if (resp.ok) {
+          const text = await resp.text();
+          setFileContent(text);
+        } else {
+          setFileContent('// 无法加载文件内容');
+        }
+      } catch {
+        setFileContent('// 加载失败');
+      } finally {
+        setLoadingContent(false);
+      }
     }
   };
 
   const navigateTo = (index: number) => {
     setCurrentPath(prev => prev.slice(0, index));
     setSelectedFile(null);
+    setFileContent(null);
   };
 
   return (
@@ -112,7 +222,7 @@ function FileTree({ files }: { files: FileNode[] }) {
           <button key={node.name} onClick={() => handleClick(node)}
             className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-left ${
               i < sorted.length - 1 || selectedFile ? 'border-b border-card-border' : ''
-            } ${node.type === 'directory' || node.content ? 'hover:bg-card-hover cursor-pointer' : 'cursor-default'} ${
+            } hover:bg-card-hover cursor-pointer ${
               selectedFile?.name === node.name ? 'bg-blue/5' : ''
             }`}>
             <span>{node.type === 'directory' ? '📁' : '📄'}</span>
@@ -131,7 +241,7 @@ function FileTree({ files }: { files: FileNode[] }) {
       </div>
 
       {/* File content preview */}
-      {selectedFile && selectedFile.content && (
+      {selectedFile && (
         <div className="mt-4 rounded-lg bg-white border border-card-border overflow-hidden">
           <div className="flex items-center gap-2 px-4 py-2.5 bg-surface border-b border-card-border">
             <span className="text-xs">📄</span>
@@ -140,9 +250,15 @@ function FileTree({ files }: { files: FileNode[] }) {
               <span className="text-xs text-muted font-mono ml-auto">{formatFileSize(selectedFile.size)}</span>
             )}
           </div>
-          <pre className="p-4 text-sm font-mono text-foreground overflow-x-auto bg-surface/50 leading-relaxed">
-            <code>{selectedFile.content}</code>
-          </pre>
+          {loadingContent ? (
+            <div className="p-4 text-sm text-muted animate-pulse">加载中...</div>
+          ) : fileContent ? (
+            <pre className="p-4 text-sm font-mono text-foreground overflow-x-auto bg-surface/50 leading-relaxed max-h-[600px] overflow-y-auto">
+              <code>{fileContent}</code>
+            </pre>
+          ) : (
+            <div className="p-4 text-sm text-muted">暂无内容</div>
+          )}
         </div>
       )}
     </div>
@@ -154,16 +270,16 @@ interface AssetDetailClientProps {
   initialAsset: Asset | null;
   initialComments: Comment[];
   initialIssues: Issue[];
-  initialAllAssets: Asset[];
+  relatedAssets: Asset[];
+  depAssets: Asset[];
+  dependentAssets: Asset[];
 }
 
-export default function AssetDetailClient({ id, initialAsset, initialComments, initialIssues, initialAllAssets }: AssetDetailClientProps) {
+export default function AssetDetailClient({ id, initialAsset, initialComments, initialIssues, relatedAssets, depAssets, dependentAssets }: AssetDetailClientProps) {
   const { user } = useAuth();
   const hasInviteAccess = !!user?.inviteCode;
   const [asset] = useState<Asset | null>(initialAsset);
-  const [allAssets] = useState<Asset[]>(initialAllAssets);
   const [copied, setCopied] = useState(false);
-  const [rawCopied, setRawCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [toast, setToast] = useState<string | null>(null);
   const [localComments, setLocalComments] = useState<Comment[]>([]);
@@ -172,6 +288,45 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
   const [commentText, setCommentText] = useState('');
   const [commenterType, setCommenterType] = useState<'user' | 'agent'>('user');
   const [issueFilter, setIssueFilter] = useState<'all' | 'open' | 'closed'>('all');
+  const [starLoading, setStarLoading] = useState(false);
+  const [starred, setStarred] = useState(false);
+  const [displayTotalStars, setDisplayTotalStars] = useState(initialAsset?.totalStars ?? 0);
+
+  // Fetch star status for the current user
+  const fetchStarStatus = useCallback(async () => {
+    if (!asset) return;
+    try {
+      const res = await fetch(`/api/v1/assets/${asset.id}/star`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setStarred(data.data.isStarred);
+          setDisplayTotalStars(data.data.totalStars);
+        }
+      }
+    } catch { /* ignore */ }
+  }, [asset]);
+
+  useEffect(() => {
+    fetchStarStatus();
+  }, [fetchStarStatus]);
+
+  const handleToggleStar = async () => {
+    if (!asset || starLoading) return;
+    setStarLoading(true);
+    try {
+      const method = starred ? 'DELETE' : 'POST';
+      const res = await fetch(`/api/v1/assets/${asset.id}/star`, { method });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setStarred(data.data.starred);
+          setDisplayTotalStars(data.data.totalStars);
+        }
+      }
+    } catch { /* ignore */ }
+    setStarLoading(false);
+  };
 
   if (!asset) {
     return (
@@ -179,7 +334,7 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
         <div className="text-6xl mb-4">🚫</div>
         <h1 className="text-2xl font-bold mb-2">资产未找到</h1>
         <p className="text-muted mb-6">该资产可能已被移除或链接无效</p>
-        <Link href="/explore" className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue/10 text-blue border border-blue/30 hover:bg-blue/20 transition-colors">
+        <Link href="/explore" className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-surface text-foreground border border-card-border hover:border-foreground/15 transition-colors">
           ← 返回探索
         </Link>
       </div>
@@ -189,24 +344,14 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
   const config = typeConfig[asset.type];
   const allComments = [...localComments, ...serverComments];
   const issuesList = serverIssues;
-  const related = allAssets
-    .filter(a => a.id !== asset.id && (a.type === asset.type || a.tags.some(t => asset.tags.includes(t))))
-    .slice(0, 4);
-  const depAssets = asset.dependencies.map(depId => allAssets.find(a => a.id === depId)).filter(Boolean) as Asset[];
-  const dependents = allAssets.filter(a => a.dependencies.includes(asset.id));
-  const installCmd = `seafood-market install ${asset.type}/@${asset.author.id}/${asset.name}`;
+  const related = relatedAssets;
+  const dependents = dependentAssets;
+  const installCmd = `openclawmp install ${asset.type}/@${asset.author.id}/${asset.name}`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(installCmd);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  };
-
-  const copyRawUrl = () => {
-    const url = `${window.location.origin}/api/assets/${asset.id}/raw`;
-    navigator.clipboard.writeText(url);
-    setRawCopied(true);
-    setTimeout(() => setRawCopied(false), 2000);
   };
 
   const showToast = (msg: string) => {
@@ -231,12 +376,11 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
   };
 
   const tabs: { id: TabId; label: string; icon: string; count?: number }[] = [
-    { id: 'overview', label: 'Overview', icon: '📖' },
-    { id: 'files', label: '文件', icon: '📂', count: asset.files?.length },
-    { id: 'versions', label: 'Versions', icon: '📦', count: asset.versions.length },
-    { id: 'dependencies', label: '依赖图', icon: '🔗', count: depAssets.length + dependents.length },
-    { id: 'issues', label: 'Issues', icon: '🐛', count: issuesList.length },
-    { id: 'comments', label: '评论', icon: '💬', count: allComments.length },
+    { id: 'overview', label: 'Overview', icon: '' },
+    { id: 'files', label: '文件', icon: '', count: asset.files?.length },
+    { id: 'versions', label: 'Versions', icon: '', count: asset.versions.length },
+    { id: 'issues', label: 'Issues', icon: '', count: issuesList.length },
+    { id: 'comments', label: '评论', icon: '', count: allComments.length },
   ];
 
   return (
@@ -252,6 +396,7 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
       </div>
 
       <div className="mb-6">
+        <p className="text-xs font-semibold text-muted uppercase tracking-widest mb-3">Asset Detail</p>
         <div className="flex items-center gap-3 mb-4 flex-wrap">
           <span className={`text-sm px-3 py-1 rounded-full border ${config.bgColor} ${config.borderColor} ${config.color}`}>
             {config.icon} {config.label}
@@ -261,16 +406,50 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
 
         <div className="flex flex-wrap items-center gap-4 mb-3">
           <h1 className="text-3xl sm:text-4xl font-bold">{asset.displayName}</h1>
-          <div className="flex items-center gap-2">
-            <InstallDialog asset={asset} />
-          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-4 mb-4">
           <Link href={`/user/${asset.author.id}`} className="flex items-center gap-2 hover:text-blue transition-colors">
-            <span className="text-xl">{asset.author.avatar}</span>
+            <AuthorAvatar src={asset.author.avatar} />
             <span className="text-sm font-medium">{asset.author.name}</span>
+            {asset.author.reputation != null && asset.author.reputation > 0 && (
+              <span className="text-xs text-muted/70 font-mono" title="声望">🎖️{asset.author.reputation}</span>
+            )}
           </Link>
+          {(asset.githubStars ?? 0) > 0 && asset.githubUrl && (
+            <a href={asset.githubUrl} target="_blank" rel="noopener noreferrer"
+               className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md border border-card-border bg-surface hover:bg-card-hover transition-colors text-sm">
+              <svg className="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+              </svg>
+              <span className="font-semibold text-foreground">{asset.githubStars}</span>
+            </a>
+          )}
+          {/* Star button */}
+          <button
+            onClick={handleToggleStar}
+            disabled={starLoading}
+            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md border text-sm transition-colors ${
+              starred
+                ? 'border-yellow-400/50 bg-yellow-50 hover:bg-yellow-100 text-yellow-600'
+                : 'border-card-border bg-surface hover:bg-card-hover text-muted'
+            } ${starLoading ? 'opacity-50 cursor-wait' : ''}`}
+          >
+            <svg className={`w-4 h-4 ${starred ? 'text-yellow-500' : 'text-muted'}`} fill={starred ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={starred ? 0 : 1.5} viewBox="0 0 20 20">
+              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+            </svg>
+            <span className="font-semibold">{displayTotalStars > 0 ? displayTotalStars : ''}</span>
+            <span>{starred ? '已收藏' : '收藏'}</span>
+          </button>
+          {asset.githubUrl && (
+            <a href={asset.githubUrl} target="_blank" rel="noopener noreferrer"
+               className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md border border-card-border bg-surface hover:bg-card-hover transition-colors text-sm group">
+              <svg className="w-4 h-4 text-muted group-hover:text-foreground" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+              <span className="text-muted group-hover:text-foreground">GitHub</span>
+              {(asset.githubForks ?? 0) > 0 && <span className="text-xs text-muted">🍴 {asset.githubForks}</span>}
+              {(asset as any).githubLanguage && <span className="text-xs text-muted">💻 {(asset as any).githubLanguage}</span>}
+            </a>
+          )}
           <span className="flex items-center gap-1 text-sm text-muted">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
             {formatDownloads(asset.downloads)} 次下载
@@ -282,9 +461,9 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
       <div className="flex gap-1 mb-6 border-b border-card-border overflow-x-auto">
         {tabs.map(t => (
           <button key={t.id} onClick={() => setActiveTab(t.id)}
-            className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === t.id ? 'border-blue text-blue' : 'border-transparent text-muted hover:text-foreground'}`}>
-            <span>{t.icon}</span><span>{t.label}</span>
-            {t.count !== undefined && <span className={`text-xs px-1.5 py-0.5 rounded-full ${activeTab === t.id ? 'bg-blue/10 text-blue' : 'bg-surface text-muted'}`}>{t.count}</span>}
+            className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === t.id ? 'border-foreground text-foreground' : 'border-transparent text-muted hover:text-foreground'}`}>
+            {t.icon && <span>{t.icon}</span>}<span>{t.label}</span>
+            {t.count !== undefined && <span className={`text-xs px-1.5 py-0.5 rounded-full ${activeTab === t.id ? 'bg-surface text-foreground' : 'bg-surface text-muted'}`}>{t.count}</span>}
           </button>
         ))}
       </div>
@@ -295,57 +474,38 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
             <>
               <div className="mb-8 p-4 rounded-lg bg-white border border-card-border">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-semibold text-blue">⚡ 安装命令</span>
-                  <button onClick={handleCopy} className="text-xs px-3 py-1 rounded-lg bg-blue/10 text-blue border border-blue/30 hover:bg-blue/20 transition-colors">
+                  <span className="text-sm font-semibold text-foreground">安装命令</span>
+                  <button onClick={handleCopy} className="text-xs px-3 py-1 rounded-lg bg-surface text-muted border border-card-border hover:text-foreground transition-colors">
                     {copied ? '✓ 已复制' : '复制'}
                   </button>
                 </div>
                 <code className="block text-sm font-mono text-foreground bg-surface p-3 rounded-lg overflow-x-auto">{installCmd}</code>
               </div>
 
-              <div className="mb-8 p-4 rounded-lg bg-surface border border-card-border">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-lg">🤖</span>
-                  <h3 className="font-semibold text-sm">Agent 直读</h3>
-                  <span className="text-xs text-muted">— Agent 可以直接阅读并使用此资产</span>
-                </div>
-                <p className="text-xs text-muted mb-3">
-                  此资产可被任何 AI Agent 直接读取。Agent 通过访问下方链接获取完整内容，无需安装，即可在此基础上理解、修改和创作。
-                </p>
-                <div className="flex items-center gap-2 bg-background rounded-md p-2 border border-card-border/50">
-                  <code className="text-xs text-blue flex-1 truncate">
-                    curl {typeof window !== 'undefined' ? window.location.origin : ''}/api/assets/{asset.id}/raw
-                  </code>
-                  <button onClick={copyRawUrl} className="text-xs px-2 py-1 rounded bg-blue/10 text-blue hover:bg-blue/20 transition-colors flex-shrink-0">
-                    {rawCopied ? '✓ 已复制' : '复制'}
-                  </button>
-                </div>
-              </div>
-
               <div className="mb-8">
                 <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-3">标签</h3>
                 <div className="flex flex-wrap gap-2">
-                  {asset.tags.map(tag => (
-                    <span key={tag} className="text-sm px-3 py-1 rounded-lg bg-surface text-muted border border-card-border hover:border-blue/30 hover:text-blue transition-colors cursor-pointer">#{tag}</span>
+                  {(asset.tags ?? []).map(tag => (
+                    <span key={tag} className="text-sm px-3 py-1 rounded-lg bg-surface text-muted border border-card-border hover:border-foreground/20 hover:text-foreground transition-colors cursor-pointer">#{tag}</span>
                   ))}
                 </div>
               </div>
 
               <div className="mb-8">
                 <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-4">README</h3>
-                <div className="prose max-w-none p-6 rounded-lg bg-white border border-card-border">
+                <div className="prose max-w-none p-3 sm:p-6 rounded-lg bg-white border border-card-border overflow-x-auto">
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
-                    rehypePlugins={[rehypeRaw]}
+                    rehypePlugins={[rehypeRaw, rehypeSanitize]}
                     components={{
-                      h1: ({ children }) => <h1 className="text-2xl font-bold text-blue mb-4">{children}</h1>,
+                      h1: ({ children }) => <h1 className="text-2xl font-bold text-foreground mb-4">{children}</h1>,
                       h2: ({ children }) => <h2 className="text-xl font-bold text-foreground mt-8 mb-3">{children}</h2>,
                       h3: ({ children }) => <h3 className="text-lg font-semibold text-foreground mt-6 mb-2">{children}</h3>,
                       p: ({ children }) => <p className="text-muted leading-relaxed mb-4">{children}</p>,
                       ul: ({ children }) => <ul className="list-disc ml-6 mb-4 space-y-1 text-muted">{children}</ul>,
                       ol: ({ children }) => <ol className="list-decimal ml-6 mb-4 space-y-1 text-muted">{children}</ol>,
                       li: ({ children }) => <li className="text-muted">{children}</li>,
-                      blockquote: ({ children }) => <blockquote className="border-l-2 border-blue/50 pl-4 text-muted italic my-4">{children}</blockquote>,
+                      blockquote: ({ children }) => <blockquote className="border-l-2 border-card-border pl-4 text-muted italic my-4">{children}</blockquote>,
                       code: ({ className, children }) => {
                         const isBlock = className?.includes('language-');
                         return isBlock ? (
@@ -353,7 +513,7 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
                             <code className="text-sm font-mono text-foreground">{children}</code>
                           </pre>
                         ) : (
-                          <code className="bg-surface px-1.5 py-0.5 rounded text-blue text-sm font-mono">{children}</code>
+                          <code className="bg-surface px-1.5 py-0.5 rounded text-foreground text-sm font-mono">{children}</code>
                         );
                       },
                       pre: ({ children }) => <>{children}</>,
@@ -373,7 +533,7 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
                       hr: () => <hr className="border-card-border my-6" />,
                     }}
                   >
-                    {asset.readme}
+                    {rewriteGitHubReadmeUrls(asset.readme, asset.githubUrl)}
                   </ReactMarkdown>
                 </div>
               </div>
@@ -383,7 +543,7 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
                   <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-3">相关推荐</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {related.map(r => (
-                      <Link key={r.id} href={`/asset/${r.id}`} className="block p-4 rounded-lg bg-white border border-card-border hover:border-blue/30 transition-colors group">
+                      <Link key={r.id} href={`/asset/${r.id}`} className="block p-4 rounded-lg bg-white border border-card-border hover:border-foreground/15 transition-colors group">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-xs">{typeConfig[r.type].icon}</span>
                           <span className="text-sm font-medium group-hover:text-blue transition-colors">{r.displayName}</span>
@@ -402,7 +562,7 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
             <div>
               <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-4">文件浏览</h3>
               {asset.files && asset.files.length > 0 ? (
-                <FileTree files={asset.files} />
+                <FileTree files={asset.files} assetId={asset.id} />
               ) : (
                 <div className="text-center py-12 rounded-lg bg-white border border-card-border">
                   <div className="text-4xl mb-2">📂</div>
@@ -421,10 +581,10 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
                   <div className="space-y-6">
                     {asset.versions.map((v, i) => (
                       <div key={v.version} className="relative pl-10">
-                        <div className={`absolute left-2.5 top-1 w-3 h-3 rounded-full border-2 ${i === 0 ? 'bg-blue border-blue shadow-sm shadow-blue/30' : 'bg-surface border-card-border'}`} />
+                        <div className={`absolute left-2.5 top-1 w-3 h-3 rounded-full border-2 ${i === 0 ? 'bg-foreground border-foreground' : 'bg-surface border-card-border'}`} />
                         <div className="p-4 rounded-lg bg-white border border-card-border">
                           <div className="flex items-center gap-3 mb-2">
-                            <span className={`font-mono font-semibold ${i === 0 ? 'text-blue' : 'text-foreground'}`}>v{v.version}</span>
+                            <span className={`font-mono font-semibold ${i === 0 ? 'text-foreground' : 'text-foreground'}`}>v{v.version}</span>
                             {i === 0 && <Badge variant="gold">最新</Badge>}
                             <span className="text-xs text-muted ml-auto">{v.date}</span>
                           </div>
@@ -447,7 +607,7 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">Issues ({issuesList.length})</h3>
                 <div className="flex gap-2 text-xs">
-                  <button onClick={() => setIssueFilter('all')} className={`px-2.5 py-1 rounded-lg border transition-colors ${issueFilter === 'all' ? 'bg-blue/10 text-blue border-blue/30' : 'border-card-border text-muted hover:text-foreground'}`}>全部 ({issuesList.length})</button>
+                  <button onClick={() => setIssueFilter('all')} className={`px-2.5 py-1 rounded-lg border transition-colors ${issueFilter === 'all' ? 'bg-surface text-foreground border-card-border' : 'border-card-border text-muted hover:text-foreground'}`}>全部 ({issuesList.length})</button>
                   <button onClick={() => setIssueFilter('open')} className={`px-2.5 py-1 rounded-lg border transition-colors flex items-center gap-1 ${issueFilter === 'open' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'border-card-border text-muted hover:text-foreground'}`}><span className="w-2 h-2 rounded-full bg-emerald-400" />需解决 ({issuesList.filter(i => i.status === 'open').length})</button>
                   <button onClick={() => setIssueFilter('closed')} className={`px-2.5 py-1 rounded-lg border transition-colors flex items-center gap-1 ${issueFilter === 'closed' ? 'bg-muted/10 text-muted border-muted/30' : 'border-card-border text-muted hover:text-foreground'}`}><span className="w-2 h-2 rounded-full bg-muted" />已解决 ({issuesList.filter(i => i.status === 'closed').length})</button>
                 </div>
@@ -470,7 +630,7 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
                             {issue.labels.map(l => <Badge key={l} variant={l === 'bug' ? 'red' : l === 'feature-request' ? 'purple' : l === 'enhancement' ? 'cyan' : l === 'performance' ? 'amber' : 'default'}>{l}</Badge>)}
                           </div>
                           <div className="flex items-center gap-2 text-xs text-muted">
-                            <span className="flex items-center gap-1">{issue.authorAvatar} {issue.authorName}
+                            <span className="flex items-center gap-1"><AuthorAvatar src={issue.authorAvatar} size="sm" /> {issue.authorName}
                               {issue.authorType === 'agent' && <span className="text-purple-400 bg-purple-500/10 border border-purple-500/30 rounded px-1">🤖</span>}
                             </span>
                             <span>·</span><span>{issue.createdAt}</span><span>·</span><span>💬 {issue.commentCount}</span>
@@ -505,7 +665,7 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
                           <div className="flex-1">
                             <span className="text-sm font-semibold group-hover:text-blue transition-colors">{dep.displayName}</span>
                             <div className="flex items-center gap-2 text-xs text-muted mt-0.5">
-                              <span>{dep.author.avatar} {dep.author.name}</span>
+                              <span className="flex items-center gap-1"><AuthorAvatar src={dep.author.avatar} size="sm" /> {dep.author.name}</span>
                               <span>v{dep.version}</span>
                             </div>
                           </div>
@@ -527,30 +687,30 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
                           <div className="flex flex-wrap justify-center gap-3">
                             {depAssets.map(dep => (
                               <Link key={dep.id} href={`/asset/${dep.id}`}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:border-blue/50 ${typeConfig[dep.type].bgColor} ${typeConfig[dep.type].borderColor} ${typeConfig[dep.type].color}`}>
+                                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:border-foreground/20 ${typeConfig[dep.type].bgColor} ${typeConfig[dep.type].borderColor} ${typeConfig[dep.type].color}`}>
                                 {typeConfig[dep.type].icon} {dep.name}
                               </Link>
                             ))}
                           </div>
-                          <svg width="40" height="30" className="text-blue/30">
+                          <svg width="40" height="30" className="text-muted/30">
                             <line x1="20" y1="0" x2="20" y2="26" stroke="currentColor" strokeWidth="2" />
                             <polygon points="16,22 24,22 20,28" fill="currentColor" />
                           </svg>
                         </>
                       )}
-                      <div className="px-4 py-2 rounded-lg border-2 border-blue/50 bg-blue/10 text-blue font-semibold text-sm">
+                      <div className="px-4 py-2 rounded-lg border-2 border-foreground/30 bg-surface text-foreground font-semibold text-sm">
                         {config.icon} {asset.name}
                       </div>
                       {dependents.length > 0 && (
                         <>
-                          <svg width="40" height="30" className="text-blue/30">
+                          <svg width="40" height="30" className="text-muted/30">
                             <line x1="20" y1="0" x2="20" y2="26" stroke="currentColor" strokeWidth="2" />
                             <polygon points="16,22 24,22 20,28" fill="currentColor" />
                           </svg>
                           <div className="flex flex-wrap justify-center gap-3">
                             {dependents.map(dep => (
                               <Link key={dep.id} href={`/asset/${dep.id}`}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:border-blue/50 ${typeConfig[dep.type].bgColor} ${typeConfig[dep.type].borderColor} ${typeConfig[dep.type].color}`}>
+                                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:border-foreground/20 ${typeConfig[dep.type].bgColor} ${typeConfig[dep.type].borderColor} ${typeConfig[dep.type].color}`}>
                                 {typeConfig[dep.type].icon} {dep.name}
                               </Link>
                             ))}
@@ -573,7 +733,7 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
                           <div className="flex-1">
                             <span className="text-sm font-semibold group-hover:text-blue transition-colors">{dep.displayName}</span>
                             <div className="flex items-center gap-2 text-xs text-muted mt-0.5">
-                              <span>{dep.author.avatar} {dep.author.name}</span>
+                              <span className="flex items-center gap-1"><AuthorAvatar src={dep.author.avatar} size="sm" /> {dep.author.name}</span>
                               <span>v{dep.version}</span>
                             </div>
                           </div>
@@ -606,7 +766,7 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
                 <div className="flex items-center gap-3 mb-4">
                   <span className="text-sm font-semibold">发表评论</span>
                   <div className="flex items-center gap-1 ml-auto">
-                    <button onClick={() => setCommenterType('user')} className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${commenterType === 'user' ? 'bg-blue/10 text-blue border-blue/30' : 'border-card-border text-muted hover:text-foreground'}`}>👤 用户</button>
+                    <button onClick={() => setCommenterType('user')} className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${commenterType === 'user' ? 'bg-surface text-foreground border-card-border' : 'border-card-border text-muted hover:text-foreground'}`}>👤 用户</button>
                     <button onClick={() => setCommenterType('agent')} className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${commenterType === 'agent' ? 'bg-purple-500/10 text-purple-400 border-purple-500/30' : 'border-card-border text-muted hover:text-foreground'}`}>🤖 Agent</button>
                   </div>
                 </div>
@@ -637,6 +797,9 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
                           <span className="text-xl">{c.userAvatar}</span>
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-medium">{c.userName}</span>
+                            {c.authorReputation != null && c.authorReputation > 0 && (
+                              <span className="text-[10px] text-muted/70 font-mono" title="声望">🎖️{c.authorReputation}</span>
+                            )}
                             {isA && <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/30">🤖 Agent</span>}
                             <span className="text-xs text-muted">{c.createdAt}</span>
                           </div>
@@ -658,9 +821,9 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
         <aside className="lg:w-72 shrink-0">
           <div className="sticky top-24 space-y-6">
             <div className="p-5 rounded-lg bg-white border border-card-border">
-              <h3 className="text-sm font-semibold mb-4">📊 安装统计</h3>
+              <h3 className="text-sm font-semibold mb-4">安装统计</h3>
               <div className="text-center mb-2">
-                <span className="text-4xl font-bold text-blue">{formatDownloads(asset.downloads)}</span>
+                <span className="text-4xl font-bold text-foreground">{formatDownloads(asset.downloads)}</span>
                 <span className="text-sm text-muted ml-1">次安装</span>
               </div>
               {asset.rating > 0 && (
@@ -677,11 +840,8 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
                 <div className="flex justify-between"><span className="text-muted">分类</span><span>{asset.category}</span></div>
                 <div className="flex justify-between"><span className="text-muted">创建时间</span><span>{asset.createdAt}</span></div>
                 <div className="flex justify-between"><span className="text-muted">最后更新</span><span>{asset.updatedAt}</span></div>
-                <div className="flex justify-between"><span className="text-muted">下载量</span><span className="text-blue font-semibold">{asset.downloads.toLocaleString()}</span></div>
+                <div className="flex justify-between"><span className="text-muted">下载量</span><span className="text-foreground font-semibold">{asset.downloads.toLocaleString()}</span></div>
                 <div className="flex justify-between"><span className="text-muted">Issues</span><span>{asset.issueCount}</span></div>
-              </div>
-              <div className="mt-5">
-                <InstallDialog asset={asset} />
               </div>
             </div>
 
@@ -700,35 +860,6 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
               </div>
             )}
 
-            <div className="p-5 rounded-lg bg-white border border-card-border">
-              <h3 className="text-sm font-semibold mb-4">📖 安装指南</h3>
-              <div className="space-y-4">
-                <div className="flex gap-3">
-                  <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue/10 text-blue text-xs font-bold flex items-center justify-center mt-0.5">1</div>
-                  <div>
-                    <p className="text-sm font-medium mb-1">安装 Seafood Market CLI</p>
-                    <code className="block text-xs font-mono text-muted bg-surface p-2 rounded-lg">npm install -g seafood-market</code>
-                  </div>
-                </div>
-                <div className="flex gap-3">
-                  <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue/10 text-blue text-xs font-bold flex items-center justify-center mt-0.5">2</div>
-                  <div>
-                    <p className="text-sm font-medium mb-1">安装此{config.label}</p>
-                    <code className="block text-xs font-mono text-muted bg-surface p-2 rounded-lg">{installCmd}</code>
-                  </div>
-                </div>
-                <div className="flex gap-3">
-                  <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue/10 text-blue text-xs font-bold flex items-center justify-center mt-0.5">3</div>
-                  <div>
-                    <p className="text-sm font-medium mb-1">重启 Agent 生效</p>
-                    <code className="block text-xs font-mono text-muted bg-surface p-2 rounded-lg">seafood-market gateway restart</code>
-                  </div>
-                </div>
-              </div>
-              <div className="mt-4 pt-3 border-t border-card-border">
-                <p className="text-xs text-muted">💡 安装后在 Agent 对话中即可使用新能力，也可通过 <code className="bg-surface px-1 rounded text-blue">seafood-market status</code> 查看已安装列表。</p>
-              </div>
-            </div>
           </div>
         </aside>
       </div>

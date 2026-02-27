@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { findUserById, authorizeDevice, listAuthorizedDevices, revokeDevice } from '@/lib/db';
+import { findUserById, authorizeDevice, listAuthorizedDevices } from '@/lib/db';
+import { getDb } from '@/lib/db/connection';
 
 // GET — List my authorized devices
 export async function GET() {
@@ -9,7 +10,10 @@ export async function GET() {
     if (!session?.user?.id) {
       return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
     }
-    const devices = listAuthorizedDevices(session.user.id);
+    const devices = listAuthorizedDevices(session.user.id).map(d => ({
+      ...d,
+      deviceIdShort: d.deviceId.slice(0, 12) + '...',
+    }));
     return NextResponse.json({ success: true, data: { devices } });
   } catch (err) {
     console.error('GET /api/auth/device error:', err);
@@ -36,22 +40,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Missing deviceId — from ~/.openclaw/identity/device.json' }, { status: 400 });
     }
 
-    authorizeDevice(session.user.id, deviceId, body.name || '');
+    const result = authorizeDevice(session.user.id, deviceId, body.name || '');
+    if (!result.success) {
+      return NextResponse.json({ success: false, error: result.error }, { status: 409 });
+    }
 
     return NextResponse.json({
       success: true,
       data: {
         deviceId: deviceId.slice(0, 12) + '...',
-        message: '✅ 设备已授权！该设备上的 Agent 现在可以发布资产了。',
+        alreadyBound: result.alreadyBound || false,
+        message: result.alreadyBound
+          ? '设备已绑定，无需重复操作。'
+          : '✅ 设备已授权！该设备上的 Agent 现在可以发布资产了。',
       },
-    }, { status: 201 });
+    }, { status: result.alreadyBound ? 200 : 201 });
   } catch (err) {
     console.error('POST /api/auth/device error:', err);
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }
 }
 
-// DELETE — Revoke a device
+// DELETE — Unbind a specific device
 export async function DELETE(request: NextRequest) {
   try {
     const session = await auth();
@@ -59,17 +69,24 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
     }
 
-    const body = await request.json() as { deviceId?: string };
-    if (!body.deviceId) {
+    const body = await request?.json().catch(() => ({})) as { deviceId?: string };
+    const deviceId = body.deviceId;
+    if (!deviceId) {
       return NextResponse.json({ success: false, error: 'Missing deviceId' }, { status: 400 });
     }
 
-    const deleted = revokeDevice(body.deviceId, session.user.id);
+    const db = getDb();
+    const deleted = db.prepare('DELETE FROM authorized_devices WHERE user_id = ? AND device_id = ?')
+      .run(session.user.id, deviceId).changes > 0;
+
     if (!deleted) {
-      return NextResponse.json({ success: false, error: 'Device not found or not yours' }, { status: 404 });
+      return NextResponse.json({ success: false, error: '设备未找到或不属于当前用户' }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, data: { message: '设备授权已撤销' } });
+    return NextResponse.json({
+      success: true,
+      data: { message: '设备已解绑' },
+    });
   } catch (err) {
     console.error('DELETE /api/auth/device error:', err);
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });

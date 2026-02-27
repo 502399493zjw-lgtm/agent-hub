@@ -13,14 +13,22 @@ export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [navSearch, setNavSearch] = useState('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const links = [
     { href: '/', label: '首页' },
     { href: '/explore', label: '探索' },
-    { href: '/guide', label: '安装' },
-    { href: '/publish', label: '发布' },
   ];
+
+  // Track scroll for border effect
+  useEffect(() => {
+    function onScroll() {
+      setScrolled(window.scrollY > 10);
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   const handleNavSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,14 +73,17 @@ export function Navbar() {
   };
 
   return (
-    <nav className="sticky top-0 z-50 border-b border-card-border bg-[#faf8f4]/80 backdrop-blur-sm">
+    <nav
+      className={`sticky top-0 z-50 border-b bg-[#faf8f4]/80 backdrop-blur-md transition-[border-color,background-color] duration-200 ${
+        scrolled ? 'border-card-border bg-[#faf8f4]/95' : 'border-transparent'
+      }`}
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-2 group shrink-0">
             <span className="text-2xl">🐟</span>
-            <span className="text-xl font-bold tracking-tight font-serif">
-              <span className="text-blue">水产</span>
-              <span className="text-foreground">市场</span>
+            <span className="text-xl font-bold tracking-tight font-serif text-foreground">
+              水产市场
             </span>
           </Link>
 
@@ -81,8 +92,8 @@ export function Navbar() {
               <Link
                 key={link.href}
                 href={link.href}
-                className={`text-sm font-medium transition-colors hover:text-blue ${
-                  pathname === link.href ? 'text-blue' : 'text-muted'
+                className={`text-sm font-medium transition-[color] duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue/50 focus-visible:ring-offset-2 rounded-sm ${
+                  pathname === link.href ? 'text-foreground' : 'text-muted'
                 }`}
               >
                 {link.label}
@@ -92,37 +103,47 @@ export function Navbar() {
 
           {/* Search input - hidden on mobile */}
           <form onSubmit={handleNavSearch} className="hidden lg:flex items-center flex-1 max-w-xs">
+            <label htmlFor="nav-search" className="sr-only">全局搜索</label>
             <div className="relative w-full">
               <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
               <input
+                id="nav-search"
                 type="text"
                 value={navSearch}
                 onChange={e => setNavSearch(e.target.value)}
-                placeholder="全局搜索..."
-                className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-surface border border-card-border text-sm text-foreground placeholder:text-muted/50 focus:outline-none focus:border-blue/50 transition-colors"
+                placeholder="全局搜索…"
+                className="w-full pl-8 pr-3 py-1.5 rounded-full bg-surface border border-card-border text-sm text-foreground placeholder:text-muted/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue/50 transition-[border-color] duration-150"
               />
             </div>
           </form>
 
           {/* Desktop right area */}
           <div className="hidden md:flex items-center gap-3 shrink-0">
+            {user && (
+              <div className="hidden sm:flex items-center gap-2 text-xs text-muted mr-2">
+                <span title="声望">🎖️ {user.reputation}</span>
+                <span className="text-muted/30">|</span>
+                <span title="龙虾币">💎 {user.shrimpCoins}</span>
+              </div>
+            )}
             <NotificationBell />
 
             {isLoading ? (
-              <div className="w-20 h-8 rounded-lg bg-white animate-pulse" />
+              <div className="w-20 h-8 rounded-full bg-white animate-pulse" />
             ) : user ? (
               /* Logged in: Avatar + Dropdown */
               <div className="relative" ref={dropdownRef}>
                 <button
                   onClick={() => setDropdownOpen(!dropdownOpen)}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-card-border hover:border-blue/30 transition-colors"
+                  aria-label="用户菜单"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-card-border hover:border-foreground/15 transition-[border-color] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue/50"
                 >
                   <UserAvatar size="sm" />
                   <span className="text-sm text-muted max-w-[100px] truncate">{user.name}</span>
                   <svg
-                    className={`w-3 h-3 text-muted transition-transform ${dropdownOpen ? 'rotate-180' : ''}`}
+                    className={`w-3 h-3 text-muted transition-transform duration-150 ${dropdownOpen ? 'rotate-180' : ''}`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -132,7 +153,7 @@ export function Navbar() {
                 </button>
 
                 {dropdownOpen && (
-                  <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-card-border rounded-xl shadow-lg shadow-black/5 overflow-hidden z-50">
+                  <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-card-border rounded-lg shadow-lg shadow-black/5 overflow-hidden z-50">
                     <div className="px-4 py-3 border-b border-card-border flex items-center gap-3">
                       <UserAvatar size="md" />
                       <div className="min-w-0">
@@ -142,45 +163,54 @@ export function Navbar() {
                     </div>
                     <div className="py-1">
                       <Link
-                        href="/settings"
+                        href={`/user/${user.id}`}
                         onClick={() => setDropdownOpen(false)}
-                        className="block px-4 py-2 text-sm text-muted hover:text-foreground hover:bg-surface transition-colors"
+                        className="block px-4 py-2 text-sm text-muted hover:text-foreground hover:bg-surface transition-[color,background-color] duration-150"
                       >
-                        ⚙️ 设置
+                        我的主页
                       </Link>
                       <Link
-                        href="/dashboard"
+                        href="/settings"
                         onClick={() => setDropdownOpen(false)}
-                        className="block px-4 py-2 text-sm text-muted hover:text-foreground hover:bg-surface transition-colors"
+                        className="block px-4 py-2 text-sm text-muted hover:text-foreground hover:bg-surface transition-[color,background-color] duration-150"
                       >
-                        📊 Dashboard
+                        设置
                       </Link>
                     </div>
                     <div className="border-t border-card-border py-1">
                       <button
                         onClick={handleLogout}
-                        className="w-full text-left px-4 py-2 text-sm text-red hover:bg-surface transition-colors"
+                        className="w-full text-left px-4 py-2 text-sm text-red hover:bg-surface transition-[background-color] duration-150"
                       >
-                        🚪 退出登录
+                        退出登录
                       </button>
                     </div>
                   </div>
                 )}
               </div>
             ) : (
-              /* Not logged in: Login button */
-              <Link
-                href="/login"
-                className="px-4 py-1.5 rounded-lg text-sm font-medium bg-blue text-white hover:bg-blue-dim transition-colors"
-              >
-                登录
-              </Link>
+              /* Not logged in: Register + Login buttons */
+              <>
+                <Link
+                  href="/register"
+                  className="px-5 py-1.5 rounded-full text-sm font-medium border border-blue text-blue hover:bg-blue/5 transition-[background-color] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue/50"
+                >
+                  注册
+                </Link>
+                <Link
+                  href="/login"
+                  className="px-5 py-1.5 rounded-full text-sm font-medium bg-blue text-white hover:bg-blue-dim transition-[background-color] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue/50"
+                >
+                  登录
+                </Link>
+              </>
             )}
           </div>
 
           <button
-            className="md:hidden p-2 text-muted hover:text-blue transition-colors"
+            className="md:hidden p-2 text-muted hover:text-foreground transition-[color] duration-150"
             onClick={() => setMobileOpen(!mobileOpen)}
+            aria-label={mobileOpen ? '关闭菜单' : '打开菜单'}
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               {mobileOpen ? (
@@ -196,16 +226,18 @@ export function Navbar() {
           <div className="md:hidden pb-4 space-y-2">
             {/* Mobile search */}
             <form onSubmit={(e) => { handleNavSearch(e); setMobileOpen(false); }} className="px-3 pb-2">
+              <label htmlFor="nav-search-mobile" className="sr-only">全局搜索</label>
               <div className="relative">
                 <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
                 <input
+                  id="nav-search-mobile"
                   type="text"
                   value={navSearch}
                   onChange={e => setNavSearch(e.target.value)}
-                  placeholder="全局搜索..."
-                  className="w-full pl-9 pr-3 py-2 rounded-lg bg-surface border border-card-border text-sm text-foreground placeholder:text-muted/50 focus:outline-none focus:border-blue/50 transition-colors"
+                  placeholder="全局搜索…"
+                  className="w-full pl-9 pr-3 py-2 rounded-full bg-surface border border-card-border text-sm text-foreground placeholder:text-muted/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue/50 transition-[border-color] duration-150"
                 />
               </div>
             </form>
@@ -214,8 +246,8 @@ export function Navbar() {
                 key={link.href}
                 href={link.href}
                 onClick={() => setMobileOpen(false)}
-                className={`block px-3 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white ${
-                  pathname === link.href ? 'text-blue bg-white' : 'text-muted'
+                className={`block px-3 py-2 rounded-lg text-sm font-medium transition-[color,background-color] duration-150 hover:bg-white ${
+                  pathname === link.href ? 'text-foreground bg-white' : 'text-muted'
                 }`}
               >
                 {link.label}
@@ -231,25 +263,39 @@ export function Navbar() {
                     <span className="text-sm text-foreground">{user.name}</span>
                   </div>
                   <Link
+                    href={`/user/${user.id}`}
+                    onClick={() => setMobileOpen(false)}
+                    className="block px-3 py-2 rounded-lg text-sm text-muted hover:bg-white"
+                  >
+                    我的主页
+                  </Link>
+                  <Link
                     href="/settings"
                     onClick={() => setMobileOpen(false)}
                     className="block px-3 py-2 rounded-lg text-sm text-muted hover:bg-white"
                   >
-                    ⚙️ 设置
+                    设置
                   </Link>
                   <button
                     onClick={() => { handleLogout(); setMobileOpen(false); }}
                     className="block w-full text-left px-3 py-2 rounded-lg text-sm text-red hover:bg-white"
                   >
-                    🚪 退出登录
+                    退出登录
                   </button>
                 </>
               ) : (
-                <div className="px-3">
+                <div className="px-3 flex gap-2">
+                  <Link
+                    href="/register"
+                    onClick={() => setMobileOpen(false)}
+                    className="flex-1 block text-center px-4 py-2 rounded-full text-sm font-medium border border-blue text-blue hover:bg-blue/5 transition-[background-color] duration-150"
+                  >
+                    注册
+                  </Link>
                   <Link
                     href="/login"
                     onClick={() => setMobileOpen(false)}
-                    className="block text-center px-4 py-2 rounded-lg text-sm font-medium bg-blue text-white hover:bg-blue-dim transition-colors"
+                    className="flex-1 block text-center px-4 py-2 rounded-full text-sm font-medium bg-blue text-white hover:bg-blue-dim transition-[background-color] duration-150"
                   >
                     登录
                   </Link>

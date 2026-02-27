@@ -1,55 +1,44 @@
-import Link from 'next/link';
-
 export function Footer() {
   return (
-    <footer className="border-t border-card-border bg-white/50 mt-20">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-          <div className="col-span-1 md:col-span-2">
-            <div className="flex items-center gap-2 mb-4">
-              <span className="text-2xl">🐟</span>
-              <span className="text-xl font-bold font-serif">
-                <span className="text-blue">水产</span>市场
+    <footer className="section-dark mt-0">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-20">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-12">
+          {/* Brand column */}
+          <div className="md:col-span-5">
+            <div className="flex items-center gap-3 mb-5">
+              <span className="text-3xl">🐟</span>
+              <span className="text-2xl font-bold font-serif text-white">
+                水产市场
               </span>
             </div>
-            <p className="text-muted text-sm max-w-md">
-              Web 4.0 · Agent 进化生态 — 探索、分享、安装 Skills、Configs 和 Plugins，让你的 Agent 加入无限的进化。
+            <p className="text-[#999] text-sm leading-relaxed max-w-sm mb-6">
+              Web 4.0 · Agent 进化生态 — 探索、分享、安装 Skills 和 Plugins，让你的 Agent 加入无限的进化。
             </p>
-            <div className="flex gap-4 mt-4">
-              <a href="https://github.com/openclaw" target="_blank" rel="noopener noreferrer" className="text-muted hover:text-blue transition-colors text-sm underline-offset-4 hover:underline">GitHub</a>
-              <a href="https://discord.gg/openclaw" target="_blank" rel="noopener noreferrer" className="text-muted hover:text-blue transition-colors text-sm underline-offset-4 hover:underline">Discord</a>
-              <a href="https://twitter.com/openclaw" target="_blank" rel="noopener noreferrer" className="text-muted hover:text-blue transition-colors text-sm underline-offset-4 hover:underline">Twitter</a>
+            <p className="font-display text-xs uppercase tracking-[0.2em] text-[#555]">
+              Agent Hub Marketplace
+            </p>
+          </div>
+
+          {/* Status column */}
+          <div className="md:col-span-3 md:col-start-10">
+            <h3 className="text-xs uppercase tracking-[0.15em] text-[#666] font-sans font-semibold mb-4">状态</h3>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="w-2 h-2 rounded-full bg-green-500 pulse-dot" />
+              <span className="text-sm text-[#999]">系统正常运行</span>
             </div>
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold text-blue mb-3">资源</h3>
-            <ul className="space-y-2 text-sm">
-              <li><Link href="/explore" className="text-muted hover:text-blue transition-colors underline-offset-4 hover:underline">探索资产</Link></li>
-              <li><a href="#" className="text-muted hover:text-blue transition-colors underline-offset-4 hover:underline">API 参考</a></li>
-              <li><a href="#" className="text-muted hover:text-blue transition-colors underline-offset-4 hover:underline">示例项目</a></li>
-              <li><a href="#" className="text-muted hover:text-blue transition-colors underline-offset-4 hover:underline">更新日志</a></li>
-            </ul>
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold text-blue mb-3">社区</h3>
-            <ul className="space-y-2 text-sm">
-              <li><a href="#" className="text-muted hover:text-blue transition-colors underline-offset-4 hover:underline">论坛</a></li>
-              <li><Link href="/publish" className="text-muted hover:text-blue transition-colors underline-offset-4 hover:underline">贡献指南</Link></li>
-              <li><a href="#" className="text-muted hover:text-blue transition-colors underline-offset-4 hover:underline">行为准则</a></li>
-              <li><a href="#" className="text-muted hover:text-blue transition-colors underline-offset-4 hover:underline">反馈建议</a></li>
-            </ul>
+            <p className="text-xs text-[#555] font-mono">v0.1.0-alpha</p>
+            <p className="text-xs text-[#555] font-mono mt-1">Next.js 16 · Tailwind 4</p>
           </div>
         </div>
-        <div className="mt-8 pt-8 border-t border-card-border flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-xs text-muted">
+
+        {/* Bottom bar */}
+        <div className="mt-16 pt-8 border-t border-[#333] flex flex-col md:flex-row justify-between items-center gap-4">
+          <p className="text-xs text-[#555]">
             © 2026 水产市场 by OpenClaw. All rights reserved.
           </p>
-          <div className="flex items-center gap-4">
-            <p className="text-xs text-muted font-mono">
-              v0.1.0-alpha · <span className="text-green-500">●</span> 系统正常运行
-            </p>
-            <span className="text-xs text-muted/50 font-mono">Next.js 16 · Tailwind 4</span>
-          </div>
+          <p className="font-display text-xs uppercase tracking-[0.3em] text-[#444]">
+            Built for Agents
+          </p>
         </div>
       </div>
     </footer>

@@ -1,8 +1,8 @@
-import { listAssets } from '@/lib/db';
+import { listAssetsCompact, getAssetCountByType, getAssetCountByCategory, getTotalAssetCount } from '@/lib/db';
 import ExploreClientPage from './client';
 import type { Metadata } from 'next';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 60;
 
 export const metadata: Metadata = {
   title: '探索 Agent 资产 — 水产市场',
@@ -15,16 +15,32 @@ export const metadata: Metadata = {
 };
 
 export default function ExplorePage() {
-  // Pre-fetch initial assets (all types, first 20, popular sort)
-  const result = listAssets({ pageSize: 100, sort: 'popular' });
-  // Also fetch all assets for sidebar counts
-  const allResult = listAssets({ pageSize: 100 });
+  // Pre-fetch initial assets using compact query (same as V1 API)
+  const result = listAssetsCompact({ pageSize: 100, sort: 'popular' });
+  // Use lightweight count queries for sidebar instead of fetching all assets again
+  const typeCounts = getAssetCountByType();
+  const categoryCounts = getAssetCountByCategory();
+  const totalCount = getTotalAssetCount();
+
+  // Normalize compact format to match what client expects
+  // (author string → author object, installs → downloads)
+  const normalizedAssets = result.assets.map(item => ({
+    ...item,
+    downloads: item.installs ?? 0,
+    totalStars: item.totalStars ?? 0,
+    githubStars: item.githubStars ?? 0,
+    author: typeof item.author === 'string'
+      ? { id: item.authorId ?? '', name: item.author, avatar: item.authorAvatar ?? '', reputation: item.authorReputation ?? 0 }
+      : item.author,
+  }));
 
   return (
     <ExploreClientPage
-      initialAssets={result.assets}
+      initialAssets={normalizedAssets as any}
       initialTotal={result.total}
-      initialAllAssets={allResult.assets}
+      typeCounts={typeCounts}
+      categoryCounts={categoryCounts}
+      totalCount={totalCount}
     />
   );
 }

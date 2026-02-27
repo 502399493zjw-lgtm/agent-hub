@@ -1,14 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAsset, getAssetById, updateAsset } from '@/lib/db';
+import { createAsset, getAssetById, updateAsset, findUserById } from '@/lib/db';
+import { authenticateRequest, unauthorizedResponse, inviteRequiredResponse } from '@/lib/api-auth';
+import { uploadLimiter, rateLimitResponse } from '@/lib/rate-limit';
 import path from 'path';
 import fs from 'fs';
 import { execSync } from 'child_process';
+
+// M03: Maximum file size — 10MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 // data/packages/ 存放上传的包文件
 const PACKAGES_DIR = path.join(process.cwd(), 'data', 'packages');
 
 export async function POST(request: NextRequest) {
   try {
+    // Auth check: session or device token
+    const authResult = await authenticateRequest(request);
+    if (!authResult) {
+      return unauthorizedResponse();
+    }
+
+    // M01: Rate limiting — 10/min per user
+    if (!uploadLimiter.check(authResult.userId)) {
+      return rateLimitResponse() as unknown as NextResponse;
+    }
+
+    // Check invite code activation
+    const dbUser = findUserById(authResult.userId);
+    if (!dbUser?.invite_code) {
+      return inviteRequiredResponse();
+    }
+
     const formData = await request.formData();
 
     // 必填：package 文件
@@ -16,6 +38,14 @@ export async function POST(request: NextRequest) {
     if (!file) {
       return NextResponse.json(
         { success: false, error: 'Missing required field: package (file)' },
+        { status: 400 }
+      );
+    }
+
+    // M03: File size check
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { success: false, error: `File too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB` },
         { status: 400 }
       );
     }
@@ -34,7 +64,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const validTypes = ['skill', 'config', 'plugin', 'trigger', 'channel', 'template'];
+    const validTypes = ['skill', 'experience', 'plugin', 'trigger', 'channel', 'template'];
     if (!validTypes.includes(type)) {
       return NextResponse.json(
         { success: false, error: `Invalid type. Must be one of: ${validTypes.join(', ')}` },
@@ -42,10 +72,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 可选元数据
-    const authorId = (formData.get('authorId') as string) || undefined;
-    const authorName = (formData.get('authorName') as string) || undefined;
-    const authorAvatar = (formData.get('authorAvatar') as string) || undefined;
+    // 可选元数据 — M10: ignore authorId/Name/Avatar from form, use authenticated user
     const longDescription = (formData.get('longDescription') as string) || undefined;
     const tagsRaw = formData.get('tags') as string;
     const tags = tagsRaw ? JSON.parse(tagsRaw) : undefined;
@@ -59,6 +86,14 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
+    // M03: Double-check buffer size (belt and suspenders)
+    if (buffer.length > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { success: false, error: `File too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB` },
+        { status: 400 }
+      );
+    }
+
     // 确定文件扩展名
     const originalName = file.name || 'package.tar.gz';
     const isZip = originalName.endsWith('.zip') || originalName.endsWith('.skill');
@@ -71,16 +106,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 先创建资产记录，拿到 ID
+    // 先创建资产记录，拿到 ID — M10: use authenticated user's info
     const asset = createAsset({
       name,
       displayName,
       type,
       description,
       version,
-      authorId,
-      authorName,
-      authorAvatar,
+      authorId: authResult.userId,
+      authorName: dbUser.name,
+      authorAvatar: dbUser.avatar,
       longDescription,
       tags,
       category,
@@ -120,15 +155,9 @@ export async function POST(request: NextRequest) {
         // 清理临时目录
         fs.rmSync(tmpDir, { recursive: true, force: true });
       } catch (e) {
-        console.warn('Failed to extract SKILL.md from package:', e);
+        console.warn('Failed to extract SKILL.md from package:', e instanceof Error ? e.message : 'Unknown error');
       }
     }
-
-    // 更新资产记录，标记有包文件
-    updateAsset(asset.id, {
-      // 存储包信息到 longDescription 末尾（简易方案）
-      // 未来可加独立字段
-    });
 
     return NextResponse.json({
       success: true,
@@ -140,7 +169,8 @@ export async function POST(request: NextRequest) {
       },
     }, { status: 201 });
   } catch (err) {
-    console.error('POST /api/assets/upload error:', err);
+    // M04: Don't leak internal error details
+    console.error('POST /api/assets/upload error:', err instanceof Error ? err.message : 'Unknown error');
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

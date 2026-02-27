@@ -22,7 +22,13 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
 
   if (query) {
     const dbResult = listAssets({ q: query, pageSize: 50 });
-    assets = dbResult.assets;
+    // Strip heavy fields to keep RSC payload small
+    assets = dbResult.assets.map(({ readme, files, longDescription, ...rest }) => ({
+      ...rest,
+      readme: '',
+      longDescription: '',
+      files: [] as typeof dbResult.assets[0]['files'],
+    }));
     users = searchUserProfiles(query);
     issues = searchIssues(query);
   }

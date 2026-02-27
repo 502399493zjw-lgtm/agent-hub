@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { getIssuesByAssetId, createIssue, getAssetById, userHasInviteAccess, findUserById } from '@/lib/db';
+import { authenticateRequest, unauthorizedResponse, inviteRequiredResponse } from '@/lib/api-auth';
 
 export async function GET(
   _request: NextRequest,
@@ -15,17 +15,14 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
+  const authResult = await authenticateRequest(request);
+  if (!authResult) {
+    return unauthorizedResponse();
   }
 
   // Check invite code activation
-  if (!userHasInviteAccess(session.user.id)) {
-    return NextResponse.json(
-      { success: false, error: '需要激活邀请码才能提交 Issue。请先在设置页面激活邀请码。' },
-      { status: 403 }
-    );
+  if (!userHasInviteAccess(authResult.userId)) {
+    return inviteRequiredResponse();
   }
 
   const { id } = await params;
@@ -42,12 +39,12 @@ export async function POST(
       return NextResponse.json({ success: false, error: 'Issue 标题不能为空' }, { status: 400 });
     }
 
-    const user = findUserById(session.user.id);
+    const user = findUserById(authResult.userId);
     const issue = createIssue({
       assetId: id,
-      authorId: session.user.id,
-      authorName: user?.name ?? session.user.name,
-      authorAvatar: user?.avatar ?? session.user.image ?? '👤',
+      authorId: authResult.userId,
+      authorName: user?.name ?? 'Anonymous',
+      authorAvatar: user?.avatar ?? '👤',
       authorType: authorType === 'agent' ? 'agent' : 'user',
       title: title.trim(),
       body: bodyText?.trim() ?? '',
