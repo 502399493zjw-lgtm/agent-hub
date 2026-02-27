@@ -1,45 +1,42 @@
-FROM node:22-alpine AS base
+# ═══════════════════════════════════════════════
+# CI/CD Optimized Dockerfile for Agent Hub
+# 使用预构建产物，无需重新编译
+# ═══════════════════════════════════════════════
 
-# Dependencies stage - install with native build tools for better-sqlite3
-FROM base AS deps
-RUN apk add --no-cache libc6-compat python3 make g++
-WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm ci --registry=https://registry.npmmirror.com
+FROM node:22-alpine AS runner
 
-# Build stage
-FROM base AS builder
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-ENV NEXT_TELEMETRY_DISABLED=1
-# Create data dir so Next.js can open SQLite during static page generation
-RUN mkdir -p data
-RUN npm run build
 
-# Production stage
-FROM base AS runner
-WORKDIR /app
+# 设置生产环境
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+# 创建用户
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
 
-COPY --from=builder /app/public ./public
+# 拷贝构建产物（来自 GitLab CI artifacts）
+COPY --chown=nextjs:nodejs .next/standalone ./
+COPY --chown=nextjs:nodejs .next/static ./.next/static
+COPY --chown=nextjs:nodejs public ./public
 
-# Standalone output
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# 拷贝环境变量文件
+COPY --chown=nextjs:nodejs .env .env
+COPY --chown=nextjs:nodejs .env.prod .env.prod
 
-# Data directory for SQLite (do NOT copy hub.db — volume mount provides it)
+# 创建数据目录（SQLite 数据库存放位置）
 RUN mkdir -p /app/data && chown nextjs:nodejs /app/data
 
+# 暴露端口
 EXPOSE 3000
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
 
-# Run as root to avoid volume mount permission issues with SQLite
-# (mounted /app/data is owned by host root)
-# DB is provided by volume mount at runtime — schema auto-creates tables if needed
-CMD ["node", "server.js"]
+# 切换到非特权用户
+USER nextjs
+
+# 启动脚本：加载环境变量并启动服务
+# 注意：使用 sh 因为 alpine 没有 bash，且不能直接 source，需要用 . 命令
+CMD set -a && \
+    . .env && \
+    . .env.prod && \
+    set +a && \
+    node server.js
