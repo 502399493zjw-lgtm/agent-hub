@@ -3,7 +3,7 @@
 # 使用预构建产物，无需重新编译
 # ═══════════════════════════════════════════════
 
-FROM node:22-alpine AS runner
+FROM hub.stepfun-inc.com/ndp-data/node-build:22-alpine
 
 WORKDIR /app
 
@@ -26,6 +26,10 @@ COPY --chown=nextjs:nodejs .env.prod .env.prod
 
 # 创建数据目录（SQLite 数据库存放位置）
 RUN mkdir -p /app/data && chown nextjs:nodejs /app/data
+
+# 显式指定数据库路径
+# TODO：正式上线前需改为 Docker volume 挂载路径
+ENV DATABASE_URL=/app/data/hub.db
 
 # 暴露端口
 EXPOSE 3000

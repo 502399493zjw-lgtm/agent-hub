@@ -6,17 +6,16 @@
 stages:
   - lint
   - build
-  - docker
+  - image
 
 # 全局变量
 variables:
-  # Node.js 版本
-  NODE_VERSION: "22"
+  # 镜像仓库
+  DOCKER_REGISTRY: "hub.stepfun-inc.com/busi"
+  # 基础镜像（Node 22）
+  NODE_IMAGE: "hub.stepfun-inc.com/ndp-data/node-build:22-alpine"
   # npm 镜像源（淘宝镜像）
   NPM_REGISTRY: "https://registry.npmmirror.com"
-  # Docker 镜像仓库配置（根据实际情况修改）
-  DOCKER_REGISTRY: "registry.gitlab.com"
-  DOCKER_IMAGE: "$CI_REGISTRY_IMAGE"
   # 缓存配置
   npm_config_cache: "$CI_PROJECT_DIR/.npm"
 
@@ -42,18 +41,13 @@ workflow:
 # ═══════════════════════════════════════════════
 lint:
   stage: lint
-  image: node:${NODE_VERSION}-alpine
+  image: ${NODE_IMAGE}
   before_script:
     # 配置淘宝镜像源
     - npm config set registry $NPM_REGISTRY
-    # 安装依赖（优先使用缓存）
-    - |
-      if [ ! -d "node_modules" ]; then
-        echo "Installing dependencies from $NPM_REGISTRY..."
-        npm ci
-      else
-        echo "Using cached node_modules"
-      fi
+    # 安装依赖（总是执行 npm ci，利用缓存加速）
+    - echo "Installing dependencies from $NPM_REGISTRY..."
+    - npm ci
   script:
     - echo "Running ESLint..."
     - npm run lint
@@ -67,18 +61,13 @@ lint:
 # ═══════════════════════════════════════════════
 build:
   stage: build
-  image: node:${NODE_VERSION}-alpine
+  image: ${NODE_IMAGE}
   before_script:
     # 配置淘宝镜像源
     - npm config set registry $NPM_REGISTRY
-    # 安装依赖（复用 lint 阶段的缓存）
-    - |
-      if [ ! -d "node_modules" ]; then
-        echo "Installing dependencies from $NPM_REGISTRY..."
-        npm ci
-      else
-        echo "Using cached node_modules"
-      fi
+    # 安装依赖（总是执行 npm ci，利用缓存加速）
+    - echo "Installing dependencies from $NPM_REGISTRY..."
+    - npm ci
   script:
     - echo "Building Next.js application..."
     - npm run build
@@ -99,29 +88,24 @@ build:
 # ═══════════════════════════════════════════════
 # Stage 3: Docker Build & Push
 # ═══════════════════════════════════════════════
-docker:
-  stage: docker
+image:
+  stage: image
   image:
-    name: gcr.io/kaniko-project/executor:v1.23.2-debug
+    name: hub.stepfun-inc.com/devops/stepbase-kaniko:latest
     entrypoint: [""]
-  variables:
-    # 从 release/1.2.3 中提取版本号
-    VERSION: ${CI_COMMIT_REF_NAME#release/}
-  before_script:
-    # 配置 Docker Registry 认证（GitLab Container Registry）
-    - mkdir -p /kaniko/.docker
-    - echo "{\"auths\":{\"${CI_REGISTRY}\":{\"auth\":\"$(printf "%s:%s" "${CI_REGISTRY_USER}" "${CI_REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
   script:
-    - echo "Building Docker image with Kaniko..."
-    - echo "Image tags:latest, ${VERSION}, ${CI_COMMIT_SHORT_SHA}"
+    - echo "Branch: ${CI_COMMIT_BRANCH}"
+    - echo "Commit SHA: ${CI_COMMIT_SHORT_SHA}"
+    - echo "Project: ${CI_PROJECT_NAMESPACE}/${CI_PROJECT_NAME}"
+    - export APP_PATH=$(echo ${CI_PROJECT_NAMESPACE} | tr '/' '-')
+    - export IMAGE_TAG="${DOCKER_REGISTRY}/${APP_PATH}-${CI_PROJECT_NAME}:${CI_COMMIT_SHORT_SHA}"
+    - echo "✓ Image tag: ${IMAGE_TAG}"
     # 使用 Kaniko 构建并推送镜像
     - |
       /kaniko/executor \
         --context "${CI_PROJECT_DIR}" \
-        --dockerfile "${CI_PROJECT_DIR}/Dockerfile.ci" \
-        --destination "${DOCKER_IMAGE}:latest" \
-        --destination "${DOCKER_IMAGE}:${VERSION}" \
-        --destination "${DOCKER_IMAGE}:${CI_COMMIT_SHORT_SHA}" \
+        --dockerfile "${CI_PROJECT_DIR}/Dockerfile" \
+        --destination "${IMAGE_TAG}" \
         --cache=true \
         --cleanup
   dependencies:
