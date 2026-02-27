@@ -17,7 +17,8 @@ function SearchContent({ initialAssets, initialUsers, initialIssues, initialQuer
   const searchParams = useSearchParams();
   const router = useRouter();
   const currentQ = searchParams.get('q') || initialQuery;
-  const [query, setQuery] = useState(currentQ);
+  const urlQuery = searchParams.get('q') || '';
+  const [query, setQuery] = useState(urlQuery || currentQ);
 
   // Assets from API (DB-backed)
   const [assetResults, setAssetResults] = useState<Asset[]>(initialAssets);
@@ -26,25 +27,28 @@ function SearchContent({ initialAssets, initialUsers, initialIssues, initialQuer
 
   // Re-fetch when URL q param changes (client-side navigation)
   useEffect(() => {
-    const urlQ = searchParams.get('q') || '';
-    if (urlQ && urlQ !== initialQuery) {
-      setQuery(urlQ);
-      fetch(`/api/search?q=${encodeURIComponent(urlQ)}`)
-        .then(res => res.json())
-        .then(json => {
+    const fetchResults = async () => {
+      if (urlQuery && urlQuery !== initialQuery) {
+        try {
+          const res = await fetch(`/api/search?q=${encodeURIComponent(urlQuery)}`);
+          const json = await res.json();
           if (json.results) {
             setAssetResults(json.results.assets?.items || []);
             setUserResults(json.results.users?.items || []);
             setIssueResults(json.results.issues?.items || []);
           }
-        })
-        .catch(() => {});
-    } else if (!urlQ) {
-      setAssetResults([]);
-      setUserResults([]);
-      setIssueResults([]);
-    }
-  }, [searchParams, initialQuery]);
+        } catch {
+          // ignore
+        }
+      } else if (!urlQuery) {
+        setAssetResults([]);
+        setUserResults([]);
+        setIssueResults([]);
+      }
+    };
+    
+    fetchResults();
+  }, [urlQuery, initialQuery]);
 
   const totalCount = assetResults.length + userResults.length + issueResults.length;
 

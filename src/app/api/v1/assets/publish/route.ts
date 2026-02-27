@@ -260,7 +260,7 @@ export async function POST(request: NextRequest) {
 
     // ─── Extract package + validate (single pass) ───────────────────────
 
-    let packageFilesMetadata: { path: string; size: number; sha256: string; contentType: string }[] = [];
+    const packageFilesMetadata: { path: string; size: number; sha256: string; contentType: string }[] = [];
     const textFiles = new Map<string, string>();
     const TEXT_EXTS = ['.md', '.json', '.yaml', '.yml', '.txt', '.js', '.ts', '.py', '.sh'];
 

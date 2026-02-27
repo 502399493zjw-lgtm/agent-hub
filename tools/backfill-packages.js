@@ -10,6 +10,7 @@
  * 
  * 前提：在项目根目录运行，DB 在 data/hub.db，packages 目录在 data/packages/
  */
+/* eslint-disable @typescript-eslint/no-require-imports, @typescript-eslint/no-unused-vars */
 
 const Database = require('better-sqlite3');
 const path = require('path');

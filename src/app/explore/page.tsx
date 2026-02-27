@@ -36,7 +36,7 @@ export default function ExplorePage() {
 
   return (
     <ExploreClientPage
-      initialAssets={normalizedAssets as any}
+      initialAssets={normalizedAssets}
       initialTotal={result.total}
       typeCounts={typeCounts}
       categoryCounts={categoryCounts}

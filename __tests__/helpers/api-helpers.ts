@@ -4,6 +4,7 @@
  * These helpers construct proper Request objects and call route handlers directly,
  * bypassing HTTP to test the handler logic in isolation.
  */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest } from 'next/server';
 
 /**

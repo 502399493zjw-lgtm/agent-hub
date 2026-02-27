@@ -3,8 +3,7 @@
  *
  * Each test gets a fresh in-memory database via __setTestDb(), which calls
  * initTables() internally. This guarantees schema parity with production.
- */
-import { describe, it, expect, beforeEach } from 'vitest';
+ *//* eslint-disable @typescript-eslint/no-explicit-any */import { describe, it, expect, beforeEach } from 'vitest';
 import Database from 'better-sqlite3';
 import { seedUser, seedAsset, seedInviteCode } from './helpers/db-factory';
 import * as db from '../src/lib/db';

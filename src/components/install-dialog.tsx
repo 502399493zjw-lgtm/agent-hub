@@ -42,15 +42,17 @@ export function InstallDialog({ asset }: InstallDialogProps) {
   // Progress simulation
   useEffect(() => {
     if (!installing || currentStep < 0) return;
-    if (currentStep >= installSteps.length) {
-      setInstalling(false);
-      setCompleted(true);
-      return;
-    }
+    
     const delay = 600 + Math.random() * 800;
     const timer = setTimeout(() => {
-      setCurrentStep(s => s + 1);
+      if (currentStep >= installSteps.length - 1) {
+        setInstalling(false);
+        setCompleted(true);
+      } else {
+        setCurrentStep(s => s + 1);
+      }
     }, delay);
+    
     return () => clearTimeout(timer);
   }, [installing, currentStep]);
 

@@ -6,6 +6,22 @@ import { useState, useRef, useEffect } from 'react';
 import { NotificationBell } from '@/components/notification-bell';
 import { useAuth } from '@/lib/auth-context';
 
+// Render user avatar (img or emoji fallback) - extracted outside component
+function UserAvatar({ user, size = 'sm' }: { user: { avatar: string; name: string } | null; size?: 'sm' | 'md' }) {
+  const sizeClass = size === 'md' ? 'w-8 h-8' : 'w-6 h-6';
+  if (user?.avatar && user.avatar.startsWith('http')) {
+    return (
+      <img
+        src={user.avatar}
+        alt={user.name}
+        className={`${sizeClass} rounded-full object-cover`}
+        referrerPolicy="no-referrer"
+      />
+    );
+  }
+  return <span className={size === 'md' ? 'text-lg' : 'text-sm'}>{user?.avatar || '👤'}</span>;
+}
+
 export function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -54,22 +70,6 @@ export function Navbar() {
   const handleLogout = () => {
     logout();
     setDropdownOpen(false);
-  };
-
-  // Render user avatar (img or emoji fallback)
-  const UserAvatar = ({ size = 'sm' }: { size?: 'sm' | 'md' }) => {
-    const sizeClass = size === 'md' ? 'w-8 h-8' : 'w-6 h-6';
-    if (user?.avatar && user.avatar.startsWith('http')) {
-      return (
-        <img
-          src={user.avatar}
-          alt={user.name}
-          className={`${sizeClass} rounded-full object-cover`}
-          referrerPolicy="no-referrer"
-        />
-      );
-    }
-    return <span className={size === 'md' ? 'text-lg' : 'text-sm'}>{user?.avatar || '👤'}</span>;
   };
 
   return (
@@ -140,7 +140,7 @@ export function Navbar() {
                   aria-label="用户菜单"
                   className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-card-border hover:border-foreground/15 transition-[border-color] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue/50"
                 >
-                  <UserAvatar size="sm" />
+                  <UserAvatar user={user} size="sm" />
                   <span className="text-sm text-muted max-w-[100px] truncate">{user.name}</span>
                   <svg
                     className={`w-3 h-3 text-muted transition-transform duration-150 ${dropdownOpen ? 'rotate-180' : ''}`}
@@ -155,7 +155,7 @@ export function Navbar() {
                 {dropdownOpen && (
                   <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-card-border rounded-lg shadow-lg shadow-black/5 overflow-hidden z-50">
                     <div className="px-4 py-3 border-b border-card-border flex items-center gap-3">
-                      <UserAvatar size="md" />
+                      <UserAvatar user={user} size="md" />
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-foreground truncate">{user.name}</p>
                         <p className="text-xs text-muted truncate">{user.email}</p>
@@ -259,7 +259,7 @@ export function Navbar() {
               {user ? (
                 <>
                   <div className="flex items-center gap-2 px-3 py-2">
-                    <UserAvatar size="sm" />
+                    <UserAvatar user={user} size="sm" />
                     <span className="text-sm text-foreground">{user.name}</span>
                   </div>
                   <Link

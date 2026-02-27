@@ -9,6 +9,7 @@
  *   npx tsx tools/backfill-file-content.ts --id s-xxx   # 只回填指定资产
  *   npx tsx tools/backfill-file-content.ts --dry-run    # 预览不写入
  */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import Database from 'better-sqlite3';
 import path from 'path';

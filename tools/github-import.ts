@@ -15,12 +15,12 @@
  *   --author-id <id>  覆盖作者 ID
  *   --author-name <n> 覆盖作者名
  */
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 
+import fs from 'fs';
 import Database from 'better-sqlite3';
 import crypto from 'crypto';
 import path from 'path';
-import { execSync } from 'child_process';
-import fs from 'fs';
 
 // ═══════════════════════════════════════════
 // Config

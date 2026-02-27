@@ -68,7 +68,8 @@ function useScrollReveal() {
     return () => observer.disconnect();
   }, []);
 
-  return { ref, isVisible };
+  // Return as tuple to avoid React Hooks linter warnings about accessing ref.current during render
+  return [ref, isVisible] as const;
 }
 
 /* ── Activity Feed — Dark theme with bright text ── */
@@ -143,10 +144,10 @@ interface HomeClientProps {
 export default function HomeClient({ stats, tabAssets }: HomeClientProps) {
   const [activeTab, setActiveTab] = useState('experience_template');
 
-  const featured = useScrollReveal();
-  const developers = useScrollReveal();
-  const activity = useScrollReveal();
-  const cta = useScrollReveal();
+  const [featuredRef, featuredVisible] = useScrollReveal();
+  const [developersRef, developersVisible] = useScrollReveal();
+  const [activityRef, activityVisible] = useScrollReveal();
+  const [ctaRef, ctaVisible] = useScrollReveal();
 
   const currentTab = TABS.find(t => t.key === activeTab);
   const currentTabAssets = currentTab?.types
@@ -243,10 +244,10 @@ export default function HomeClient({ stats, tabAssets }: HomeClientProps) {
       {/* ── 👥 Active Developers — Horizontal row layout ── */}
       {stats && stats.topDevelopers.length > 0 && (
         <section
-          ref={developers.ref}
+          ref={developersRef}
           className="section-light py-16 md:py-20"
         >
-          <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ${developers.isVisible ? 'animate-fade-in-up' : 'opacity-0'}`}>
+          <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ${developersVisible ? 'animate-fade-in-up' : 'opacity-0'}`}>
             <div className="mb-6">
               <h2 className="text-2xl md:text-3xl font-semibold text-foreground/70">
                 社区热门贡献者
@@ -289,10 +290,10 @@ export default function HomeClient({ stats, tabAssets }: HomeClientProps) {
 
       {/* ── 🔥 Featured Showcase — Light Section (moved below developers) ── */}
       <section
-        ref={featured.ref}
+        ref={featuredRef}
         className="section-light py-20 md:py-28 border-t border-card-border"
       >
-        <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ${featured.isVisible ? 'animate-fade-in-up' : 'opacity-0'}`}>
+        <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ${featuredVisible ? 'animate-fade-in-up' : 'opacity-0'}`}>
           <div className="flex items-end justify-between mb-12">
             <div>
               <p className="font-display text-xs uppercase tracking-[0.2em] text-muted mb-3">Featured Assets</p>
@@ -450,11 +451,11 @@ export default function HomeClient({ stats, tabAssets }: HomeClientProps) {
       {/* ── 📰 Live Activity Feed — Blue Theme ── */}
       {stats && stats.recentActivity.length > 0 && (
         <section
-          ref={activity.ref}
+          ref={activityRef}
           className="py-20 md:py-28"
           style={{ backgroundColor: '#000000' }}
         >
-          <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ${activity.isVisible ? 'animate-fade-in-up' : 'opacity-0'}`}>
+          <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ${activityVisible ? 'animate-fade-in-up' : 'opacity-0'}`}>
             <div className="flex items-end justify-between mb-12">
               <div>
                 <p className="font-display text-xs uppercase tracking-[0.2em] text-white/60 mb-3">Live Feed</p>
@@ -474,10 +475,10 @@ export default function HomeClient({ stats, tabAssets }: HomeClientProps) {
 
       {/* ── CTA Section — Light with dramatic typography ── */}
       <section
-        ref={cta.ref}
+        ref={ctaRef}
         className="section-light py-24 md:py-32"
       >
-        <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ${cta.isVisible ? 'animate-fade-in-up' : 'opacity-0'}`}>
+        <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ${ctaVisible ? 'animate-fade-in-up' : 'opacity-0'}`}>
           <div className="text-center">
             <p className="font-display text-xs uppercase tracking-[0.2em] text-muted mb-6">Join the Community</p>
             <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 text-foreground tracking-tight">

@@ -1,6 +1,7 @@
 /**
  * API Route Tests — /api/auth/device
  */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
 import { seedUser, seedDevice } from '../helpers/db-factory';

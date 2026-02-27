@@ -23,10 +23,9 @@ const listeners = new Set<() => void>();
 function notify() { listeners.forEach(fn => fn()); }
 
 export function useNotifications() {
-  const [readIds, setReadIds] = useState<string[]>([]);
+  const [readIds, setReadIds] = useState<string[]>(getReadIds);
 
   useEffect(() => {
-    setReadIds(getReadIds());
     const handler = () => setReadIds(getReadIds());
     listeners.add(handler);
     window.addEventListener('storage', handler);

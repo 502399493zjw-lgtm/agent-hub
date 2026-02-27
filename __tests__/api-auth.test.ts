@@ -2,6 +2,7 @@
  * API Auth middleware tests — tests the authenticateRequest function
  * from src/lib/api-auth.ts.
  */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
 import { seedUser, seedApiKey, seedDevice } from './helpers/db-factory';

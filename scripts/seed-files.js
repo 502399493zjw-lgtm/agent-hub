@@ -4,6 +4,7 @@
  * Run after the DB has been created with the new `files` column.
  * Usage: node scripts/seed-files.js
  */
+/* eslint-disable @typescript-eslint/no-require-imports */
 
 const Database = require('better-sqlite3');
 const path = require('path');

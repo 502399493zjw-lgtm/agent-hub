@@ -9,6 +9,7 @@ WORKDIR /app
 
 # 设置生产环境
 ENV NODE_ENV=production
+ENV PORT=3000
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # 创建用户
@@ -33,6 +34,10 @@ ENV DATABASE_URL=/app/data/hub.db
 
 # 暴露端口
 EXPOSE 3000
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:${PORT:-3000}/health || exit 1
 
 # 切换到非特权用户
 USER nextjs

@@ -1,4 +1,5 @@
 'use client';
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
@@ -293,23 +294,24 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
   const [displayTotalStars, setDisplayTotalStars] = useState(initialAsset?.totalStars ?? 0);
 
   // Fetch star status for the current user
-  const fetchStarStatus = useCallback(async () => {
-    if (!asset) return;
-    try {
-      const res = await fetch(`/api/v1/assets/${asset.id}/star`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success) {
-          setStarred(data.data.isStarred);
-          setDisplayTotalStars(data.data.totalStars);
-        }
-      }
-    } catch { /* ignore */ }
-  }, [asset]);
-
   useEffect(() => {
+    if (!asset) return;
+    
+    const fetchStarStatus = async () => {
+      try {
+        const res = await fetch(`/api/v1/assets/${asset.id}/star`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success) {
+            setStarred(data.data.isStarred);
+            setDisplayTotalStars(data.data.totalStars);
+          }
+        }
+      } catch { /* ignore */ }
+    };
+    
     fetchStarStatus();
-  }, [fetchStarStatus]);
+  }, [asset]);
 
   const handleToggleStar = async () => {
     if (!asset || starLoading) return;

@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/rules-of-hooks */
 import crypto from 'crypto';
 import NextAuth from 'next-auth';
 import GitHub from 'next-auth/providers/github';

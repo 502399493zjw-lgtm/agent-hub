@@ -26,11 +26,10 @@ function notify() {
 }
 
 export function useFavorites() {
-  const [favorites, setFavorites] = useState<string[]>([]);
+  const [favorites, setFavorites] = useState<string[]>(getFavorites);
 
-  // Load on mount + subscribe to cross-component changes
+  // Subscribe to cross-component changes
   useEffect(() => {
-    setFavorites(getFavorites());
     const handler = () => setFavorites(getFavorites());
     listeners.add(handler);
     // Also listen for storage events from other tabs

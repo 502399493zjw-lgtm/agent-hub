@@ -8,6 +8,7 @@
  * Usage:
  *   npx tsx tools/usecase-import.ts [--dry-run]
  */
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 
 import Database from 'better-sqlite3';
 import crypto from 'crypto';
