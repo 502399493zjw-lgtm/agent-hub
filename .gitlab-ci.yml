@@ -6,7 +6,7 @@
 stages:
   - lint
   - build
-  - image
+  - docker
 
 # 全局变量
 variables:
@@ -86,8 +86,8 @@ build:
 # ═══════════════════════════════════════════════
 # Stage 3: Docker Build & Push
 # ═══════════════════════════════════════════════
-image:
-  stage: image
+docker:
+  stage: docker
   image:
     name: hub.stepfun-inc.com/devops/stepbase-kaniko:latest
     entrypoint: [""]
