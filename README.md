@@ -1,36 +1,45 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 水产市场
 
-## Getting Started
-
-First, run the development server:
+## 本地开发
 
 ```bash
+# 安装依赖
+npm install
+# 启动开发服务器
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 构建和部署
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### ECS 单机部署
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. 本地构建部署包
 
-## Learn More
+```bash
+# 根目录下执行
+bash scripts/build-and-pack.sh
+```
 
-To learn more about Next.js, take a look at the following resources:
+2. 将生成的 `dist/openclawmp.tar.gz` 上传到服务器
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+# scp 示例
+scp dist/openclawmp.tar.gz user@server:/tmp/
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+3. 登录服务器，解压部署包并运行
 
-## Deploy on Vercel
+```bash
+# 解压部署包
+tar -xzf /tmp/openclawmp.tar.gz /path/to/deploy/
+# 进入部署目录
+cd /path/to/deploy/
+# 运行部署脚本启动服务
+bash server-deploy.sh
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 通过 Devops 平台部署到 k8s 集群
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. 本地代码推送到仓库，自动触发 gitlab CI/CD 流水线
+2. 流水线会自动构建镜像并推送到镜像仓库
+3. 进入 Devops 平台，选择已构建的镜像进行部署

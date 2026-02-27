@@ -91,14 +91,6 @@ else
   echo -e "${YELLOW}  ! .env not found, skipping...${NC}"
 fi
 
-if [ -f ".env.local" ]; then
-  echo "  → Copying .env.local..."
-  cp .env.local "$PACK_DIR/"
-else
-  echo -e "${YELLOW}  ! .env.local not found, skipping...${NC}"
-fi
-
-# 如果有 .env.prod，也复制
 if [ -f ".env.prod" ]; then
   echo "  → Copying .env.prod..."
   cp .env.prod "$PACK_DIR/"
@@ -154,7 +146,7 @@ echo ""
 echo -e "📦 Package: ${GREEN}dist/openclawmp.tar.gz${NC} (${PACK_SIZE})"
 echo ""
 echo -e "To deploy:"
-echo -e "  1. scp dist/openclawmp.tar.gz user@server:/path/to/deploy/"
-echo -e "  2. tar -xzf openclawmp.tar.gz"
-echo -e "  3. bash server-deploy.sh"
+echo -e "  1. scp dist/openclawmp.tar.gz user@server:/tmp/"
+echo -e "  2. tar -xzf /tmp/openclawmp.tar.gz" /path/to/deploy/
+echo -e "  3. cd /path/to/deploy/ && bash server-deploy.sh"
 echo ""
