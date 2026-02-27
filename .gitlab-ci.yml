@@ -42,7 +42,7 @@ workflow:
 lint:
   stage: lint
   image:
-    name: ${NODE_IMAGE}
+    name: "${NODE_IMAGE}"
   before_script:
     # 配置淘宝镜像源
     - npm config set registry $NPM_REGISTRY
@@ -63,7 +63,7 @@ lint:
 build:
   stage: build
   image:
-    name: ${NODE_IMAGE}
+    name: "${NODE_IMAGE}"
   before_script:
     # 配置淘宝镜像源
     - npm config set registry $NPM_REGISTRY
