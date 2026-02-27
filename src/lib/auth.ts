@@ -1,9 +1,7 @@
 import crypto from 'crypto';
 import NextAuth from 'next-auth';
 import GitHub from 'next-auth/providers/github';
-// Google OAuth removed (ECS in China cannot reach Google servers)
 import Resend from 'next-auth/providers/resend';
-import Feishu from '@/lib/auth-feishu';
 import { cookies } from 'next/headers';
 import {
   findUserByProvider, findUserByEmail, createUser, findUserById,
@@ -162,16 +160,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }),
       token: 'https://github-oauth.openclawmp.cc/login/oauth/access_token',
     },
-    // Google OAuth removed — ECS in China cannot reach Google servers
-    // Feishu OAuth — UI entry removed (self-built app can't cross tenants)
-    // Backend kept so existing feishu users (Commander) can still sign in
-    Feishu({
-      appId: process.env.AUTH_FEISHU_APP_ID || '',
-      appSecret: process.env.AUTH_FEISHU_APP_SECRET || '',
-      clientId: process.env.AUTH_FEISHU_APP_ID || '',
-      clientSecret: process.env.AUTH_FEISHU_APP_SECRET || '',
-      allowDangerousEmailAccountLinking: true,
-    }),
     Resend({
       apiKey: process.env.AUTH_RESEND_KEY,
       from: process.env.AUTH_EMAIL_FROM || 'noreply@openclawmp.cc',

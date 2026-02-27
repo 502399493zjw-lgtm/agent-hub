@@ -7,6 +7,8 @@
 # debug
 # dependencies
 # env files (can opt-in for committing if needed)
+.env*
+!.env.local.example
 # misc
 # next.js
 # production
@@ -16,8 +18,6 @@
 *.pem
 *.tsbuildinfo
 .DS_Store
-.env*
-.env.local
 .next/
 .pnp.*
 .pnpm-debug.log*

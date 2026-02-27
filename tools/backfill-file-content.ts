@@ -15,7 +15,7 @@ import path from 'path';
 
 const DB_PATH = process.env.DATABASE_URL || path.join(process.cwd(), 'data', 'hub.db');
 const GITHUB_API = 'https://api.github.com';
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || '';
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN || '';
 
 // Text file extensions
 const TEXT_EXTENSIONS = new Set([

@@ -32,7 +32,7 @@ export default function Feishu(
   }
 ): OAuthConfig<FeishuProfile> {
   const { appId, appSecret } = config;
-  const callbackUrl = (process.env.AUTH_URL || process.env.NEXTAUTH_URL || '') + '/api/auth/callback/feishu';
+  const callbackUrl = (process.env.NEXTAUTH_URL || '') + '/api/auth/callback/feishu';
 
   // Custom fetch to intercept token exchange and userinfo requests
   async function feishuFetch(

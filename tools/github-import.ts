@@ -28,7 +28,7 @@ import fs from 'fs';
 
 const DB_PATH = path.join(process.cwd(), 'data', 'hub.db');
 const GITHUB_API = 'https://api.github.com';
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || '';
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN || '';
 
 // ═══════════════════════════════════════════
 // Types

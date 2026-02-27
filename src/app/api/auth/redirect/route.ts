@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Missing qt or provider parameter' }, { status: 400 });
   }
 
-  const baseUrl = process.env.NEXTAUTH_URL || process.env.AUTH_URL || 'http://localhost:3002';
+  const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3002';
 
   // For email, redirect to the register page (needs client-side form)
   if (provider === 'email') {
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
   }
 
   // Supported OAuth providers
-  if (!['github', 'feishu', 'google'].includes(provider)) {
+  if (!['github'].includes(provider)) {
     return NextResponse.json({ error: `Unsupported provider: ${provider}` }, { status: 400 });
   }
 

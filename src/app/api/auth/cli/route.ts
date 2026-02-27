@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     }
 
     const result = createCliAuthRequest(deviceId, deviceName || '');
-    const baseUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_URL || 'https://hub.openclawmp.cc';
+    const baseUrl = process.env.NEXTAUTH_URL || 'https://hub.openclawmp.cc';
 
     return NextResponse.json({
       success: true,
