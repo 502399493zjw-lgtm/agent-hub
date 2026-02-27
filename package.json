@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:server": "NODE_ENV=test next dev -p 3002"
+    "test:server": "NODE_ENV=test next dev -p 3002",
+    "pack": "bash scripts/build-and-pack.sh"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",

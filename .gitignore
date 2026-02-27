@@ -16,6 +16,7 @@
 *.tsbuildinfo
 .DS_Store
 .next/
+dist/
 .pnp.*
 .pnpm-debug.log*
 .vercel
