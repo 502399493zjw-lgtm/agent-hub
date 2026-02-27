@@ -170,6 +170,14 @@ function ExploreContent({ initialAssets, initialTotal, typeCounts, categoryCount
           downloads: item.installs ?? item.downloads ?? 0,
           totalStars: item.totalStars ?? 0,
           githubStars: item.githubStars ?? 0,
+          longDescription: item.description ?? '',
+          ratingCount: 0,
+          createdAt: item.updatedAt ?? new Date().toISOString(),
+          readme: '',
+          versions: [],
+          dependencies: [],
+          compatibility: { models: [], platforms: [], frameworks: [] },
+          issueCount: 0,
           author: typeof item.author === 'string'
             ? { id: item.authorId ?? '', name: item.author, avatar: item.authorAvatar ?? '', reputation: item.authorReputation ?? 0 }
             : item.author,

@@ -30,14 +30,6 @@ cache:
     - node_modules/
     - .npm/
 
-# 触发规则：手动触发或 release/ 分支推送
-workflow:
-  rules:
-    # 手动触发（Web UI 或 API）
-    - if: '$CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api"'
-    # release/ 分支推送自动触发
-    - if: '$CI_COMMIT_BRANCH =~ /^release\/.*$/'
-
 # ═══════════════════════════════════════════════
 # Stage 1: Lint
 # ═══════════════════════════════════════════════
@@ -55,10 +47,6 @@ lint:
   script:
     - echo "Running ESLint..."
     - npm run lint
-  only:
-    - web
-    - api
-    - /^release\/.*$/
 
 # ═══════════════════════════════════════════════
 # Stage 2: Build
@@ -86,19 +74,16 @@ build:
       - package.json
       - package-lock.json
     expire_in: 1 hour
-  only:
-    - web
-    - api
-    - /^release\/.*$/
 
 # ═══════════════════════════════════════════════
-# Stage 3: Docker Build & Push
+# Stage 3: Docker Build & Push (手动触发)
 # ═══════════════════════════════════════════════
 docker:
   stage: docker
   image:
     name: ${KANIKO_IMAGE}
     entrypoint: [""]
+  when: manual
   script:
     - echo "Branch:${CI_COMMIT_BRANCH}"
     - echo "Commit SHA:${CI_COMMIT_SHORT_SHA}"
@@ -109,7 +94,3 @@ docker:
     - /kaniko/executor --context "${CI_PROJECT_DIR}" --dockerfile "${CI_PROJECT_DIR}/Dockerfile" --destination "${IMAGE_TAG}" --cache=true --cleanup
   dependencies:
     - build
-  only:
-    - web
-    - api
-    - /^release\/.*$/

@@ -1,4 +1,5 @@
 import { listAssetsCompact, getAssetCountByType, getAssetCountByCategory, getTotalAssetCount } from '@/lib/db';
+import { AssetType } from '@/data/types';
 import ExploreClientPage from './client';
 import type { Metadata } from 'next';
 
@@ -24,11 +25,21 @@ export default function ExplorePage() {
 
   // Normalize compact format to match what client expects
   // (author string → author object, installs → downloads)
+  // Add missing Asset fields with defaults
   const normalizedAssets = result.assets.map(item => ({
     ...item,
+    type: item.type as AssetType,
     downloads: item.installs ?? 0,
     totalStars: item.totalStars ?? 0,
     githubStars: item.githubStars ?? 0,
+    longDescription: item.description ?? '',
+    ratingCount: 0,
+    createdAt: item.updatedAt ?? new Date().toISOString(),
+    readme: '',
+    versions: [],
+    dependencies: [],
+    compatibility: { models: [], platforms: [], frameworks: [] },
+    issueCount: 0,
     author: typeof item.author === 'string'
       ? { id: item.authorId ?? '', name: item.author, avatar: item.authorAvatar ?? '', reputation: item.authorReputation ?? 0 }
       : item.author,
