@@ -3,7 +3,7 @@
 # 使用预构建产物，无需重新编译
 # ═══════════════════════════════════════════════
 
-FROM hub.stepfun-inc.com/ndp-data/node-build:22-alpine
+FROM hub.i.basemind.com/base/node:22-alpine
 
 WORKDIR /app
 

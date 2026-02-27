@@ -12,6 +12,10 @@ stages:
 variables:
   # 镜像仓库
   DOCKER_REGISTRY: "hub.stepfun-inc.com/busi"
+  # Node 基础镜像
+  NODE_IMAGE: "hub.i.basemind.com/base/node:22-alpine"
+  # Kaniko 镜像
+  KANIKO_IMAGE: "hub.stepfun-inc.com/devops/stepbase-kaniko:latest"
   # npm 镜像源（淘宝镜像）
   NPM_REGISTRY: "https://registry.npmmirror.com"
   # 缓存配置
@@ -39,7 +43,7 @@ workflow:
 # ═══════════════════════════════════════════════
 lint:
   stage: lint
-  image: hub.stepfun-inc.com/ndp-data/node-build:22-alpine
+  image: ${NODE_IMAGE}
   before_script:
     # 配置淘宝镜像源
     - npm config set registry $NPM_REGISTRY
@@ -59,7 +63,7 @@ lint:
 # ═══════════════════════════════════════════════
 build:
   stage: build
-  image: hub.stepfun-inc.com/ndp-data/node-build:22-alpine
+  image: ${NODE_IMAGE}
   before_script:
     # 配置淘宝镜像源
     - npm config set registry $NPM_REGISTRY
@@ -89,7 +93,7 @@ build:
 docker:
   stage: docker
   image:
-    name: hub.stepfun-inc.com/devops/stepbase-kaniko:latest
+    name: ${KANIKO_IMAGE}
     entrypoint: [""]
   script:
     - echo "Branch:${CI_COMMIT_BRANCH}"
