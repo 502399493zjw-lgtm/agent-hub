@@ -159,7 +159,8 @@ set +a
 export NODE_ENV=${NODE_ENV:-production}
 export PORT=${PORT:-3000}
 export NEXT_TELEMETRY_DISABLED=${NEXT_TELEMETRY_DISABLED:-1}
-export DATABASE_URL=${DATABASE_URL:-$(pwd)/data/hub.db}
+# 使用双引号避免空格和特殊字符问题
+export DATABASE_URL=${DATABASE_URL:-"$(pwd)/data/hub.db"}
 
 echo "   ✓ 环境变量已加载到内存"
 echo "   NODE_ENV: $NODE_ENV"
@@ -601,8 +602,8 @@ if [ -f "package.json" ]; then
     
     # 恢复原始 package.json（保持版本一致性）
     if [ "$USE_OLD_SQLITE3" = true ] && [ -f "package.json.bak" ]; then
-      rm package.json.bak
-      echo "   ✓ 已清理备份文件"
+      mv package.json.bak package.json
+      echo "   ✓ 已恢复原始 package.json"
     fi
   else
     echo "   ❌ npm 安装失败"
@@ -623,14 +624,6 @@ if [ -f "package.json" ]; then
       mv package.json.bak package.json
       echo "   ✓ 已恢复原始 package.json"
     fi
-    exit 1
-  fi
-    echo ""
-    echo "   常见解决方案:"
-    echo "   1. 检查 Python 版本: $PYTHON_PATH --version"
-    echo "   2. 手动指定 Python: npm install --production --python=$PYTHON_PATH"
-    echo "   3. 安装 node-gyp: npm install -g node-gyp"
-    echo "   4. 查看完整日志: cat /tmp/npm-install.log"
     exit 1
   fi
 else
@@ -660,6 +653,9 @@ echo "9. 启动 PM2 服务..."
 pm2 delete "$PM2_APP_NAME" 2>/dev/null || true
 
 # 创建 PM2 启动配置（将环境变量传递给 PM2）
+# 转义 DATABASE_URL 中的特殊字符
+ESCAPED_DB_URL=$(echo "$DATABASE_URL" | sed 's/"/\\"/g')
+
 cat > ecosystem.config.js <<EOF
 module.exports = {
   apps: [{
@@ -671,7 +667,7 @@ module.exports = {
       NODE_ENV: '${NODE_ENV}',
       PORT: '${PORT}',
       NEXT_TELEMETRY_DISABLED: '${NEXT_TELEMETRY_DISABLED}',
-      DATABASE_URL: '${DATABASE_URL}'
+      DATABASE_URL: '${ESCAPED_DB_URL}'
     }
   }]
 };
