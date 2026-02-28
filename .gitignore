@@ -12,7 +12,6 @@
 # testing
 # typescript
 # vercel
-*.pem
 *.tsbuildinfo
 .DS_Store
 .next/

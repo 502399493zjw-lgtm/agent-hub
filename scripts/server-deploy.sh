@@ -10,14 +10,11 @@ set -e
 
 # 配置
 DEPLOY_PACKAGE="/tmp/openclawmp.tar.gz"
-SSL_CERT_FILENAME="openclawmp.cc.pem"
-SSL_KEY_FILENAME="openclawmp.cc.key"
-SSL_CERT_SRC="ssl/${SSL_CERT_FILENAME}"
-SSL_KEY_SRC="ssl/${SSL_KEY_FILENAME}"
-SSL_CERT_DEST="/etc/ssl/certs/openclawmp-cc.crt"
-SSL_KEY_DEST="/etc/ssl/private/openclawmp-cc.key"
 NGINX_CONFIG_FILE="/etc/nginx/conf.d/openclawmp.conf"
 PM2_APP_NAME="openclawmp"
+SSL_SOURCE_DIR="ssl"
+SSL_CERT_DEST_DIR="/etc/ssl/certs"
+SSL_KEY_DEST_DIR="/etc/ssl/private"
 
 echo "========================================="
 echo "🚀 Agent Hub Server Deployment"
@@ -415,32 +412,90 @@ if command -v nginx &> /dev/null; then
   NGINX_VERSION=$(nginx -v 2>&1 | grep -oP 'nginx/\K[0-9.]+' || echo "unknown")
   echo "   当前版本: nginx/$NGINX_VERSION"
   
-  # 安装 SSL 证书
-  if [ -f "$SSL_CERT_SRC" ] && [ -f "$SSL_KEY_SRC" ]; then
-    echo "   检测到 SSL 证书，正在安装..."
-    sudo mkdir -p /etc/ssl/private
-    sudo mkdir -p /etc/ssl/certs
+  # 扫描并安装所有 SSL 证书
+  echo "   扫描 SSL 证书目录..."
+  sudo mkdir -p "$SSL_CERT_DEST_DIR"
+  sudo mkdir -p "$SSL_KEY_DEST_DIR"
+  
+  SSL_DOMAINS=""
+  SSL_CONFIGS=""
+  CERT_COUNT=0
+  
+  if [ -d "$SSL_SOURCE_DIR" ]; then
+    # 查找所有 .pem 证书文件
+    for CERT_FILE in "$SSL_SOURCE_DIR"/*.pem; do
+      if [ -f "$CERT_FILE" ]; then
+        # 提取域名（文件名格式：domain.com.pem）
+        CERT_FILENAME=$(basename "$CERT_FILE")
+        DOMAIN=${CERT_FILENAME%.pem}
+        KEY_FILE="$SSL_SOURCE_DIR/${DOMAIN}.key"
+        
+        if [ -f "$KEY_FILE" ]; then
+          echo "   → 发现域名证书: $DOMAIN"
+          
+          # 生成目标文件名（替换点号为破折号）
+          SAFE_DOMAIN=$(echo "$DOMAIN" | tr '.' '-')
+          CERT_DEST="$SSL_CERT_DEST_DIR/${SAFE_DOMAIN}.crt"
+          KEY_DEST="$SSL_KEY_DEST_DIR/${SAFE_DOMAIN}.key"
+          
+          # 安装证书
+          sudo cp "$CERT_FILE" "$CERT_DEST"
+          sudo cp "$KEY_FILE" "$KEY_DEST"
+          sudo chmod 644 "$CERT_DEST"
+          sudo chown root:nginx "$KEY_DEST" 2>/dev/null || sudo chown root:www-data "$KEY_DEST" 2>/dev/null || true
+          sudo chmod 640 "$KEY_DEST"
+          
+          # 收集域名列表
+          SSL_DOMAINS="$SSL_DOMAINS $DOMAIN"
+          
+          # 生成该域名的 SSL 配置
+          SSL_CONFIGS="${SSL_CONFIGS}
+# HTTPS 配置 - ${DOMAIN}
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name ${DOMAIN};
     
-    sudo cp "$SSL_CERT_SRC" "$SSL_CERT_DEST"
-    sudo cp "$SSL_KEY_SRC" "$SSL_KEY_DEST"
-    sudo chmod 644 "$SSL_CERT_DEST"
-    sudo chown root:nginx "$SSL_KEY_DEST" 2>/dev/null || sudo chown root:www-data "$SSL_KEY_DEST" 2>/dev/null || true
-    sudo chmod 640 "$SSL_KEY_DEST"
-    echo "   ✓ 已安装 SSL 证书"
-    
-    SSL_CONFIG="
-    listen 443 ssl;
-    listen [::]:443 ssl;
-    ssl_certificate ${SSL_CERT_DEST};
-    ssl_certificate_key ${SSL_KEY_DEST};
+    ssl_certificate ${CERT_DEST};
+    ssl_certificate_key ${KEY_DEST};
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
     ssl_prefer_server_ciphers on;
     ssl_session_cache shared:SSL:10m;
-    ssl_session_timeout 10m;"
+    ssl_session_timeout 10m;
+    
+    client_max_body_size 500M;
+
+    location / {
+        proxy_pass http://127.0.0.1:${PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection \"upgrade\";
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+}
+"
+          
+          CERT_COUNT=$((CERT_COUNT + 1))
+        else
+          echo "   ⚠️  跳过 $DOMAIN: 未找到对应的 .key 文件"
+        fi
+      fi
+    done
+  fi
+  
+  if [ $CERT_COUNT -gt 0 ]; then
+    echo "   ✓ 已安装 $CERT_COUNT 个域名的 SSL 证书:$SSL_DOMAINS"
+    HAS_SSL=1
   else
     echo "   ⚠️  未找到 SSL 证书，仅配置 HTTP"
-    SSL_CONFIG=""
+    HAS_SSL=0
   fi
   
   echo "   禁用 Nginx 默认站点..."
@@ -459,8 +514,27 @@ if command -v nginx &> /dev/null; then
   
   echo "   生成 Nginx 配置文件..."
   
-  sudo tee "$NGINX_CONFIG_FILE" > /dev/null <<EOF
-# Agent Hub 反向代理配置
+  if [ $HAS_SSL -eq 1 ]; then
+    # 有 SSL 证书：HTTP 重定向到 HTTPS
+    sudo tee "$NGINX_CONFIG_FILE" > /dev/null <<EOF
+# Agent Hub 反向代理配置（多域名支持）
+
+# HTTP 配置 - 重定向到 HTTPS
+server {
+    listen 80;
+    listen [::]:80;
+    server_name$SSL_DOMAINS;
+    
+    # 强制跳转 HTTPS
+    return 301 https://\$host\$request_uri;
+}
+
+$SSL_CONFIGS
+EOF
+  else
+    # 无 SSL 证书：仅 HTTP
+    sudo tee "$NGINX_CONFIG_FILE" > /dev/null <<EOF
+# Agent Hub 反向代理配置（仅 HTTP）
 
 # HTTP 配置
 server {
@@ -468,11 +542,9 @@ server {
     listen [::]:80;
     server_name _;
     
-    # 如果配置了 HTTPS，重定向到 HTTPS
-    $([ -n "$SSL_CONFIG" ] && echo "return 301 https://\$host\$request_uri;" || echo "# 仅 HTTP 模式")
+    client_max_body_size 500M;
     
-    $([ -z "$SSL_CONFIG" ] && cat <<'HTTP_LOCATION'
-location / {
+    location / {
         proxy_pass http://127.0.0.1:${PORT};
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
@@ -485,34 +557,9 @@ location / {
         proxy_send_timeout 60s;
         proxy_read_timeout 60s;
     }
-HTTP_LOCATION
-)
 }
-
-$([ -n "$SSL_CONFIG" ] && cat <<HTTPS_SERVER
-# HTTPS 配置
-server {
-${SSL_CONFIG}
-    server_name _;
-    client_max_body_size 500M;
-
-    location / {
-        proxy_pass http://127.0.0.1:${PORT};
-        proxy_http_version 1.1;
-        proxy_set_header Host \\\$host;
-        proxy_set_header X-Real-IP \\\$remote_addr;
-        proxy_set_header X-Forwarded-For \\\$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \\\$scheme;
-        proxy_set_header Upgrade \\\$http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_connect_timeout 60s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
-    }
-}
-HTTPS_SERVER
-)
 EOF
+  fi
   
   echo "   ✓ Nginx 配置已生成"
   echo "   ✓ 配置文件: ${NGINX_CONFIG_FILE}"
@@ -613,9 +660,15 @@ echo "=========================================="
 echo ""
 echo "🌐 服务信息:"
 echo "   内部地址: http://127.0.0.1:${PORT}"
-echo "   HTTP 访问: http://<服务器IP或域名>"
-if [ -n "$SSL_CONFIG" ]; then
-  echo "   HTTPS 访问: https://<服务器IP或域名>"
+if [ $HAS_SSL -eq 1 ]; then
+  echo "   已配置的域名:"
+  for DOMAIN in $SSL_DOMAINS; do
+    echo "     - https://$DOMAIN (SSL)"
+  done
+  echo "   HTTP 自动重定向到 HTTPS"
+else
+  echo "   HTTP 访问: http://<服务器IP或域名>"
+  echo "   ⚠️  未配置 SSL，建议添加证书到 ssl/ 目录"
 fi
 echo ""
 echo "📋 PM2 常用命令:"
