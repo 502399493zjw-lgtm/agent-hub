@@ -31,9 +31,9 @@ scp dist/openclawmp.tar.gz user@server:/tmp/
 
 ```bash
 # 解压部署包
-tar -xzf /tmp/openclawmp.tar.gz /path/to/deploy/
+tar -xzf /tmp/openclawmp.tar.gz /opt/openclawmp
 # 进入部署目录
-cd /path/to/deploy/
+cd /opt/openclawmp
 # 运行部署脚本启动服务
 bash server-deploy.sh
 ```
