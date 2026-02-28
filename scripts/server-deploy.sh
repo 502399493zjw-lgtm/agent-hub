@@ -3,10 +3,34 @@
 # ═══════════════════════════════════════════════
 # Agent Hub Server Deployment Script
 # 服务器部署脚本 - 在服务器上运行
-# 使用方法: bash server-deploy.sh
+# 使用方法: 
+#   bash server-deploy.sh              # 完整部署（含解压）
+#   bash server-deploy.sh --skip-extract  # 跳过解压，仅重新部署
 # ═══════════════════════════════════════════════
 
 set -e
+
+# 解析命令行参数
+SKIP_EXTRACT=false
+for arg in "$@"; do
+  case $arg in
+    --skip-extract)
+      SKIP_EXTRACT=true
+      shift
+      ;;
+    --help|-h)
+      echo "使用方法:"
+      echo "  bash server-deploy.sh              # 完整部署（含解压）"
+      echo "  bash server-deploy.sh --skip-extract  # 跳过解压，仅重新部署"
+      exit 0
+      ;;
+    *)
+      echo "未知参数: $arg"
+      echo "使用 --help 查看帮助"
+      exit 1
+      ;;
+  esac
+done
 
 # 配置
 DEPLOY_PACKAGE="/tmp/openclawmp.tar.gz"
@@ -18,37 +42,54 @@ SSL_KEY_DEST_DIR="/etc/ssl/private"
 
 echo "========================================="
 echo "🚀 Agent Hub Server Deployment"
+if [ "$SKIP_EXTRACT" = true ]; then
+  echo "   模式: 快速重新部署（跳过解压）"
+else
+  echo "   模式: 完整部署"
+fi
 echo "=========================================="
 echo ""
 
 # ═══════════════════════════════════════════════
 # 0. 清理旧文件并解压新部署包
 # ═══════════════════════════════════════════════
-echo "0. 清理旧部署并解压新版本..."
+if [ "$SKIP_EXTRACT" = false ]; then
+  echo "0. 清理旧部署并解压新版本..."
 
-if [ ! -f "$DEPLOY_PACKAGE" ]; then
-  echo "❌ 错误: 未找到部署包 $DEPLOY_PACKAGE"
-  echo "   请先将 openclawmp.tar.gz 上传到 /tmp/ 目录"
-  exit 1
+  if [ ! -f "$DEPLOY_PACKAGE" ]; then
+    echo "❌ 错误: 未找到部署包 $DEPLOY_PACKAGE"
+    echo "   请先将 openclawmp.tar.gz 上传到 /tmp/ 目录"
+    exit 1
+  fi
+  echo "   ✓ 找到部署包 $DEPLOY_PACKAGE"
+
+  echo "   清理旧文件..."
+  rm -rf .next public ssl
+  rm -f server.js package.json .env .env.local .env.prod ecosystem.config.js
+  echo "   ✓ 旧文件清理完成（data 目录保留）"
+
+  echo "   解压部署包到当前目录..."
+  tar -xzf "$DEPLOY_PACKAGE" -C .
+  echo "   ✓ 部署包解压完成"
+
+  if [ ! -f "server.js" ]; then
+    echo "❌ 错误: 解压后未找到 server.js"
+    echo "   部署包可能不完整或损坏"
+    exit 1
+  fi
+
+  echo "   ✓ 检测到 Next.js 部署目录"
+else
+  echo "0. 跳过解压步骤（--skip-extract）"
+  
+  # 验证必要文件存在
+  if [ ! -f "server.js" ] || [ ! -f "package.json" ]; then
+    echo "❌ 错误: 当前目录缺少必要文件 (server.js, package.json)"
+    echo "   首次部署必须省略 --skip-extract 参数"
+    exit 1
+  fi
+  echo "   ✓ 检测到 Next.js 部署目录"
 fi
-echo "   ✓ 找到部署包 $DEPLOY_PACKAGE"
-
-echo "   清理旧文件..."
-rm -rf .next public ssl
-rm -f server.js package.json .env .env.local .env.prod ecosystem.config.js
-echo "   ✓ 旧文件清理完成（data 目录保留）"
-
-echo "   解压部署包到当前目录..."
-tar -xzf "$DEPLOY_PACKAGE" -C .
-echo "   ✓ 部署包解压完成"
-
-if [ ! -f "server.js" ]; then
-  echo "❌ 错误: 解压后未找到 server.js"
-  echo "   部署包可能不完整或损坏"
-  exit 1
-fi
-
-echo "   ✓ 检测到 Next.js 部署目录"
 
 # ═══════════════════════════════════════════════
 # 0.1. 停止旧服务
@@ -405,7 +446,107 @@ if [ -n "$PYTHON_PATH" ]; then
 else
   echo "     - Python: Not found"
 fi
-echo "     - GCC: $(g++ --version 2>/dev/null | head -n1 || echo 'Not found')"
+
+# 检查 GCC 版本（better-sqlite3 需要 C++20 支持，GCC 10+）
+GCC_VERSION=""
+USE_OLD_SQLITE3=false
+
+if command -v g++ &> /dev/null; then
+  GCC_FULL_VERSION=$(g++ --version 2>/dev/null | head -n1)
+  GCC_VERSION=$(g++ -dumpversion 2>/dev/null)
+  GCC_MAJOR=$(echo $GCC_VERSION | cut -d. -f1)
+  echo "     - GCC: $GCC_FULL_VERSION"
+  
+  if [ "$GCC_MAJOR" -lt 10 ]; then
+    echo "     ⚠️  GCC $GCC_VERSION 不支持 C++20（需要 GCC 10+）"
+    echo "     正在升级 GCC 到版本 11..."
+    
+    if command -v yum &> /dev/null; then
+      # CentOS/RHEL 8+: 使用 gcc-toolset-11
+      sudo yum install -y gcc-toolset-11 gcc-toolset-11-gcc-c++ 2>/dev/null && {
+        echo "     ✓ GCC Toolset 11 安装完成"
+        
+        # 激活 GCC Toolset 11
+        source /opt/rh/gcc-toolset-11/enable 2>/dev/null || true
+        export PATH="/opt/rh/gcc-toolset-11/root/usr/bin:$PATH"
+        export LD_LIBRARY_PATH="/opt/rh/gcc-toolset-11/root/usr/lib64:$LD_LIBRARY_PATH"
+        
+        # 验证新版本
+        if command -v g++ &> /dev/null; then
+          NEW_GCC_VERSION=$(g++ -dumpversion 2>/dev/null)
+          NEW_GCC_MAJOR=$(echo $NEW_GCC_VERSION | cut -d. -f1)
+          echo "     ✓ GCC 已升级到: $(g++ --version 2>/dev/null | head -n1)"
+          
+          if [ "$NEW_GCC_MAJOR" -ge 10 ]; then
+            GCC_VERSION="$NEW_GCC_VERSION"
+            GCC_MAJOR="$NEW_GCC_MAJOR"
+            USE_OLD_SQLITE3=false
+          else
+            echo "     ⚠️  GCC 升级后仍不满足要求，将使用兼容版本的 better-sqlite3"
+            USE_OLD_SQLITE3=true
+          fi
+        fi
+      } || {
+        # 尝试 CentOS 7 的 devtoolset-11
+        sudo yum install -y centos-release-scl 2>/dev/null || true
+        sudo yum install -y devtoolset-11 devtoolset-11-gcc-c++ 2>/dev/null && {
+          echo "     ✓ Devtoolset 11 安装完成"
+          
+          source /opt/rh/devtoolset-11/enable 2>/dev/null || true
+          export PATH="/opt/rh/devtoolset-11/root/usr/bin:$PATH"
+          export LD_LIBRARY_PATH="/opt/rh/devtoolset-11/root/usr/lib64:$LD_LIBRARY_PATH"
+          
+          NEW_GCC_VERSION=$(g++ -dumpversion 2>/dev/null)
+          NEW_GCC_MAJOR=$(echo $NEW_GCC_VERSION | cut -d. -f1)
+          echo "     ✓ GCC 已升级到: $(g++ --version 2>/dev/null | head -n1)"
+          
+          if [ "$NEW_GCC_MAJOR" -ge 10 ]; then
+            GCC_VERSION="$NEW_GCC_VERSION"
+            GCC_MAJOR="$NEW_GCC_MAJOR"
+            USE_OLD_SQLITE3=false
+          else
+            USE_OLD_SQLITE3=true
+          fi
+        } || {
+          echo "     ⚠️  GCC 升级失败，将使用兼容版本的 better-sqlite3"
+          USE_OLD_SQLITE3=true
+        }
+      }
+    elif command -v apt-get &> /dev/null; then
+      # Ubuntu/Debian: 安装 GCC 11
+      sudo apt-get update
+      sudo apt-get install -y gcc-11 g++-11 2>/dev/null && {
+        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-11 100
+        sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-11 100
+        
+        NEW_GCC_VERSION=$(g++ -dumpversion 2>/dev/null)
+        NEW_GCC_MAJOR=$(echo $NEW_GCC_VERSION | cut -d. -f1)
+        echo "     ✓ GCC 已升级到: $(g++ --version 2>/dev/null | head -n1)"
+        
+        if [ "$NEW_GCC_MAJOR" -ge 10 ]; then
+          GCC_VERSION="$NEW_GCC_VERSION"
+          GCC_MAJOR="$NEW_GCC_MAJOR"
+          USE_OLD_SQLITE3=false
+        else
+          USE_OLD_SQLITE3=true
+        fi
+      } || {
+        echo "     ⚠️  GCC 升级失败，将使用兼容版本的 better-sqlite3"
+        USE_OLD_SQLITE3=true
+      }
+    else
+      echo "     ⚠️  无法自动升级 GCC，将使用兼容版本的 better-sqlite3"
+      USE_OLD_SQLITE3=true
+    fi
+  else
+    echo "     ✓ GCC 版本符合要求"
+    USE_OLD_SQLITE3=false
+  fi
+else
+  echo "     - GCC: Not found"
+  echo "     ⚠️  未检测到 GCC，将使用兼容版本的 better-sqlite3"
+  USE_OLD_SQLITE3=true
+fi
 echo "     - Make: $(make --version 2>/dev/null | head -n1 || echo 'Not found')"
 
 # 安装所有依赖（包括原生模块）
@@ -430,15 +571,60 @@ if [ -f "package.json" ]; then
     export PYTHON="$PYTHON_PATH"
   fi
   
-  # 运行 npm install（使用 --production 只安装生产依赖）
+  # 处理 better-sqlite3 版本兼容性
+  if [ "$USE_OLD_SQLITE3" = true ]; then
+    echo "   ⚠️  检测到 GCC 版本过低，需要特殊处理 better-sqlite3"
+    echo "   修改 package.json 使用兼容旧版 GCC 的 better-sqlite3 版本..."
+    
+    # 备份原始 package.json
+    cp package.json package.json.bak
+    
+    # 将 better-sqlite3 版本降级到 9.x（支持 C++17）
+    if command -v jq &> /dev/null; then
+      # 使用 jq 修改 JSON
+      jq '.dependencies["better-sqlite3"] = "^9.6.0"' package.json > package.json.tmp
+      mv package.json.tmp package.json
+    else
+      # 使用 sed 简单替换
+      sed -i 's/"better-sqlite3": "[^"]*"/"better-sqlite3": "^9.6.0"/' package.json 2>/dev/null || \
+      sed -i '' 's/"better-sqlite3": "[^"]*"/"better-sqlite3": "^9.6.0"/' package.json
+    fi
+    echo "   ✓ 已调整 better-sqlite3 版本为 9.6.0（兼容 GCC 8）"
+  fi
+  
+  # 运行 npm install（使用 --omit=dev 只安装生产依赖）
   echo "   执行 npm install（从源码编译原生模块）..."
-  npm install --production --build-from-source 2>&1 | tee /tmp/npm-install.log
+  npm install --omit=dev --build-from-source 2>&1 | tee /tmp/npm-install.log
   
   if [ ${PIPESTATUS[0]} -eq 0 ]; then
     echo "   ✓ npm 依赖安装完成"
+    
+    # 恢复原始 package.json（保持版本一致性）
+    if [ "$USE_OLD_SQLITE3" = true ] && [ -f "package.json.bak" ]; then
+      rm package.json.bak
+      echo "   ✓ 已清理备份文件"
+    fi
   else
     echo "   ❌ npm 安装失败"
     echo "   完整日志已保存到: /tmp/npm-install.log"
+    echo ""
+    echo "   诊断信息:"
+    echo "   - GCC 版本: ${GCC_VERSION:-未检测到}"
+    echo "   - Python 版本: $($PYTHON_PATH --version 2>&1)"
+    echo ""
+    echo "   常见解决方案:"
+    echo "   1. GCC 版本过低（当前 ${GCC_VERSION:-未知}，需要 10+ 支持 C++20）"
+    echo "      解决: sudo yum install gcc-toolset-11 && scl enable gcc-toolset-11 bash"
+    echo "   2. 或手动降级 better-sqlite3: npm install better-sqlite3@9.6.0"
+    echo "   3. 查看完整日志: cat /tmp/npm-install.log"
+    
+    # 恢复原始 package.json
+    if [ "$USE_OLD_SQLITE3" = true ] && [ -f "package.json.bak" ]; then
+      mv package.json.bak package.json
+      echo "   ✓ 已恢复原始 package.json"
+    fi
+    exit 1
+  fi
     echo ""
     echo "   常见解决方案:"
     echo "   1. 检查 Python 版本: $PYTHON_PATH --version"
