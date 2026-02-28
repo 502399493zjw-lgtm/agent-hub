@@ -17,7 +17,8 @@ RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
 # 拷贝构建产物（来自 GitLab CI artifacts）
-COPY --chown=nextjs:nodejs .next/standalone ./
+# 使用 . 确保复制所有文件包括隐藏目录（如 .next）
+COPY --chown=nextjs:nodejs .next/standalone/. ./
 COPY --chown=nextjs:nodejs .next/static ./.next/static
 COPY --chown=nextjs:nodejs public ./public
 

@@ -70,7 +70,8 @@ mkdir -p "$PACK_DIR"
 
 # 复制 standalone 产物（排除 node_modules，服务器端重新安装）
 echo "  → Copying standalone output..."
-cp -r .next/standalone/* "$PACK_DIR/"
+# 使用 . 而不是 * 来确保复制隐藏文件/目录（如 .next）
+cp -r .next/standalone/. "$PACK_DIR/"
 
 # 删除 node_modules（服务器端重新安装以确保原生模块兼容）
 if [ -d "$PACK_DIR/node_modules" ]; then
@@ -113,6 +114,10 @@ fi
 # 复制数据目录结构（空目录，用于挂载）
 echo "  → Creating data directory..."
 mkdir -p "$PACK_DIR/data"
+# 清理可能被复制进来的 data 目录内容（保留目录结构，不打包实际数据）
+if [ -d "$PACK_DIR/data" ]; then
+  rm -rf "$PACK_DIR/data"/*
+fi
 
 echo -e "${GREEN}✓ Package directory prepared${NC}"
 echo ""

@@ -69,7 +69,7 @@ if [ "$SKIP_EXTRACT" = false ]; then
   echo "   ✓ 旧文件清理完成（data 目录保留）"
 
   echo "   解压部署包到当前目录..."
-  tar -xzf "$DEPLOY_PACKAGE" -C .
+  tar -xzf "$DEPLOY_PACKAGE"
   echo "   ✓ 部署包解压完成"
 
   if [ ! -f "server.js" ]; then
