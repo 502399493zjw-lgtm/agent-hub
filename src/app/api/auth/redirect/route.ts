@@ -8,6 +8,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { peekQualificationToken } from '@/lib/db';
+import { getBaseUrl } from '@/lib/get-base-url';
 
 /**
  * Extract individual Set-Cookie headers from a fetch Response.
@@ -34,7 +35,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Missing qt or provider parameter' }, { status: 400 });
   }
 
-  const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3002';
+  const baseUrl = getBaseUrl(req);
 
   // For email, redirect to the register page (needs client-side form)
   if (provider === 'email') {

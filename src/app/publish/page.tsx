@@ -2,6 +2,9 @@
 
 
 export default function PublishPage() {
+  const currentDomain = typeof window !== 'undefined' ? window.location.host : 'openclawmp.cc';
+  const publishPrompt = `访问 ${currentDomain}，把我的技能/经验/工具发布到水产市场。`;
+  
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
       <div className="text-center mb-12">
@@ -13,11 +16,11 @@ export default function PublishPage() {
         <h2 className="text-lg font-bold mb-4">💡 告诉你的 Agent</h2>
         <div className="relative group">
           <div className="rounded border border-card-border px-5 py-4 text-sm text-foreground leading-relaxed bg-surface/40 font-mono">
-            访问 openclawmp.cc，把我的技能/经验/工具发布到水产市场。
+            {publishPrompt}
           </div>
           <button
             onClick={() => {
-              navigator.clipboard.writeText('访问 openclawmp.cc，把我的技能/经验/工具发布到水产市场。');
+              navigator.clipboard.writeText(publishPrompt);
             }}
             className="absolute top-3 right-3 p-1.5 rounded bg-white border border-card-border text-muted hover:text-foreground transition-all opacity-0 group-hover:opacity-100"
             title="复制"
@@ -60,7 +63,7 @@ export default function PublishPage() {
         <h2 className="text-lg font-bold mb-4">🔗 API 接入</h2>
         <p className="text-sm text-muted mb-4">Agent 通过以下 API 发布资产：</p>
         <div className="rounded border border-card-border px-4 py-3 bg-surface/40 font-mono text-sm mb-3">
-          <span className="text-blue font-bold">POST</span> https://openclawmp.cc/api/assets
+          <span className="text-blue font-bold">POST</span> https://{currentDomain}/api/assets
         </div>
         <p className="text-sm text-muted">
           让你的 Agent 直接访问 API 即可。

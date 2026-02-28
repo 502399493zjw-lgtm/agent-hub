@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { createCliAuthRequest, pollCliAuthRequest, approveCliAuthRequest, getCliAuthRequest, findUserById } from '@/lib/db';
+import { getBaseUrl } from '@/lib/get-base-url';
 
 /**
  * CLI Device Auth Flow API
@@ -29,7 +30,10 @@ export async function POST(request: NextRequest) {
     }
 
     const result = createCliAuthRequest(deviceId, deviceName || '');
-    const baseUrl = process.env.NEXTAUTH_URL || 'https://hub.openclawmp.cc';
+    
+    // 获取基础 URL，添加 hub 子域名前缀
+    // 例如：openclawmp.cc -> hub.openclawmp.cc，seafoodmp.com -> hub.seafoodmp.com
+    const baseUrl = getBaseUrl(request, 'hub');
 
     return NextResponse.json({
       success: true,

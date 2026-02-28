@@ -17,6 +17,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateInviteCode, createQualificationToken, createCliAuthRequest } from '@/lib/db';
 import { createRateLimiter, getClientIp, rateLimitResponse } from '@/lib/rate-limit';
+import { getBaseUrl } from '@/lib/get-base-url';
 
 const qualifyLimiter = createRateLimiter({ windowMs: 60_000, max: 5 });
 
@@ -108,7 +109,7 @@ export async function POST(request: NextRequest) {
     );
 
     // Determine base URL for building auth links
-    const baseUrl = (process.env.NEXTAUTH_URL || `http://localhost:${process.env.PORT || 3000}`).replace(/\/$/, '');
+    const baseUrl = getBaseUrl(request).replace(/\/$/, '');
 
     const methods = getAvailableMethods(baseUrl, qt.token);
 

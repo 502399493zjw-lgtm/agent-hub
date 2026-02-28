@@ -32,7 +32,6 @@ export default function Feishu(
   }
 ): OAuthConfig<FeishuProfile> {
   const { appId, appSecret } = config;
-  const callbackUrl = (process.env.NEXTAUTH_URL || '') + '/api/auth/callback/feishu';
 
   // Custom fetch to intercept token exchange and userinfo requests
   async function feishuFetch(
@@ -231,7 +230,7 @@ export default function Feishu(
       url: 'https://open.feishu.cn/open-apis/authen/v1/authorize',
       params: {
         app_id: appId,
-        redirect_uri: callbackUrl,
+        // redirect_uri 由 NextAuth 根据请求动态构造，支持多域名部署
         response_type: 'code',
         scope: '',
       },
