@@ -153,6 +153,6 @@ echo -e "📦 Package: ${GREEN}dist/openclawmp.tar.gz${NC} (${PACK_SIZE})"
 echo ""
 echo -e "To deploy:"
 echo -e "  1. scp dist/openclawmp.tar.gz user@server:/tmp/"
-echo -e "  2. tar -xzf /tmp/openclawmp.tar.gz" /path/to/deploy/
-echo -e "  3. cd /path/to/deploy/ && bash server-deploy.sh"
+echo -e "  2. tar -xzf /tmp/openclawmp.tar.gz" /opt/openclawmp
+echo -e "  3. cd /opt/openclawmp && bash server-deploy.sh"
 echo ""

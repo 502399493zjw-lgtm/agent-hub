@@ -305,7 +305,18 @@ MISSING_TOOLS=""
 PYTHON_CMD=""
 
 # 检查 Python 版本（node-gyp 需要 Python 3.7+）
-if command -v python3 &> /dev/null; then
+PYTHON_CMD=""
+PYTHON_PATH=""
+
+if command -v python3.9 &> /dev/null; then
+  PYTHON_CMD="python3.9"
+  PYTHON_VERSION=$(python3.9 --version 2>&1 | grep -oP '\d+\.\d+' | head -1)
+  echo "   ✓ 检测到 Python 3.9: $PYTHON_VERSION"
+elif command -v python3.8 &> /dev/null; then
+  PYTHON_CMD="python3.8"
+  PYTHON_VERSION=$(python3.8 --version 2>&1 | grep -oP '\d+\.\d+' | head -1)
+  echo "   ✓ 检测到 Python 3.8: $PYTHON_VERSION"
+elif command -v python3 &> /dev/null; then
   PYTHON_VERSION=$(python3 --version 2>&1 | grep -oP '\d+\.\d+' | head -1)
   PYTHON_MAJOR=$(echo $PYTHON_VERSION | cut -d. -f1)
   PYTHON_MINOR=$(echo $PYTHON_VERSION | cut -d. -f2)
@@ -356,22 +367,46 @@ if [ -n "$MISSING_TOOLS" ]; then
     exit 1
   fi
   echo "   ✓ 构建工具安装/升级完成"
+  
+  # 重新检测 Python 命令（安装后可能变化）
+  if command -v python3.9 &> /dev/null; then
+    PYTHON_CMD="python3.9"
+  elif command -v python3.8 &> /dev/null; then
+    PYTHON_CMD="python3.8"
+  elif command -v python3 &> /dev/null; then
+    PYTHON_CMD="python3"
+  fi
+fi
+
+# 获取 Python 完整路径
+if [ -n "$PYTHON_CMD" ]; then
+  PYTHON_PATH=$(command -v $PYTHON_CMD 2>/dev/null)
+  if [ -z "$PYTHON_PATH" ]; then
+    echo "   ⚠️  无法找到 $PYTHON_CMD 的完整路径"
+    # 尝试常见路径
+    for p in /usr/bin/python3.9 /usr/bin/python3.8 /usr/bin/python3; do
+      if [ -x "$p" ]; then
+        PYTHON_PATH="$p"
+        PYTHON_CMD=$(basename "$p")
+        echo "   ✓ 找到 Python: $PYTHON_PATH"
+        break
+      fi
+    done
+  fi
 fi
 
 # 显示编译环境信息
 echo "   编译环境信息:"
 echo "     - Node.js: $(node --version 2>/dev/null || echo 'Not found')"
 echo "     - npm: $(npm --version 2>/dev/null || echo 'Not found')"
-echo "     - Python: $($PYTHON_CMD --version 2>/dev/null || echo 'Not found')"
+if [ -n "$PYTHON_PATH" ]; then
+  echo "     - Python: $($PYTHON_PATH --version 2>&1 || echo 'Not found')"
+  echo "     - Python 路径: $PYTHON_PATH"
+else
+  echo "     - Python: Not found"
+fi
 echo "     - GCC: $(g++ --version 2>/dev/null | head -n1 || echo 'Not found')"
 echo "     - Make: $(make --version 2>/dev/null | head -n1 || echo 'Not found')"
-
-# 配置 npm 使用正确的 Python 版本
-if [ -n "$PYTHON_CMD" ]; then
-  PYTHON_PATH=$(command -v $PYTHON_CMD)
-  echo "   配置 npm 使用 Python: $PYTHON_PATH"
-  npm config set python "$PYTHON_PATH"
-fi
 
 # 安装所有依赖（包括原生模块）
 if [ -f "package.json" ]; then
@@ -388,9 +423,16 @@ if [ -f "package.json" ]; then
   echo "   清理 npm 缓存..."
   npm cache clean --force 2>/dev/null || true
   
+  # 设置环境变量指定 Python 路径
+  if [ -n "$PYTHON_PATH" ]; then
+    echo "   配置环境变量使用 Python: $PYTHON_PATH"
+    export npm_config_python="$PYTHON_PATH"
+    export PYTHON="$PYTHON_PATH"
+  fi
+  
   # 运行 npm install（使用 --production 只安装生产依赖）
   echo "   执行 npm install（从源码编译原生模块）..."
-  npm install --production --build-from-source --verbose 2>&1 | tee /tmp/npm-install.log
+  npm install --production --build-from-source 2>&1 | tee /tmp/npm-install.log
   
   if [ ${PIPESTATUS[0]} -eq 0 ]; then
     echo "   ✓ npm 依赖安装完成"
@@ -399,9 +441,9 @@ if [ -f "package.json" ]; then
     echo "   完整日志已保存到: /tmp/npm-install.log"
     echo ""
     echo "   常见解决方案:"
-    echo "   1. 检查 Python 版本: python3 --version（需要 3.7+）"
-    echo "   2. 手动升级 Python: sudo yum install python39"
-    echo "   3. 检查 node-gyp: npm install -g node-gyp"
+    echo "   1. 检查 Python 版本: $PYTHON_PATH --version"
+    echo "   2. 手动指定 Python: npm install --production --python=$PYTHON_PATH"
+    echo "   3. 安装 node-gyp: npm install -g node-gyp"
     echo "   4. 查看完整日志: cat /tmp/npm-install.log"
     exit 1
   fi
