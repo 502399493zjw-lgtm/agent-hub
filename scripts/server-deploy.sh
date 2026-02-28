@@ -667,7 +667,7 @@ module.exports = {
     name: '${PM2_APP_NAME}',
     script: 'server.js',
     instances: 1,
-    exec_mode: 'cluster',
+    exec_mode: 'fork',
     env: {
       NODE_ENV: '${NODE_ENV}',
       PORT: '${PORT}',
@@ -680,7 +680,7 @@ EOF
 
 # 使用 ecosystem 配置启动
 pm2 start ecosystem.config.js
-echo "   ✓ PM2 已启动 (name: ${PM2_APP_NAME}, mode: cluster)"
+echo "   ✓ PM2 已启动 (name: ${PM2_APP_NAME}, mode: fork, instances: 1)"
 
 # ═══════════════════════════════════════════════
 # 10. 配置 Nginx 反向代理
