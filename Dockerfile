@@ -16,11 +16,19 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
+# 拷贝 package 文件用于安装依赖
+COPY --chown=nextjs:nodejs package*.json ./
+
 # 拷贝构建产物（来自 GitLab CI artifacts）
 # 使用 . 确保复制所有文件包括隐藏目录（如 .next）
+# 注意：.dockerignore 已排除 .next/standalone/node_modules
 COPY --chown=nextjs:nodejs .next/standalone/. ./
 COPY --chown=nextjs:nodejs .next/static ./.next/static
 COPY --chown=nextjs:nodejs public ./public
+
+# 安装生产依赖（会安装 Linux 兼容的二进制文件）
+# .next/node_modules 中的符号链接会自动指向新安装的依赖
+RUN npm install --omit=dev && npm cache clean --force
 
 # 拷贝环境变量文件
 COPY --chown=nextjs:nodejs .env .env

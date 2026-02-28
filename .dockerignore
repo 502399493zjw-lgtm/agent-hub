@@ -1,8 +1,49 @@
-node_modules
-.next
+# ═══════════════════════════════════════════════
+# Docker Ignore File
+# 排除不需要的文件，减小镜像体积
+# ═══════════════════════════════════════════════
+
+# 排除 standalone 输出中的 node_modules（包含 macOS 平台的二进制文件）
+# Docker 构建时会重新安装 Linux 兼容的依赖
+.next/standalone/node_modules
+
+# 排除根目录的构建缓存（保留 .next/standalone 和 .next/static）
+.next/cache
+.next/trace
+
+# 排除 Git
 .git
+.gitignore
+
+# 排除数据文件
 data
+
+# 排除文档
 *.md
-!README.md
+
+# 排除开发环境变量
 .env*.local
+
+# 排除 macOS 文件
 .DS_Store
+
+# 排除开发依赖
+node_modules
+__tests__
+
+# 排除开发工具配置
+.vscode
+.idea
+eslint.config.mjs
+tsconfig.json
+vitest.config.ts
+
+# 排除脚本和工具
+scripts
+tools
+
+# 排除 CI/CD 配置
+.gitlab-ci.yml
+
+# 排除构建产物（在 CI 中通过 artifacts 传递）
+dist
