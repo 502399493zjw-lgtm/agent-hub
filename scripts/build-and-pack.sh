@@ -160,8 +160,10 @@ fi
 # ═══════════════════════════════════════════════
 echo -e "${YELLOW}[5/5] Creating tarball...${NC}"
 cd dist
-# 打包时保留符号链接
-tar -czf openclawmp.tar.gz -C package .
+# 使用 --no-xattrs 避免 macOS 扩展属性（Linux tar 可能不支持）
+# 使用 --no-mac-metadata 去除 Apple 特定元数据
+tar --no-xattrs --no-mac-metadata -czf openclawmp.tar.gz -C package . 2>/dev/null || \
+  tar -czf openclawmp.tar.gz -C package .
 cd ..
 
 # 获取打包文件大小

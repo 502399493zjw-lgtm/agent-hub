@@ -69,7 +69,10 @@ if [ "$SKIP_EXTRACT" = false ]; then
   echo "   ✓ 旧文件清理完成（data 目录保留）"
 
   echo "   解压部署包到当前目录..."
-  tar -xzf "$DEPLOY_PACKAGE"
+  # 使用 --no-same-owner 避免权限问题，--warning=no-unknown-keyword 忽略扩展属性警告
+  tar -xzf "$DEPLOY_PACKAGE" --no-same-owner --warning=no-unknown-keyword 2>/dev/null || \
+    tar -xzf "$DEPLOY_PACKAGE" --no-same-owner 2>/dev/null || \
+    tar -xzf "$DEPLOY_PACKAGE"
   echo "   ✓ 部署包解压完成"
 
   if [ ! -f "server.js" ]; then
