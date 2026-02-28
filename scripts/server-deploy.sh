@@ -593,8 +593,8 @@ if [ -f "package.json" ]; then
   fi
   
   # 运行 npm install（使用 --omit=dev 只安装生产依赖）
-  echo "   执行 npm install（从源码编译原生模块）..."
-  npm install --omit=dev --build-from-source 2>&1 | tee /tmp/npm-install.log
+  echo "   执行 npm install（原生模块自动选择预编译或源码构建）..."
+  npm install --omit=dev 2>&1 | tee /tmp/npm-install.log
   
   if [ ${PIPESTATUS[0]} -eq 0 ]; then
     echo "   ✓ npm 依赖安装完成"
