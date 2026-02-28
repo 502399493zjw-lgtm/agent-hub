@@ -293,36 +293,73 @@ mkdir -p "$DATA_DIR"
 echo "   ✓ 数据目录已创建: $DATA_DIR"
 
 # ═══════════════════════════════════════════════
-# 7. 重新编译原生模块（跨平台兼容）
+# 7. 安装 npm 依赖（确保原生模块兼容）
 # ═══════════════════════════════════════════════
 echo ""
-echo "7. 重新编译原生模块..."
-echo "   检测到 Next.js standalone 部署，需重新编译原生模块以确保跨平台兼容"
+echo "7. 安装 npm 依赖..."
+echo "   检测到 Next.js standalone 部署，重新安装所有依赖以确保跨平台兼容"
 
-# 检查是否需要安装构建工具
-if ! command -v python3 &> /dev/null || ! command -v make &> /dev/null || ! command -v g++ &> /dev/null; then
-  echo "   ⚠️  缺少构建工具，正在安装..."
+# 检查编译环境
+echo "   检查编译环境..."
+MISSING_TOOLS=""
+if ! command -v python3 &> /dev/null; then
+  MISSING_TOOLS="$MISSING_TOOLS python3"
+fi
+if ! command -v make &> /dev/null; then
+  MISSING_TOOLS="$MISSING_TOOLS make"
+fi
+if ! command -v g++ &> /dev/null; then
+  MISSING_TOOLS="$MISSING_TOOLS g++"
+fi
+
+if [ -n "$MISSING_TOOLS" ]; then
+  echo "   ⚠️  缺少构建工具:$MISSING_TOOLS"
+  echo "   正在安装..."
   if command -v yum &> /dev/null; then
     sudo yum install -y python3 make gcc-c++
   elif command -v apt-get &> /dev/null; then
+    sudo apt-get update
     sudo apt-get install -y python3 make g++
+  else
+    echo "   ❌ 无法识别的包管理器，请手动安装: python3, make, g++"
+    exit 1
   fi
   echo "   ✓ 构建工具安装完成"
 else
   echo "   ✓ 构建工具已安装"
 fi
 
-# 重新安装原生模块（仅重装，不改变其他依赖）
+# 显示编译环境信息
+echo "   编译环境信息:"
+echo "     - Node.js: $(node --version 2>/dev/null || echo 'Not found')"
+echo "     - npm: $(npm --version 2>/dev/null || echo 'Not found')"
+echo "     - Python: $(python3 --version 2>/dev/null || echo 'Not found')"
+echo "     - GCC: $(g++ --version 2>/dev/null | head -n1 || echo 'Not found')"
+echo "     - Make: $(make --version 2>/dev/null | head -n1 || echo 'Not found')"
+
+# 安装所有依赖（包括原生模块）
 if [ -f "package.json" ]; then
-  echo "   重新编译 better-sqlite3..."
-  # 仅重装 better-sqlite3，不影响其他已打包的依赖
-  npm rebuild better-sqlite3 --build-from-source 2>/dev/null || {
-    echo "   使用 npm install 重装..."
-    npm install better-sqlite3 --build-from-source
-  }
-  echo "   ✓ 原生模块重新编译完成"
+  echo "   开始安装 npm 依赖..."
+  echo "   这将确保所有原生模块在服务器环境中正确编译"
+  
+  # 清理可能残留的 node_modules
+  if [ -d "node_modules" ]; then
+    echo "   清理旧的 node_modules..."
+    rm -rf node_modules
+  fi
+  
+  # 运行 npm install（使用 --production 只安装生产依赖）
+  npm install --production --verbose
+  
+  if [ $? -eq 0 ]; then
+    echo "   ✓ npm 依赖安装完成"
+  else
+    echo "   ❌ npm 安装失败，请检查上述错误日志"
+    exit 1
+  fi
 else
-  echo "   ℹ️  未找到 package.json，跳过原生模块编译"
+  echo "   ❌ 未找到 package.json，无法安装依赖"
+  exit 1
 fi
 
 # ═══════════════════════════════════════════════

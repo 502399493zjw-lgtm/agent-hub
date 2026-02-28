@@ -68,9 +68,15 @@ echo -e "${YELLOW}[4/5] Preparing package directory...${NC}"
 PACK_DIR="dist/package"
 mkdir -p "$PACK_DIR"
 
-# 复制 standalone 产物
+# 复制 standalone 产物（排除 node_modules，服务器端重新安装）
 echo "  → Copying standalone output..."
 cp -r .next/standalone/* "$PACK_DIR/"
+
+# 删除 node_modules（服务器端重新安装以确保原生模块兼容）
+if [ -d "$PACK_DIR/node_modules" ]; then
+  echo "  → Removing node_modules (will reinstall on server)..."
+  rm -rf "$PACK_DIR/node_modules"
+fi
 
 # 复制 static 资源到正确位置
 echo "  → Copying static assets..."
