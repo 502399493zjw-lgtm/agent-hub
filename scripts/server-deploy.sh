@@ -296,10 +296,43 @@ mkdir -p "$DATA_DIR"
 echo "   ✓ 数据目录已创建: $DATA_DIR"
 
 # ═══════════════════════════════════════════════
-# 7. 安装 PM2
+# 7. 重新编译原生模块（跨平台兼容）
 # ═══════════════════════════════════════════════
 echo ""
-echo "7. 检查 PM2..."
+echo "7. 重新编译原生模块..."
+echo "   检测到 Next.js standalone 部署，需重新编译原生模块以确保跨平台兼容"
+
+# 检查是否需要安装构建工具
+if ! command -v python3 &> /dev/null || ! command -v make &> /dev/null || ! command -v g++ &> /dev/null; then
+  echo "   ⚠️  缺少构建工具，正在安装..."
+  if command -v yum &> /dev/null; then
+    sudo yum install -y python3 make gcc-c++
+  elif command -v apt-get &> /dev/null; then
+    sudo apt-get install -y python3 make g++
+  fi
+  echo "   ✓ 构建工具安装完成"
+else
+  echo "   ✓ 构建工具已安装"
+fi
+
+# 重新安装原生模块（仅重装，不改变其他依赖）
+if [ -f "package.json" ]; then
+  echo "   重新编译 better-sqlite3..."
+  # 仅重装 better-sqlite3，不影响其他已打包的依赖
+  npm rebuild better-sqlite3 --build-from-source 2>/dev/null || {
+    echo "   使用 npm install 重装..."
+    npm install better-sqlite3 --build-from-source
+  }
+  echo "   ✓ 原生模块重新编译完成"
+else
+  echo "   ℹ️  未找到 package.json，跳过原生模块编译"
+fi
+
+# ═══════════════════════════════════════════════
+# 8. 安装 PM2
+# ═══════════════════════════════════════════════
+echo ""
+echo "8. 检查 PM2..."
 if ! command -v pm2 &> /dev/null; then
   echo "   未检测到 PM2，开始全局安装..."
   npm install -g pm2
@@ -309,10 +342,10 @@ else
 fi
 
 # ═══════════════════════════════════════════════
-# 8. 启动 PM2 服务
+# 9. 启动 PM2 服务
 # ═══════════════════════════════════════════════
 echo ""
-echo "8. 启动 PM2 服务..."
+echo "9. 启动 PM2 服务..."
 
 pm2 delete "$PM2_APP_NAME" 2>/dev/null || true
 
@@ -339,10 +372,10 @@ pm2 start ecosystem.config.js
 echo "   ✓ PM2 已启动 (name: ${PM2_APP_NAME}, mode: cluster)"
 
 # ═══════════════════════════════════════════════
-# 9. 配置 Nginx 反向代理
+# 10. 配置 Nginx 反向代理
 # ═══════════════════════════════════════════════
 echo ""
-echo "9. 配置 Nginx 反向代理..."
+echo "10. 配置 Nginx 反向代理..."
 
 if ! command -v nginx &> /dev/null; then
   echo "   ⚠️  Nginx 未安装，正在安装..."
@@ -520,10 +553,10 @@ EOF
 fi
 
 # ═══════════════════════════════════════════════
-# 10. 验证服务健康状态
+# 11. 验证服务健康状态
 # ═══════════════════════════════════════════════
 echo ""
-echo "10. 验证服务健康状态..."
+echo "11. 验证服务健康状态..."
 
 # 确保 curl 已安装
 if ! command -v curl &> /dev/null; then
@@ -563,15 +596,15 @@ if [ -z "$HEALTH_CHECK_PASSED" ]; then
 fi
 
 # ═══════════════════════════════════════════════
-# 11. 保存 PM2 配置
+# 12. 保存 PM2 配置
 # ═══════════════════════════════════════════════
 echo ""
-echo "11. 保存 PM2 进程列表..."
+echo "12. 保存 PM2 进程列表..."
 pm2 save
 echo "   ✓ PM2 进程列表已保存 (pm2 resurrect 可自动拉起)"
 
 # ═══════════════════════════════════════════════
-# 12. 显示部署完成信息
+# 13. 显示部署完成信息
 # ═══════════════════════════════════════════════
 echo ""
 echo "=========================================="
