@@ -20,7 +20,7 @@ npm run dev
 bash scripts/build-and-pack.sh
 ```
 
-2. 将生成的 `dist/openclawmp.tar.gz` 上传到服务器
+2. 将生成的 `dist/openclawmp.tar.gz` 上传到服务器 `/tmp/` 目录下
 
 ```bash
 # scp 示例
@@ -30,11 +30,9 @@ scp dist/openclawmp.tar.gz user@server:/tmp/
 3. 登录服务器，解压部署包并运行
 
 ```bash
-# 解压部署包
-tar -xzf /tmp/openclawmp.tar.gz /opt/openclawmp
 # 进入部署目录
 cd /opt/openclawmp
-# 运行部署脚本启动服务
+# 运行部署脚本（脚本会自动解压部署包 + 配置环境 + 启动服务）
 bash server-deploy.sh
 ```
 
