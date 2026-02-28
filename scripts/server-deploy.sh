@@ -36,9 +36,6 @@ done
 DEPLOY_PACKAGE="/tmp/openclawmp.tar.gz"
 NGINX_CONFIG_FILE="/etc/nginx/conf.d/openclawmp.conf"
 PM2_APP_NAME="openclawmp"
-SSL_SOURCE_DIR="ssl"
-SSL_CERT_DEST_DIR="/etc/ssl/certs"
-SSL_KEY_DEST_DIR="/etc/ssl/private"
 
 echo "========================================="
 echo "🚀 Agent Hub Server Deployment"
@@ -726,91 +723,7 @@ if command -v nginx &> /dev/null; then
   NGINX_VERSION=$(nginx -v 2>&1 | grep -oP 'nginx/\K[0-9.]+' || echo "unknown")
   echo "   当前版本: nginx/$NGINX_VERSION"
   
-  # 扫描并安装所有 SSL 证书
-  echo "   扫描 SSL 证书目录..."
-  sudo mkdir -p "$SSL_CERT_DEST_DIR"
-  sudo mkdir -p "$SSL_KEY_DEST_DIR"
-  
-  SSL_DOMAINS=""
-  SSL_CONFIGS=""
-  CERT_COUNT=0
-  
-  if [ -d "$SSL_SOURCE_DIR" ]; then
-    # 查找所有 .pem 证书文件
-    for CERT_FILE in "$SSL_SOURCE_DIR"/*.pem; do
-      if [ -f "$CERT_FILE" ]; then
-        # 提取域名（文件名格式：domain.com.pem）
-        CERT_FILENAME=$(basename "$CERT_FILE")
-        DOMAIN=${CERT_FILENAME%.pem}
-        KEY_FILE="$SSL_SOURCE_DIR/${DOMAIN}.key"
-        
-        if [ -f "$KEY_FILE" ]; then
-          echo "   → 发现域名证书: $DOMAIN"
-          
-          # 生成目标文件名（替换点号为破折号）
-          SAFE_DOMAIN=$(echo "$DOMAIN" | tr '.' '-')
-          CERT_DEST="$SSL_CERT_DEST_DIR/${SAFE_DOMAIN}.crt"
-          KEY_DEST="$SSL_KEY_DEST_DIR/${SAFE_DOMAIN}.key"
-          
-          # 安装证书
-          sudo cp "$CERT_FILE" "$CERT_DEST"
-          sudo cp "$KEY_FILE" "$KEY_DEST"
-          sudo chmod 644 "$CERT_DEST"
-          sudo chown root:nginx "$KEY_DEST" 2>/dev/null || sudo chown root:www-data "$KEY_DEST" 2>/dev/null || true
-          sudo chmod 640 "$KEY_DEST"
-          
-          # 收集域名列表
-          SSL_DOMAINS="$SSL_DOMAINS $DOMAIN"
-          
-          # 生成该域名的 SSL 配置
-          SSL_CONFIGS="${SSL_CONFIGS}
-# HTTPS 配置 - ${DOMAIN}
-server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
-    server_name ${DOMAIN};
-    
-    ssl_certificate ${CERT_DEST};
-    ssl_certificate_key ${KEY_DEST};
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
-    ssl_prefer_server_ciphers on;
-    ssl_session_cache shared:SSL:10m;
-    ssl_session_timeout 10m;
-    
-    client_max_body_size 500M;
-
-    location / {
-        proxy_pass http://127.0.0.1:${PORT};
-        proxy_http_version 1.1;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection \"upgrade\";
-        proxy_connect_timeout 60s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
-    }
-}
-"
-          
-          CERT_COUNT=$((CERT_COUNT + 1))
-        else
-          echo "   ⚠️  跳过 $DOMAIN: 未找到对应的 .key 文件"
-        fi
-      fi
-    done
-  fi
-  
-  if [ $CERT_COUNT -gt 0 ]; then
-    echo "   ✓ 已安装 $CERT_COUNT 个域名的 SSL 证书:$SSL_DOMAINS"
-    HAS_SSL=1
-  else
-    echo "   ⚠️  未找到 SSL 证书，仅配置 HTTP"
-    HAS_SSL=0
-  fi
+  echo "   配置使用 Cloudflare Flexible SSL 模式（HTTP 后端）"
   
   echo "   禁用 Nginx 默认站点..."
   NGINX_DEFAULT_CONF="/etc/nginx/nginx.conf"
@@ -828,27 +741,45 @@ server {
   
   echo "   生成 Nginx 配置文件..."
   
-  if [ $HAS_SSL -eq 1 ]; then
-    # 有 SSL 证书：HTTP 重定向到 HTTPS
-    sudo tee "$NGINX_CONFIG_FILE" > /dev/null <<EOF
-# Agent Hub 反向代理配置（多域名支持）
+  # Cloudflare Flexible SSL 模式：只监听 HTTP，获取真实访客 IP
+  sudo tee "$NGINX_CONFIG_FILE" > /dev/null <<EOF
+# Agent Hub 反向代理配置 (Cloudflare Flexible SSL)
+# 
+# 架构说明：
+#   用户浏览器 --[HTTPS]--> Cloudflare --[HTTP]--> Nginx --[HTTP]--> Next.js
+#
+# Cloudflare SSL/TLS 设置：
+#   - 加密模式：Flexible
+#   - 代理状态：Proxied（橙色云）
+#
 
-# HTTP 配置 - 重定向到 HTTPS
-server {
-    listen 80;
-    listen [::]:80;
-    server_name$SSL_DOMAINS;
-    
-    # 强制跳转 HTTPS
-    return 301 https://\$host\$request_uri;
-}
+# 获取 Cloudflare 真实访客 IP
+# Cloudflare IP 段列表：https://www.cloudflare.com/ips/
+set_real_ip_from 173.245.48.0/20;
+set_real_ip_from 103.21.244.0/22;
+set_real_ip_from 103.22.200.0/22;
+set_real_ip_from 103.31.4.0/22;
+set_real_ip_from 141.101.64.0/18;
+set_real_ip_from 108.162.192.0/18;
+set_real_ip_from 190.93.240.0/20;
+set_real_ip_from 188.114.96.0/20;
+set_real_ip_from 197.234.240.0/22;
+set_real_ip_from 198.41.128.0/17;
+set_real_ip_from 162.158.0.0/15;
+set_real_ip_from 104.16.0.0/13;
+set_real_ip_from 104.24.0.0/14;
+set_real_ip_from 172.64.0.0/13;
+set_real_ip_from 131.0.72.0/22;
+set_real_ip_from 2400:cb00::/32;
+set_real_ip_from 2606:4700::/32;
+set_real_ip_from 2803:f800::/32;
+set_real_ip_from 2405:b500::/32;
+set_real_ip_from 2405:8100::/32;
+set_real_ip_from 2a06:98c0::/29;
+set_real_ip_from 2c0f:f248::/32;
 
-$SSL_CONFIGS
-EOF
-  else
-    # 无 SSL 证书：仅 HTTP
-    sudo tee "$NGINX_CONFIG_FILE" > /dev/null <<EOF
-# Agent Hub 反向代理配置（仅 HTTP）
+# 使用 Cloudflare 提供的真实 IP 头
+real_ip_header CF-Connecting-IP;
 
 # HTTP 配置
 server {
@@ -861,19 +792,26 @@ server {
     location / {
         proxy_pass http://127.0.0.1:${PORT};
         proxy_http_version 1.1;
+        
+        # 标准代理头
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
+        
+        # 重要：告诉应用层使用 HTTPS（因为 Cloudflare 到用户是 HTTPS）
+        proxy_set_header X-Forwarded-Proto https;
+        
+        # WebSocket 支持
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
+        
+        # 超时设置
         proxy_connect_timeout 60s;
         proxy_send_timeout 60s;
         proxy_read_timeout 60s;
     }
 }
 EOF
-  fi
   
   echo "   ✓ Nginx 配置已生成"
   echo "   ✓ 配置文件: ${NGINX_CONFIG_FILE}"
@@ -974,16 +912,13 @@ echo "=========================================="
 echo ""
 echo "🌐 服务信息:"
 echo "   内部地址: http://127.0.0.1:${PORT}"
-if [ $HAS_SSL -eq 1 ]; then
-  echo "   已配置的域名:"
-  for DOMAIN in $SSL_DOMAINS; do
-    echo "     - https://$DOMAIN (SSL)"
-  done
-  echo "   HTTP 自动重定向到 HTTPS"
-else
-  echo "   HTTP 访问: http://<服务器IP或域名>"
-  echo "   ⚠️  未配置 SSL，建议添加证书到 ssl/ 目录"
-fi
+echo "   外部访问: https://<你的域名>"
+echo ""
+echo "☁️  Cloudflare 配置:"
+echo "   ✓ SSL/TLS 模式: Flexible"
+echo "   ✓ 代理状态: Proxied（橙色云）"
+echo "   ✓ 用户访问: HTTPS（Cloudflare 证书）"
+echo "   ✓ 后端通信: HTTP（无需证书）"
 echo ""
 echo "📋 PM2 常用命令:"
 echo "   查看状态: pm2 status $PM2_APP_NAME"

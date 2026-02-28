@@ -128,13 +128,7 @@ if [ -f ".env.prod" ]; then
   cp .env.prod "$PACK_DIR/"
 fi
 
-# 复制 ssl 目录
-if [ -d "ssl" ]; then
-  echo "  → Copying ssl directory..."
-  cp -r ssl "$PACK_DIR/"
-else
-  echo -e "${YELLOW}  ! ssl directory not found, skipping...${NC}"
-fi
+# 注意：不再复制 ssl 目录（使用 Cloudflare SSL）
 
 # 复制数据目录结构（空目录，用于挂载）
 echo "  → Creating data directory..."
