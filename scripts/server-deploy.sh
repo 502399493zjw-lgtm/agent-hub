@@ -555,11 +555,12 @@ if [ -f "package.json" ]; then
   echo "   开始安装 npm 依赖..."
   echo "   这将确保所有原生模块在服务器环境中正确编译"
   
-  # 清理可能残留的 node_modules
+  # 清理根目录的 node_modules（.next/node_modules 是符号链接，无需删除）
+  echo "   清理根目录的 node_modules..."
   if [ -d "node_modules" ]; then
-    echo "   清理旧的 node_modules..."
     rm -rf node_modules
   fi
+  echo "   ✓ 旧的 node_modules 已清理"
   
   # 清理 npm 缓存（避免 prebuild 问题）
   echo "   清理 npm 缓存..."
@@ -599,6 +600,7 @@ if [ -f "package.json" ]; then
   
   if [ ${PIPESTATUS[0]} -eq 0 ]; then
     echo "   ✓ npm 依赖安装完成"
+    echo "   ✓ .next/node_modules 符号链接会自动指向新安装的依赖"
     
     # 恢复原始 package.json（保持版本一致性）
     if [ "$USE_OLD_SQLITE3" = true ] && [ -f "package.json.bak" ]; then

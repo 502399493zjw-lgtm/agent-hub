@@ -68,15 +68,40 @@ echo -e "${YELLOW}[4/5] Preparing package directory...${NC}"
 PACK_DIR="dist/package"
 mkdir -p "$PACK_DIR"
 
-# 复制 standalone 产物（排除 node_modules，服务器端重新安装）
+# 复制 standalone 产物
 echo "  → Copying standalone output..."
 # 使用 . 而不是 * 来确保复制隐藏文件/目录（如 .next）
 cp -r .next/standalone/. "$PACK_DIR/"
 
-# 删除 node_modules（服务器端重新安装以确保原生模块兼容）
+# 删除根目录的 node_modules（包含平台相关的原生模块）
+# 但保留 .next/node_modules 中的符号链接（Next.js 需要这些链接名）
+echo "  → Removing root node_modules (platform-specific binaries)..."
 if [ -d "$PACK_DIR/node_modules" ]; then
-  echo "  → Removing node_modules (will reinstall on server)..."
   rm -rf "$PACK_DIR/node_modules"
+fi
+
+# 验证并重新创建 .next/node_modules 符号链接（避免 tar 跟随符号链接打包）
+echo "  → Recreating .next/node_modules symlinks..."
+# 先删除已复制的目录（包含实际文件）
+if [ -d "$PACK_DIR/.next/node_modules" ]; then
+  rm -rf "$PACK_DIR/.next/node_modules"
+fi
+
+# 重新创建符号链接目录
+mkdir -p "$PACK_DIR/.next/node_modules"
+
+# 从原始 standalone 输出读取符号链接信息并重建
+if [ -d ".next/standalone/.next/node_modules" ]; then
+  for link in .next/standalone/.next/node_modules/*; do
+    if [ -L "$link" ]; then
+      linkname=$(basename "$link")
+      # 获取链接目标（相对路径）
+      target=$(readlink "$link")
+      # 在打包目录中重建符号链接
+      ln -s "$target" "$PACK_DIR/.next/node_modules/$linkname"
+      echo "     ✓ Created symlink: $linkname -> $target"
+    fi
+  done
 fi
 
 # 复制 static 资源到正确位置
@@ -135,6 +160,7 @@ fi
 # ═══════════════════════════════════════════════
 echo -e "${YELLOW}[5/5] Creating tarball...${NC}"
 cd dist
+# 打包时保留符号链接
 tar -czf openclawmp.tar.gz -C package .
 cd ..
 
