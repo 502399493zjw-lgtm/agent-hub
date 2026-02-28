@@ -302,9 +302,25 @@ echo "   检测到 Next.js standalone 部署，重新安装所有依赖以确保
 # 检查编译环境
 echo "   检查编译环境..."
 MISSING_TOOLS=""
-if ! command -v python3 &> /dev/null; then
+PYTHON_CMD=""
+
+# 检查 Python 版本（node-gyp 需要 Python 3.7+）
+if command -v python3 &> /dev/null; then
+  PYTHON_VERSION=$(python3 --version 2>&1 | grep -oP '\d+\.\d+' | head -1)
+  PYTHON_MAJOR=$(echo $PYTHON_VERSION | cut -d. -f1)
+  PYTHON_MINOR=$(echo $PYTHON_VERSION | cut -d. -f2)
+  
+  if [ "$PYTHON_MAJOR" -ge 3 ] && [ "$PYTHON_MINOR" -ge 7 ]; then
+    echo "   ✓ Python $PYTHON_VERSION 符合要求（需要 3.7+）"
+    PYTHON_CMD="python3"
+  else
+    echo "   ⚠️  Python $PYTHON_VERSION 版本过低（需要 3.7+）"
+    MISSING_TOOLS="$MISSING_TOOLS python3"
+  fi
+else
   MISSING_TOOLS="$MISSING_TOOLS python3"
 fi
+
 if ! command -v make &> /dev/null; then
   MISSING_TOOLS="$MISSING_TOOLS make"
 fi
@@ -313,29 +329,49 @@ if ! command -v g++ &> /dev/null; then
 fi
 
 if [ -n "$MISSING_TOOLS" ]; then
-  echo "   ⚠️  缺少构建工具:$MISSING_TOOLS"
-  echo "   正在安装..."
+  echo "   ⚠️  缺少或需要升级的构建工具:$MISSING_TOOLS"
+  echo "   正在安装/升级..."
   if command -v yum &> /dev/null; then
-    sudo yum install -y python3 make gcc-c++
+    # CentOS/RHEL - 尝试安装 Python 3.9 或更高版本
+    sudo yum install -y python39 python39-devel make gcc-c++ 2>/dev/null || \
+    sudo yum install -y python38 python38-devel make gcc-c++ 2>/dev/null || \
+    sudo yum install -y python3 python3-devel make gcc-c++
+    
+    # 更新 Python 命令
+    if command -v python3.9 &> /dev/null; then
+      PYTHON_CMD="python3.9"
+    elif command -v python3.8 &> /dev/null; then
+      PYTHON_CMD="python3.8"
+    else
+      PYTHON_CMD="python3"
+    fi
   elif command -v apt-get &> /dev/null; then
+    # Debian/Ubuntu
     sudo apt-get update
-    sudo apt-get install -y python3 make g++
+    sudo apt-get install -y python3 python3-dev make g++
+    PYTHON_CMD="python3"
   else
-    echo "   ❌ 无法识别的包管理器，请手动安装: python3, make, g++"
+    echo "   ❌ 无法识别的包管理器"
+    echo "   请手动安装: Python 3.7+, make, g++"
     exit 1
   fi
-  echo "   ✓ 构建工具安装完成"
-else
-  echo "   ✓ 构建工具已安装"
+  echo "   ✓ 构建工具安装/升级完成"
 fi
 
 # 显示编译环境信息
 echo "   编译环境信息:"
 echo "     - Node.js: $(node --version 2>/dev/null || echo 'Not found')"
 echo "     - npm: $(npm --version 2>/dev/null || echo 'Not found')"
-echo "     - Python: $(python3 --version 2>/dev/null || echo 'Not found')"
+echo "     - Python: $($PYTHON_CMD --version 2>/dev/null || echo 'Not found')"
 echo "     - GCC: $(g++ --version 2>/dev/null | head -n1 || echo 'Not found')"
 echo "     - Make: $(make --version 2>/dev/null | head -n1 || echo 'Not found')"
+
+# 配置 npm 使用正确的 Python 版本
+if [ -n "$PYTHON_CMD" ]; then
+  PYTHON_PATH=$(command -v $PYTHON_CMD)
+  echo "   配置 npm 使用 Python: $PYTHON_PATH"
+  npm config set python "$PYTHON_PATH"
+fi
 
 # 安装所有依赖（包括原生模块）
 if [ -f "package.json" ]; then
@@ -348,13 +384,25 @@ if [ -f "package.json" ]; then
     rm -rf node_modules
   fi
   
-  # 运行 npm install（使用 --production 只安装生产依赖）
-  npm install --production --verbose
+  # 清理 npm 缓存（避免 prebuild 问题）
+  echo "   清理 npm 缓存..."
+  npm cache clean --force 2>/dev/null || true
   
-  if [ $? -eq 0 ]; then
+  # 运行 npm install（使用 --production 只安装生产依赖）
+  echo "   执行 npm install（从源码编译原生模块）..."
+  npm install --production --build-from-source --verbose 2>&1 | tee /tmp/npm-install.log
+  
+  if [ ${PIPESTATUS[0]} -eq 0 ]; then
     echo "   ✓ npm 依赖安装完成"
   else
-    echo "   ❌ npm 安装失败，请检查上述错误日志"
+    echo "   ❌ npm 安装失败"
+    echo "   完整日志已保存到: /tmp/npm-install.log"
+    echo ""
+    echo "   常见解决方案:"
+    echo "   1. 检查 Python 版本: python3 --version（需要 3.7+）"
+    echo "   2. 手动升级 Python: sudo yum install python39"
+    echo "   3. 检查 node-gyp: npm install -g node-gyp"
+    echo "   4. 查看完整日志: cat /tmp/npm-install.log"
     exit 1
   fi
 else
