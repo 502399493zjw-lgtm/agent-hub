@@ -102,7 +102,7 @@ function ActivityFeed({ activities }: { activities: StatsData['recentActivity'] 
             <div className="flex-1 min-w-0">
               <p className="text-sm text-white/80 leading-relaxed">
                 {/* Author avatar — real image */}
-                {item.authorAvatar && (item.authorAvatar.startsWith('http://') || item.authorAvatar.startsWith('https://') || item.authorAvatar.startsWith('/api/')) ? (
+                {item.authorAvatar && (item.authorAvatar.startsWith('http://') || item.authorAvatar.startsWith('https://') || item.authorAvatar.startsWith('/api/') || item.authorAvatar.startsWith('data:')) ? (
                   <img src={item.authorAvatar} alt={item.authorName} className="w-5 h-5 rounded-full inline-block mr-1.5 align-text-bottom" />
                 ) : item.authorAvatar ? (
                   <span className="mr-1">{item.authorAvatar}</span>
@@ -277,11 +277,11 @@ export default function HomeClient({ stats, tabAssets }: HomeClientProps) {
                 >
                   <div className="flex items-center gap-3 px-4 py-3 rounded-full border border-card-border bg-white hover:border-blue/30 hover:shadow-sm transition-all duration-150 min-w-[200px] sm:min-w-[220px]">
                     {/* Avatar */}
-                    {dev.avatar && (dev.avatar.startsWith('http://') || dev.avatar.startsWith('https://')) ? (
+                    {dev.avatar && (dev.avatar.startsWith('http://') || dev.avatar.startsWith('https://') || dev.avatar.startsWith('data:')) ? (
                       <img src={dev.avatar} alt={dev.name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
                     ) : (
                       <div className="w-10 h-10 rounded-full bg-surface flex items-center justify-center text-sm flex-shrink-0">
-                        {dev.avatar || dev.name?.charAt(0) || '🐟'}
+                        {dev.name?.charAt(0) || '🐟'}
                       </div>
                     )}
                     {/* Name + stats */}
