@@ -151,16 +151,11 @@ function tryAutoApproveCliAuth(userId: string, deviceId: string | null): void {
 export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: minimalAdapter,
   providers: [
-    {
-      // GitHub provider with token exchange routed through Cloudflare Worker
-      // to bypass China ECS → github.com connectivity issues
-      ...GitHub({
-        clientId: process.env.AUTH_GITHUB_ID,
-        clientSecret: process.env.AUTH_GITHUB_SECRET,
-        allowDangerousEmailAccountLinking: true,
-      }),
-      token: 'https://github-oauth.openclawmp.cc/login/oauth/access_token',
-    },
+    GitHub({
+      clientId: process.env.AUTH_GITHUB_ID,
+      clientSecret: process.env.AUTH_GITHUB_SECRET,
+      allowDangerousEmailAccountLinking: true,
+    }),
     Resend({
       apiKey: process.env.AUTH_RESEND_KEY,
       from: process.env.AUTH_EMAIL_FROM || 'noreply@openclawmp.cc',
