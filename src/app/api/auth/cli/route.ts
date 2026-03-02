@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     const result = createCliAuthRequest(deviceId, deviceName || '');
     
     // 获取基础 URL，添加 hub 子域名前缀
-    // 例如：openclawmp.cc -> hub.openclawmp.cc，seafoodmp.com -> hub.seafoodmp.com
+    // 例如：openclawmp.cc -> hub.openclawmp.cc，openclawmp.com -> hub.openclawmp.com
     const baseUrl = getBaseUrl(request, 'hub');
 
     return NextResponse.json({

@@ -151,9 +151,20 @@ function tryAutoApproveCliAuth(userId: string, deviceId: string | null): void {
 export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: minimalAdapter,
   providers: [
+    // GitHub OAuth for main domain
     GitHub({
-      clientId: process.env.AUTH_GITHUB_ID,
-      clientSecret: process.env.AUTH_GITHUB_SECRET,
+      id: process.env.SERVICE_DOMAIN_MAIN,
+      name: 'GitHub',
+      clientId: process.env.AUTH_GITHUB_ID_MAIN,
+      clientSecret: process.env.AUTH_GITHUB_SECRET_MAIN,
+      allowDangerousEmailAccountLinking: true,
+    }),
+    // GitHub OAuth for alt domain
+    GitHub({
+      id: process.env.SERVICE_DOMAIN_ALT,
+      name: 'GitHub',
+      clientId: process.env.AUTH_GITHUB_ID_ALT,
+      clientSecret: process.env.AUTH_GITHUB_SECRET_ALT,
       allowDangerousEmailAccountLinking: true,
     }),
     Resend({

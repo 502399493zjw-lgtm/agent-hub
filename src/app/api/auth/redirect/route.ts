@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
   }
 
   // Supported OAuth providers
-  if (!['github'].includes(provider)) {
+  if (![process.env.SERVICE_DOMAIN_MAIN, process.env.SERVICE_DOMAIN_ALT].includes(provider)) {
     return NextResponse.json({ error: `Unsupported provider: ${provider}` }, { status: 400 });
   }
 

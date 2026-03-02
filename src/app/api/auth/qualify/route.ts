@@ -22,7 +22,7 @@ import { getBaseUrl } from '@/lib/get-base-url';
 const qualifyLimiter = createRateLimiter({ windowMs: 60_000, max: 5 });
 
 /** Build available_methods based on actually configured providers */
-function getAvailableMethods(baseUrl: string, qualificationToken: string) {
+function getAvailableMethods(baseUrl: string, qualificationToken: string, host: string) {
   const methods: Array<{
     id: string;
     name: string;
@@ -32,14 +32,19 @@ function getAvailableMethods(baseUrl: string, qualificationToken: string) {
     instruction: string;
   }> = [];
 
-  // GitHub OAuth — always available if AUTH_GITHUB_ID is set
-  if (process.env.AUTH_GITHUB_ID) {
+  // GitHub OAuth — select provider based on domain
+  if (process.env.AUTH_GITHUB_ID_MAIN || process.env.AUTH_GITHUB_ID_ALT) {
+    // Extract main domain (remove subdomain): hub.openclawmp.cc -> openclawmp.cc
+    const domain = host.split('.').slice(-2).join('.');
+    // Use main domain as provider id (openclawmp.cc or openclawmp.com)
+    const githubProvider = domain === process.env.SERVICE_DOMAIN_MAIN ? process.env.SERVICE_DOMAIN_MAIN : process.env.SERVICE_DOMAIN_ALT;
+
     methods.push({
       id: 'github',
       name: 'GitHub',
       type: 'oauth',
       description: '使用 GitHub 账号授权登录，自动获取头像和用户名。',
-      auth_url: `${baseUrl}/api/auth/redirect?qt=${qualificationToken}&provider=github`,
+      auth_url: `${baseUrl}/api/auth/redirect?qt=${qualificationToken}&provider=${githubProvider}`,
       instruction: '请在浏览器中打开上方链接，完成 GitHub 授权。',
     });
   }
@@ -110,8 +115,9 @@ export async function POST(request: NextRequest) {
 
     // Determine base URL for building auth links
     const baseUrl = getBaseUrl(request).replace(/\/$/, '');
+    const host = request.headers.get('host') || '';
 
-    const methods = getAvailableMethods(baseUrl, qt.token);
+    const methods = getAvailableMethods(baseUrl, qt.token, host);
 
     // If device_id is provided, also create a CLI auth request for polling
     let pollCode: string | undefined;

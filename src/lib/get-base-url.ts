@@ -1,6 +1,6 @@
 /**
  * 动态获取应用的基础 URL
- * 支持多域名部署（openclawmp.cc、seafoodmp.com 等）
+ * 支持多域名部署（openclawmp.cc、openclawmp.com 等）
  *
  * 优先级：
  * 1. 从请求头动态构造（生产环境）
