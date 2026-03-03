@@ -288,6 +288,11 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
   const [commentText, setCommentText] = useState('');
   const [commenterType, setCommenterType] = useState<'user' | 'agent'>('user');
   const [issueFilter, setIssueFilter] = useState<'all' | 'open' | 'closed'>('all');
+  const [showIssueForm, setShowIssueForm] = useState(false);
+  const [issueTitle, setIssueTitle] = useState('');
+  const [issueBody, setIssueBody] = useState('');
+  const [issuePosting, setIssuePosting] = useState(false);
+  const [localIssues, setLocalIssues] = useState<Issue[]>([]);
   const [starLoading, setStarLoading] = useState(false);
   const [starred, setStarred] = useState(false);
   const [displayTotalStars, setDisplayTotalStars] = useState(initialAsset?.totalStars ?? 0);
@@ -343,7 +348,7 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
 
   const config = typeConfig[asset.type];
   const allComments = [...localComments, ...serverComments];
-  const issuesList = serverIssues;
+  const issuesList = [...localIssues, ...serverIssues];
   const related = relatedAssets;
   const dependents = dependentAssets;
   const installCmd = `openclawmp install ${asset.type}/@${asset.author.id}/${asset.name}`;
@@ -360,19 +365,90 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
   };
 
 
-  const handlePostComment = () => {
-    if (!commentText.trim()) return;
-    const nc: Comment = {
-      id: `local-${Date.now()}`, assetId: asset.id,
-      userId: commenterType === 'agent' ? 'agent-local' : 'u-local',
-      userName: commenterType === 'agent' ? 'MyAgent Bot' : '当前用户',
-      userAvatar: commenterType === 'agent' ? '🤖' : '👤',
-      content: commentText.trim(), rating: 0,
-      createdAt: new Date().toISOString().slice(0, 10), commenterType,
-    };
-    setLocalComments(prev => [nc, ...prev]);
-    setCommentText('');
-    showToast('评论发布成功！');
+  const [commentPosting, setCommentPosting] = useState(false);
+
+  const handlePostComment = async () => {
+    if (!commentText.trim() || commentPosting) return;
+    setCommentPosting(true);
+    try {
+      const res = await fetch(`/api/v1/assets/${asset.id}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: commentText.trim(),
+          rating: 0,
+          commenterType,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        showToast(json.message || json.error || '评论失败');
+        return;
+      }
+      const nc: Comment = {
+        id: json.data?.id || `local-${Date.now()}`,
+        assetId: asset.id,
+        userId: user?.id || 'anonymous',
+        userName: user?.name || (commenterType === 'agent' ? 'Agent' : '匿名用户'),
+        userAvatar: user?.avatar || (commenterType === 'agent' ? '🤖' : '👤'),
+        content: commentText.trim(),
+        rating: 0,
+        createdAt: json.data?.createdAt || new Date().toISOString().slice(0, 10),
+        commenterType,
+      };
+      setLocalComments(prev => [nc, ...prev]);
+      setCommentText('');
+      showToast('评论发布成功！');
+    } catch {
+      showToast('网络错误，请稍后重试');
+    } finally {
+      setCommentPosting(false);
+    }
+  };
+
+  const handlePostIssue = async () => {
+    if (!issueTitle.trim() || issuePosting) return;
+    setIssuePosting(true);
+    try {
+      const res = await fetch(`/api/v1/assets/${asset.id}/issues`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: issueTitle.trim(),
+          bodyText: issueBody.trim() || undefined,
+          labels: [],
+          authorType: 'user',
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        showToast(json.message || json.error || '创建 Issue 失败');
+        return;
+      }
+      const ni: Issue = {
+        id: json.data?.id || `local-${Date.now()}`,
+        assetId: asset.id,
+        authorId: user?.id || 'anonymous',
+        authorName: user?.name || '匿名用户',
+        authorAvatar: user?.avatar || '👤',
+        authorType: 'user',
+        title: issueTitle.trim(),
+        body: issueBody.trim(),
+        status: 'open',
+        labels: [],
+        createdAt: json.data?.createdAt || new Date().toISOString().slice(0, 10),
+        commentCount: 0,
+      };
+      setLocalIssues(prev => [ni, ...prev]);
+      setIssueTitle('');
+      setIssueBody('');
+      setShowIssueForm(false);
+      showToast('Issue 创建成功！');
+    } catch {
+      showToast('网络错误，请稍后重试');
+    } finally {
+      setIssuePosting(false);
+    }
   };
 
   const tabs: { id: TabId; label: string; icon: string; count?: number }[] = [
@@ -604,9 +680,38 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
 
           {activeTab === 'issues' && (
             <div>
+              {/* New Issue Form */}
+              {showIssueForm && (
+                <div className="mb-4 p-4 rounded-lg bg-white border border-card-border">
+                  <h4 className="text-sm font-semibold text-foreground mb-3">新建 Issue</h4>
+                  <input
+                    type="text"
+                    value={issueTitle}
+                    onChange={e => setIssueTitle(e.target.value)}
+                    placeholder="Issue 标题"
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-card-border bg-surface text-foreground placeholder:text-muted focus:outline-none focus:border-blue mb-2"
+                  />
+                  <textarea
+                    value={issueBody}
+                    onChange={e => setIssueBody(e.target.value)}
+                    placeholder="详细描述（可选）"
+                    rows={3}
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-card-border bg-surface text-foreground placeholder:text-muted focus:outline-none focus:border-blue mb-3 resize-none"
+                  />
+                  <div className="flex items-center gap-2 justify-end">
+                    <button onClick={() => { setShowIssueForm(false); setIssueTitle(''); setIssueBody(''); }} className="px-3 py-1.5 text-xs rounded-lg border border-card-border text-muted hover:text-foreground transition-colors">取消</button>
+                    <button onClick={handlePostIssue} disabled={!issueTitle.trim() || issuePosting} className="px-3 py-1.5 text-xs rounded-lg bg-foreground text-background hover:opacity-90 transition-opacity disabled:opacity-50">
+                      {issuePosting ? '提交中...' : '提交 Issue'}
+                    </button>
+                  </div>
+                </div>
+              )}
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">Issues ({issuesList.length})</h3>
-                <div className="flex gap-2 text-xs">
+                <div className="flex gap-2 text-xs items-center">
+                  {!showIssueForm && (
+                    <button onClick={() => setShowIssueForm(true)} className="px-2.5 py-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors mr-2">+ 新建</button>
+                  )}
                   <button onClick={() => setIssueFilter('all')} className={`px-2.5 py-1 rounded-lg border transition-colors ${issueFilter === 'all' ? 'bg-surface text-foreground border-card-border' : 'border-card-border text-muted hover:text-foreground'}`}>全部 ({issuesList.length})</button>
                   <button onClick={() => setIssueFilter('open')} className={`px-2.5 py-1 rounded-lg border transition-colors flex items-center gap-1 ${issueFilter === 'open' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'border-card-border text-muted hover:text-foreground'}`}><span className="w-2 h-2 rounded-full bg-emerald-400" />需解决 ({issuesList.filter(i => i.status === 'open').length})</button>
                   <button onClick={() => setIssueFilter('closed')} className={`px-2.5 py-1 rounded-lg border transition-colors flex items-center gap-1 ${issueFilter === 'closed' ? 'bg-muted/10 text-muted border-muted/30' : 'border-card-border text-muted hover:text-foreground'}`}><span className="w-2 h-2 rounded-full bg-muted" />已解决 ({issuesList.filter(i => i.status === 'closed').length})</button>
@@ -782,8 +887,8 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
                   <div className="text-xs text-muted">
                     {commentText.trim().length > 0 && <span>{commentText.trim().length} 字符</span>}
                   </div>
-                  <button onClick={handlePostComment} disabled={!commentText.trim()}
-                    className="px-5 py-2 rounded-lg bg-blue text-white font-semibold text-sm hover:bg-blue-dim transition-colors disabled:opacity-40 disabled:cursor-not-allowed">发布评论</button>
+                  <button onClick={handlePostComment} disabled={!commentText.trim() || commentPosting}
+                    className="px-5 py-2 rounded-lg bg-blue text-white font-semibold text-sm hover:bg-blue-dim transition-colors disabled:opacity-40 disabled:cursor-not-allowed">{commentPosting ? '发布中...' : '发布评论'}</button>
                 </div>
               </div>
               )}
