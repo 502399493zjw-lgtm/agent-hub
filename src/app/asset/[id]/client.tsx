@@ -899,7 +899,7 @@ export default function AssetDetailClient({ id, initialAsset, initialComments, i
                     return (
                       <div key={c.id} className={`p-4 rounded-lg bg-white border ${isA ? 'border-purple-500/30 shadow-sm shadow-purple-500/5' : 'border-card-border'}`}>
                         <div className="flex items-center gap-3 mb-3">
-                          <span className="text-xl">{c.userAvatar}</span>
+                          <AuthorAvatar src={c.userAvatar} size="md" />
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-medium">{c.userName}</span>
                             {c.authorReputation != null && c.authorReputation > 0 && (
