@@ -148,6 +148,29 @@ const TEXT_FILENAMES = new Set([
 
 const SKIP_FILES = new Set(['.DS_Store', 'Thumbs.db', 'desktop.ini']);
 
+// Binary file extensions that should be included in packages (but not stored as text in DB)
+const BINARY_EXTENSIONS = new Set([
+  // Images
+  '.png', '.jpg', '.jpeg', '.gif', '.ico', '.webp', '.bmp', '.svg',
+  // Fonts
+  '.woff', '.woff2', '.ttf', '.eot', '.otf',
+  // Audio
+  '.mp3', '.wav', '.ogg', '.flac', '.m4a',
+  // Documents
+  '.pdf',
+  // Data
+  '.sqlite', '.db',
+  // Compiled / binary assets
+  '.wasm',
+]);
+
+const MAX_SINGLE_BINARY = 5 * 1024 * 1024; // 5MB per binary file
+
+function isBinaryFile(filepath: string): boolean {
+  const ext = path.extname(filepath).toLowerCase();
+  return BINARY_EXTENSIONS.has(ext);
+}
+
 const PRIORITY_PATTERNS = [
   /^README/i, /^LICENSE/i, /^CONTRIBUTING/i, /^CHANGELOG/i, /^CLAUDE\.md$/i, /^AGENTS\.md$/i,
   /^SKILL\.md$/i, /^INSTRUCTIONS\.md$/i,
@@ -174,7 +197,9 @@ function isTextFile(filepath: string): boolean {
 /** Flat file for DB storage + tar.gz generation */
 interface FlatFile {
   path: string;
-  content: string;
+  content: string;       // text content, or '' for binary/directory
+  binary?: boolean;       // true = binary file (content stored in package only)
+  size?: number;          // file size in bytes (useful for binary display)
 }
 
 interface RepoInfo {
@@ -237,6 +262,7 @@ const MAX_SINGLE_FILE = 10 * 1024 * 1024;      // 10MB
 
 interface BatchResult {
   files: FlatFile[];
+  binaryBuffers: Map<string, Buffer>;  // path → raw buffer (for tar.gz only, not stored in DB)
   totalEligible: number;
   fetchedInBatch: number;
   totalBytes: number;
@@ -249,9 +275,11 @@ async function fetchFilesBatched(
   offset: number = 0,
   subPath?: string,
 ): Promise<BatchResult> {
+  const emptyResult: BatchResult = { files: [], binaryBuffers: new Map(), totalEligible: 0, fetchedInBatch: 0, totalBytes: 0, remaining: 0, nextOffset: 0 };
+
   // 1. Get full tree (one API call, returns all paths)
   const data = await ghFetch(`/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`);
-  if (!data?.tree) return { files: [], totalEligible: 0, fetchedInBatch: 0, totalBytes: 0, remaining: 0, nextOffset: 0 };
+  if (!data?.tree) return emptyResult;
 
   // Filter to subPath if specified
   const prefix = subPath ? (subPath.endsWith('/') ? subPath : subPath + '/') : '';
@@ -260,12 +288,21 @@ async function fetchFilesBatched(
     items = items.filter((i: any) => i.path.startsWith(prefix)).map((i: any) => ({ ...i, path: i.path.slice(prefix.length) }));
   }
 
-  // 2. Filter: text files only, within size limit, skip junk
-  let blobs = items.filter((item: any) =>
-    item.type === 'blob' &&
-    (item.size || 0) <= MAX_SINGLE_FILE &&
-    isTextFile(item.path)
-  );
+  // 2. Filter: text OR whitelisted binary files, within size limit, skip junk
+  let blobs = items.filter((item: any) => {
+    if (item.type !== 'blob') return false;
+    const basename = path.basename(item.path);
+    if (SKIP_FILES.has(basename)) return false;
+    const fileSize = item.size || 0;
+
+    // Text file: up to MAX_SINGLE_FILE (10MB)
+    if (isTextFile(item.path) && fileSize <= MAX_SINGLE_FILE) return true;
+
+    // Binary file: up to MAX_SINGLE_BINARY (5MB), must be in whitelist
+    if (isBinaryFile(item.path) && fileSize <= MAX_SINGLE_BINARY) return true;
+
+    return false;
+  });
 
   // Also collect top-level directory names (for tree structure context)
   const topDirs = items
@@ -285,8 +322,9 @@ async function fetchFilesBatched(
   // 4. Slice from offset
   const blobsFromOffset = blobs.slice(offset);
 
-  // 5. Fetch with dual-cap
+  // 5. Fetch with dual-cap (text + binary)
   const files: FlatFile[] = offset === 0 ? [...topDirs] : []; // only include dirs in first batch
+  const binaryBuffers = new Map<string, Buffer>();
   let totalBytes = 0;
   let fetchedCount = 0;
 
@@ -294,31 +332,50 @@ async function fetchFilesBatched(
     if (fetchedCount >= MAX_FILES_PER_BATCH) break;
     if (totalBytes >= MAX_BYTES_PER_BATCH) break;
 
+    const knownBinary = isBinaryFile(blob.path);
+
     try {
       const blobData = await ghFetch(`/repos/${owner}/${repo}/git/blobs/${blob.sha}`);
-      let content = '';
-      if (blobData?.encoding === 'base64') {
-        content = Buffer.from(blobData.content, 'base64').toString('utf8');
-      } else if (blobData?.content) {
-        content = blobData.content;
-      }
 
-      // Check if it's actually binary (null bytes in first 8KB)
-      const probe = Buffer.from(content.slice(0, 8192));
-      if (probe.includes(0)) {
-        // Skip binary files
-        continue;
-      }
+      if (knownBinary) {
+        // ── Binary file: decode to buffer, store for tar.gz only ──
+        const buf = Buffer.from(blobData?.content || '', 'base64');
+        if (totalBytes + buf.length > MAX_BYTES_PER_BATCH && fetchedCount > 0) break;
+        binaryBuffers.set(blob.path, buf);
+        files.push({ path: blob.path, content: '', binary: true, size: buf.length });
+        totalBytes += buf.length;
+        fetchedCount++;
+      } else {
+        // ── Text file: decode to string ──
+        let content = '';
+        if (blobData?.encoding === 'base64') {
+          content = Buffer.from(blobData.content, 'base64').toString('utf8');
+        } else if (blobData?.content) {
+          content = blobData.content;
+        }
 
-      const contentBytes = Buffer.byteLength(content, 'utf8');
-      // Re-check: if this single file would blow the batch budget, stop here
-      if (totalBytes + contentBytes > MAX_BYTES_PER_BATCH && fetchedCount > 0) {
-        break;
-      }
+        // Check if it's actually binary (null bytes in first 8KB)
+        const probe = Buffer.from(content.slice(0, 8192));
+        if (probe.includes(0)) {
+          // Unexpected binary — include as binary asset if within size limit
+          const buf = Buffer.from(blobData.content, 'base64');
+          if (buf.length <= MAX_SINGLE_BINARY) {
+            if (totalBytes + buf.length > MAX_BYTES_PER_BATCH && fetchedCount > 0) break;
+            binaryBuffers.set(blob.path, buf);
+            files.push({ path: blob.path, content: '', binary: true, size: buf.length });
+            totalBytes += buf.length;
+            fetchedCount++;
+          }
+          continue;
+        }
 
-      files.push({ path: blob.path, content });
-      totalBytes += contentBytes;
-      fetchedCount++;
+        const contentBytes = Buffer.byteLength(content, 'utf8');
+        if (totalBytes + contentBytes > MAX_BYTES_PER_BATCH && fetchedCount > 0) break;
+
+        files.push({ path: blob.path, content });
+        totalBytes += contentBytes;
+        fetchedCount++;
+      }
 
       // Gentle rate limiting: 50ms between blob fetches
       await sleep(50);
@@ -333,7 +390,7 @@ async function fetchFilesBatched(
   const remaining = totalEligible - offset - fetchedCount;
   const nextOffset = remaining > 0 ? offset + fetchedCount : 0;
 
-  return { files, totalEligible, fetchedInBatch: fetchedCount, totalBytes, remaining, nextOffset };
+  return { files, binaryBuffers, totalEligible, fetchedInBatch: fetchedCount, totalBytes, remaining, nextOffset };
 }
 
 // ═══════════════════════════════════════════
@@ -437,9 +494,13 @@ function detectAssetType(info: RepoInfo, readme: string): string {
 
 const PACKAGES_DIR = path.join(process.cwd(), 'data', 'packages');
 
-function generatePackage(assetId: string, flatFiles: FlatFile[]): { path: string; size: number } | null {
-  const contentFiles = flatFiles.filter(f => f.content);
-  if (contentFiles.length === 0) return null;
+function generatePackage(
+  assetId: string,
+  flatFiles: FlatFile[],
+  binaryBuffers?: Map<string, Buffer>,
+): { path: string; size: number } | null {
+  const hasContent = flatFiles.some(f => f.content || f.binary);
+  if (!hasContent) return null;
 
   fs.mkdirSync(PACKAGES_DIR, { recursive: true });
 
@@ -447,10 +508,20 @@ function generatePackage(assetId: string, flatFiles: FlatFile[]): { path: string
   if (fs.existsSync(tmpDir)) fs.rmSync(tmpDir, { recursive: true });
   fs.mkdirSync(tmpDir, { recursive: true });
 
-  for (const f of contentFiles) {
+  for (const f of flatFiles) {
+    // Skip directory placeholders (no content, not binary)
+    if (!f.content && !f.binary) continue;
+
     const filePath = path.join(tmpDir, f.path);
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    fs.writeFileSync(filePath, f.content);
+
+    if (f.binary && binaryBuffers?.has(f.path)) {
+      // Binary file: write raw buffer
+      fs.writeFileSync(filePath, binaryBuffers.get(f.path)!);
+    } else if (f.content) {
+      // Text file: write string
+      fs.writeFileSync(filePath, f.content);
+    }
   }
 
   const tarPath = path.join(PACKAGES_DIR, `${assetId}.tar.gz`);
@@ -459,10 +530,6 @@ function generatePackage(assetId: string, flatFiles: FlatFile[]): { path: string
 
   // Cleanup
   fs.rmSync(tmpDir, { recursive: true });
-
-  // Compute SHA256
-  const hash = crypto.createHash('sha256');
-  hash.update(fs.readFileSync(tarPath));
 
   return { path: tarPath, size };
 }
@@ -592,7 +659,7 @@ export async function POST(request: NextRequest) {
 
     // ── 7. Batched file fetching ──
     let batchResult: BatchResult = {
-      files: [], totalEligible: 0, fetchedInBatch: 0, totalBytes: 0, remaining: 0, nextOffset: 0,
+      files: [], binaryBuffers: new Map(), totalEligible: 0, fetchedInBatch: 0, totalBytes: 0, remaining: 0, nextOffset: 0,
     };
     if (!skipFiles) {
       batchResult = await fetchFilesBatched(owner, repoName, info.defaultBranch, offset, subPath || undefined);
@@ -625,6 +692,7 @@ export async function POST(request: NextRequest) {
 
     // ── 10. Create or update asset ──
     let assetId: string;
+    let assetName: string = '';
     let action: string;
 
     if (existing && (shouldUpdate || offset > 0)) {
@@ -675,7 +743,8 @@ export async function POST(request: NextRequest) {
           : subPath.split('/').filter(Boolean).pop() || info.repo)
         : info.repo;
 
-      const name = (subPath ? displayName : info.repo).toLowerCase().replace(/[^a-z0-9-]/g, '-');
+      assetName = (subPath ? displayName : info.repo).toLowerCase().replace(/[^a-z0-9-]/g, '-');
+      const name = assetName;
 
       const tags = [...info.topics.slice(0, 5)];
       if (info.language && !tags.includes(info.language.toLowerCase())) {
@@ -721,7 +790,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ── 11. Generate .tar.gz package ──
-    // Re-read all files from DB to build complete package
+    // Re-read all files from DB to build complete package (with binary re-fetch for multi-batch)
     let packageInfo: { size: number; sha256: string } | null = null;
     if (batchResult.remaining === 0) {
       // All files fetched — generate final package
@@ -731,7 +800,32 @@ export async function POST(request: NextRequest) {
       try { allFiles = JSON.parse(row?.files || '[]'); } catch { /* empty */ }
 
       if (allFiles.length > 0) {
-        const pkg = generatePackage(assetId, allFiles);
+        // For binary files: use in-memory buffers from current batch,
+        // or re-fetch from GitHub if this is a multi-batch completion
+        let allBinaryBuffers = batchResult.binaryBuffers;
+
+        // Check if there are binary files that aren't in current batch buffers
+        const missingBinaries = allFiles.filter(f => f.binary && !allBinaryBuffers.has(f.path));
+        if (missingBinaries.length > 0) {
+          // Re-fetch missing binary blobs from GitHub
+          const treeData = await ghFetch(`/repos/${owner}/${repoName}/git/trees/${info.defaultBranch}?recursive=1`);
+          if (treeData?.tree) {
+            for (const missing of missingBinaries) {
+              const treeItem = treeData.tree.find((t: any) => t.path === missing.path || t.path === (subPath ? `${subPath}/${missing.path}` : missing.path));
+              if (treeItem?.sha) {
+                try {
+                  const blobData = await ghFetch(`/repos/${owner}/${repoName}/git/blobs/${treeItem.sha}`);
+                  if (blobData?.content) {
+                    allBinaryBuffers.set(missing.path, Buffer.from(blobData.content, 'base64'));
+                  }
+                  await sleep(50);
+                } catch { /* skip on error */ }
+              }
+            }
+          }
+        }
+
+        const pkg = generatePackage(assetId, allFiles, allBinaryBuffers);
         if (pkg) {
           const sha256 = computePackageSha256(pkg.path);
           updateAsset(assetId, { packageSha256: sha256 });
@@ -766,7 +860,7 @@ export async function POST(request: NextRequest) {
         action,
         asset: {
           id: assetId,
-          name: existing?.name || name!,
+          name: existing?.name || assetName,
           type: assetType,
           githubUrl,
           version,
