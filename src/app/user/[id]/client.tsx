@@ -138,7 +138,7 @@ function ProfileAvatar({ src, name, userId, size = 'xl' }: { src: string; name: 
   const sizeClass = size === 'xl' ? 'w-28 h-28' : 'w-20 h-20';
   const px = size === 'xl' ? 112 : 80;
 
-  if (src?.startsWith('http') || src?.startsWith('/api/avatars/')) {
+  if (src?.startsWith('http') || src?.startsWith('/api/avatars/') || src?.startsWith('data:')) {
     return (
       <img
         src={src}
@@ -166,37 +166,23 @@ function StatCard({ label, value }: { label: string; value: string | number }) {
 
 function ActivityTimeline({ userId }: { userId: string }) {
   const [events, setEvents] = useState<CoinEvent[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const pageSize = 20;
 
   useEffect(() => {
-    let isMounted = true;
-    
-    const fetchActivity = async () => {
-      if (isMounted) setLoading(true);
-      
-      try {
-        const r = await fetch(`/api/users/${userId}/activity?page=${page}&pageSize=${pageSize}`);
-        const data = await r.json();
-        
-        if (isMounted && data.success) {
+    setLoading(true);
+    fetch(`/api/users/${userId}/activity?page=${page}&pageSize=${pageSize}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
           setEvents(data.events);
           setTotal(data.total);
         }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
-    
-    fetchActivity();
-    
-    return () => {
-      isMounted = false;
-    };
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
   }, [userId, page]);
 
   if (loading) {

@@ -194,7 +194,7 @@ export default function DashboardPage() {
         {/* Header */}
         <div className="flex items-center gap-6 mb-10">
           <div className="w-16 h-16 rounded-full border-2 border-blue/30 bg-blue/10 flex items-center justify-center text-3xl overflow-hidden">
-            {user.avatar?.startsWith('http') ? (
+            {(user.avatar?.startsWith('http') || user.avatar?.startsWith('data:')) ? (
               <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
             ) : (
               user.avatar || '👤'

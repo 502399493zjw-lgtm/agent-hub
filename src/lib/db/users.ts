@@ -1,36 +1,42 @@
 /**
  * db/users.ts — User CRUD + Profile operations.
  */
-import { User } from '@/data/types';
-import { getDb } from './connection';
-import { addCoins, SHRIMP_COIN_EVENTS } from './economy';
+import { User } from "@/data/types";
+import { getDb } from "./connection";
+import { addCoins, SHRIMP_COIN_EVENTS } from "./economy";
 
 // ════════════════════════════════════════════
 // Letter Avatar — server-side SVG data URL
 // ════════════════════════════════════════════
 
 const AVATAR_COLORS = [
-  '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6',
-  '#EF4444', '#06B6D4', '#EC4899', '#6366F1',
+    "#3B82F6",
+    "#10B981",
+    "#F59E0B",
+    "#8B5CF6",
+    "#EF4444",
+    "#06B6D4",
+    "#EC4899",
+    "#6366F1",
 ] as const;
 
 /** Deterministic color from userId (mirrors letter-avatar.tsx) */
 function getAvatarColor(userId: string): string {
-  let hash = 0;
-  for (let i = 0; i < userId.length; i++) {
-    hash = ((hash << 5) - hash + userId.charCodeAt(i)) | 0;
-  }
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+    let hash = 0;
+    for (let i = 0; i < userId.length; i++) {
+        hash = ((hash << 5) - hash + userId.charCodeAt(i)) | 0;
+    }
+    return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
 /** Generate an SVG data-URL: first letter of name on a colored background */
 export function generateLetterAvatar(name: string, userId: string): string {
-  const color = getAvatarColor(userId);
-  const letter = (name?.[0] ?? '?').toUpperCase();
-  const size = 128;
-  const fontSize = Math.round(size * 0.45);
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><rect width="${size}" height="${size}" rx="${Math.round(size * 0.2)}" fill="${color}"/><text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" fill="white" font-weight="bold" font-size="${fontSize}" font-family="system-ui,-apple-system,sans-serif">${letter}</text></svg>`;
-  return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
+    const color = getAvatarColor(userId);
+    const letter = (name?.[0] ?? "?").toUpperCase();
+    const size = 128;
+    const fontSize = Math.round(size * 0.45);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><rect width="${size}" height="${size}" rx="${Math.round(size * 0.2)}" fill="${color}"/><text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" fill="white" font-weight="bold" font-size="${fontSize}" font-family="system-ui,-apple-system,sans-serif">${letter}</text></svg>`;
+    return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
 }
 
 // ════════════════════════════════════════════
@@ -38,157 +44,302 @@ export function generateLetterAvatar(name: string, userId: string): string {
 // ════════════════════════════════════════════
 
 export interface DbUser {
-  id: string; email: string | null; name: string; avatar: string;
-  provider: string; provider_id: string; bio: string;
-  invite_code: string | null; created_at: string; updated_at: string; deleted_at: string | null;
-  reputation: number; shrimp_coins: number;
-  onboarding_completed: number;
-  custom_name: string | null; custom_avatar: string | null;
-  provider_name: string | null; provider_avatar: string | null;
-  type: string;
-  role: string;
+    id: string;
+    email: string | null;
+    name: string;
+    avatar: string;
+    provider: string;
+    provider_id: string;
+    bio: string;
+    invite_code: string | null;
+    created_at: string;
+    updated_at: string;
+    deleted_at: string | null;
+    reputation: number;
+    shrimp_coins: number;
+    onboarding_completed: number;
+    custom_name: string | null;
+    custom_avatar: string | null;
+    provider_name: string | null;
+    provider_avatar: string | null;
+    type: string;
+    role: string;
 }
 
-export function findUserByProvider(provider: string, providerId: string): DbUser | null {
-  return (getDb().prepare('SELECT * FROM users WHERE provider = ? AND provider_id = ?').get(provider, providerId) as DbUser | undefined) ?? null;
+export function findUserByProvider(
+    provider: string,
+    providerId: string,
+): DbUser | null {
+    return (
+        (getDb()
+            .prepare(
+                "SELECT * FROM users WHERE provider = ? AND provider_id = ?",
+            )
+            .get(provider, providerId) as DbUser | undefined) ?? null
+    );
 }
 
 export function findUserById(id: string): DbUser | null {
-  return (getDb().prepare('SELECT * FROM users WHERE id = ?').get(id) as DbUser | undefined) ?? null;
+    return (
+        (getDb().prepare("SELECT * FROM users WHERE id = ?").get(id) as
+            | DbUser
+            | undefined) ?? null
+    );
 }
 
-export function createUser(data: { id: string; email: string | null; name: string; avatar: string; provider: string; providerId: string; }): DbUser {
-  const now = new Date().toISOString();
-  // Fallback: generate letter avatar when no avatar provided
-  const avatar = data.avatar || generateLetterAvatar(data.name, data.id);
-  getDb().prepare(`INSERT INTO users (id,email,name,avatar,provider,provider_id,bio,invite_code,created_at,updated_at,reputation,shrimp_coins,onboarding_completed,provider_name,provider_avatar) VALUES (?,?,?,?,?,?,'',NULL,?,?,0,0,0,?,?)`).run(data.id, data.email, data.name, avatar, data.provider, data.providerId, now, now, data.name, avatar);
+export function createUser(data: {
+    id: string;
+    email: string | null;
+    name: string;
+    avatar: string;
+    provider: string;
+    providerId: string;
+}): DbUser {
+    const now = new Date().toISOString();
+    // Fallback: generate letter avatar when no avatar provided
+    const avatar = data.avatar || generateLetterAvatar(data.name, data.id);
+    getDb()
+        .prepare(
+            `INSERT INTO users (id,email,name,avatar,provider,provider_id,bio,invite_code,created_at,updated_at,reputation,shrimp_coins,onboarding_completed,provider_name,provider_avatar) VALUES (?,?,?,?,?,?,'',NULL,?,?,0,0,0,?,?)`,
+        )
+        .run(
+            data.id,
+            data.email,
+            data.name,
+            avatar,
+            data.provider,
+            data.providerId,
+            now,
+            now,
+            data.name,
+            avatar,
+        );
 
-  // Award register bonus via addCoins for proper audit trail
-  addCoins(data.id, 'shrimp_coin', SHRIMP_COIN_EVENTS.register, 'register');
+    // Award register bonus via addCoins for proper audit trail
+    addCoins(data.id, "shrimp_coin", SHRIMP_COIN_EVENTS.register, "register");
 
-  return findUserById(data.id)!;
+    return findUserById(data.id)!;
 }
 
 export function softDeleteUser(id: string): boolean {
-  const db = getDb();
-  const now = new Date().toISOString();
+    const db = getDb();
+    const now = new Date().toISOString();
+    const tombstone = `deleted_${Date.now()}`;
 
-  // 1. Set deleted_at on user row
-  const updated = db.prepare('UPDATE users SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL').run(now, now, id).changes > 0;
-  if (!updated) return false;
+    // Use transaction to ensure atomicity — all or nothing
+    const tx = db.transaction(() => {
+        // 1. Set deleted_at on user row
+        const updated =
+            db
+                .prepare(
+                    "UPDATE users SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
+                )
+                .run(now, now, id).changes > 0;
+        if (!updated) return false;
 
-  // 2. Clear OAuth binding so the external account can re-register
-  db.prepare('UPDATE users SET provider_id = NULL WHERE id = ?').run(id);
+        // 2. Clear OAuth binding so the external account can re-register
+        //    Use tombstone string (not NULL) to satisfy NOT NULL constraint
+        //    Also obfuscate email so the same email can re-register
+        db.prepare(
+            "UPDATE users SET provider_id = ?, email = ? WHERE id = ?",
+        ).run(tombstone, `${tombstone}@deleted`, id);
 
-  // 3. Remove all authorized devices (unbind)
-  db.prepare('DELETE FROM authorized_devices WHERE user_id = ?').run(id);
+        // 3. Remove all authorized devices (unbind)
+        db.prepare("DELETE FROM authorized_devices WHERE user_id = ?").run(id);
 
-  // 4. Revoke all API keys
-  db.prepare("UPDATE api_keys SET revoked = 1 WHERE user_id = ? AND revoked = 0").run(id);
+        // 4. Revoke all API keys
+        db.prepare(
+            "UPDATE api_keys SET revoked = 1 WHERE user_id = ? AND revoked = 0",
+        ).run(id);
 
-  return true;
+        return true;
+    });
+
+    return tx() as boolean;
 }
 
-export function completeOnboarding(userId: string, data: { name: string; avatar: string }): boolean {
-  const now = new Date().toISOString();
-  const db = getDb();
-  return db.prepare('UPDATE users SET name = ?, avatar = ?, custom_name = ?, custom_avatar = ?, onboarding_completed = 1, updated_at = ? WHERE id = ?')
-    .run(data.name, data.avatar, data.name, data.avatar, now, userId).changes > 0;
+export function completeOnboarding(
+    userId: string,
+    data: { name: string; avatar: string },
+): boolean {
+    const now = new Date().toISOString();
+    const db = getDb();
+    return (
+        db
+            .prepare(
+                "UPDATE users SET name = ?, avatar = ?, custom_name = ?, custom_avatar = ?, onboarding_completed = 1, updated_at = ? WHERE id = ?",
+            )
+            .run(data.name, data.avatar, data.name, data.avatar, now, userId)
+            .changes > 0
+    );
 }
 
 export function isOnboardingCompleted(userId: string): boolean {
-  const row = getDb().prepare('SELECT onboarding_completed FROM users WHERE id = ?').get(userId) as { onboarding_completed: number } | undefined;
-  return !!row?.onboarding_completed;
+    const row = getDb()
+        .prepare("SELECT onboarding_completed FROM users WHERE id = ?")
+        .get(userId) as { onboarding_completed: number } | undefined;
+    return !!row?.onboarding_completed;
 }
 
-export function getUserProviderInfo(userId: string): { provider: string; providerName: string | null; providerAvatar: string | null } | null {
-  const row = getDb().prepare('SELECT provider, provider_name, provider_avatar FROM users WHERE id = ?').get(userId) as { provider: string; provider_name: string | null; provider_avatar: string | null } | undefined;
-  return row ? { provider: row.provider, providerName: row.provider_name, providerAvatar: row.provider_avatar } : null;
+export function getUserProviderInfo(
+    userId: string,
+): {
+    provider: string;
+    providerName: string | null;
+    providerAvatar: string | null;
+} | null {
+    const row = getDb()
+        .prepare(
+            "SELECT provider, provider_name, provider_avatar FROM users WHERE id = ?",
+        )
+        .get(userId) as
+        | {
+              provider: string;
+              provider_name: string | null;
+              provider_avatar: string | null;
+          }
+        | undefined;
+    return row
+        ? {
+              provider: row.provider,
+              providerName: row.provider_name,
+              providerAvatar: row.provider_avatar,
+          }
+        : null;
 }
 
-export function updateProviderInfo(userId: string, name: string, avatar: string): void {
-  const db = getDb();
-  if (avatar) {
-    // Always update avatar from OAuth provider (keep it fresh)
-    db.prepare('UPDATE users SET provider_name = ?, provider_avatar = ?, avatar = ?, updated_at = ? WHERE id = ?')
-      .run(name, avatar, avatar, new Date().toISOString(), userId);
-  } else {
-    db.prepare('UPDATE users SET provider_name = ?, provider_avatar = ?, updated_at = ? WHERE id = ?')
-      .run(name, avatar, new Date().toISOString(), userId);
-  }
+export function updateProviderInfo(
+    userId: string,
+    name: string,
+    avatar: string,
+): void {
+    const db = getDb();
+    if (avatar) {
+        // Always update avatar from OAuth provider (keep it fresh)
+        db.prepare(
+            "UPDATE users SET provider_name = ?, provider_avatar = ?, avatar = ?, updated_at = ? WHERE id = ?",
+        ).run(name, avatar, avatar, new Date().toISOString(), userId);
+    } else {
+        db.prepare(
+            "UPDATE users SET provider_name = ?, provider_avatar = ?, updated_at = ? WHERE id = ?",
+        ).run(name, avatar, new Date().toISOString(), userId);
+    }
 }
 
 export function findUserByEmail(email: string): DbUser | null {
-  return (getDb().prepare('SELECT * FROM users WHERE email = ?').get(email) as DbUser | undefined) ?? null;
+    return (
+        (getDb().prepare("SELECT * FROM users WHERE email = ?").get(email) as
+            | DbUser
+            | undefined) ?? null
+    );
 }
 
 export function findUserByName(name: string): DbUser | null {
-  return (getDb().prepare('SELECT * FROM users WHERE LOWER(name) = LOWER(?)').get(name) as DbUser | undefined) ?? null;
+    return (
+        (getDb()
+            .prepare("SELECT * FROM users WHERE LOWER(name) = LOWER(?)")
+            .get(name) as DbUser | undefined) ?? null
+    );
 }
 
 /** Check if a user is an admin */
 export function isAdmin(userId: string): boolean {
-  const row = getDb().prepare('SELECT role FROM users WHERE id = ?').get(userId) as { role: string } | undefined;
-  return row?.role === 'admin';
+    const row = getDb()
+        .prepare("SELECT role FROM users WHERE id = ?")
+        .get(userId) as { role: string } | undefined;
+    return row?.role === "admin";
 }
 
 /** Ban a user */
-export function banUser(userId: string, reason: string, bannedBy: string): boolean {
-  const now = new Date().toISOString();
-  return getDb().prepare('UPDATE users SET banned_at = ?, ban_reason = ?, banned_by = ?, updated_at = ? WHERE id = ? AND banned_at IS NULL')
-    .run(now, reason, bannedBy, now, userId).changes > 0;
+export function banUser(
+    userId: string,
+    reason: string,
+    bannedBy: string,
+): boolean {
+    const now = new Date().toISOString();
+    return (
+        getDb()
+            .prepare(
+                "UPDATE users SET banned_at = ?, ban_reason = ?, banned_by = ?, updated_at = ? WHERE id = ? AND banned_at IS NULL",
+            )
+            .run(now, reason, bannedBy, now, userId).changes > 0
+    );
 }
 
 /** Unban a user */
 export function unbanUser(userId: string): boolean {
-  const now = new Date().toISOString();
-  return getDb().prepare('UPDATE users SET banned_at = NULL, ban_reason = NULL, banned_by = NULL, updated_at = ? WHERE id = ? AND banned_at IS NOT NULL')
-    .run(now, userId).changes > 0;
+    const now = new Date().toISOString();
+    return (
+        getDb()
+            .prepare(
+                "UPDATE users SET banned_at = NULL, ban_reason = NULL, banned_by = NULL, updated_at = ? WHERE id = ? AND banned_at IS NOT NULL",
+            )
+            .run(now, userId).changes > 0
+    );
 }
 
 /** Check if a user is banned */
 export function isBanned(userId: string): boolean {
-  const row = getDb().prepare('SELECT banned_at FROM users WHERE id = ?').get(userId) as { banned_at: string | null } | undefined;
-  return !!row?.banned_at;
+    const row = getDb()
+        .prepare("SELECT banned_at FROM users WHERE id = ?")
+        .get(userId) as { banned_at: string | null } | undefined;
+    return !!row?.banned_at;
 }
 
 /** Set a user's role */
 export function setUserRole(userId: string, role: string): boolean {
-  const now = new Date().toISOString();
-  return getDb().prepare('UPDATE users SET role = ?, updated_at = ? WHERE id = ?')
-    .run(role, now, userId).changes > 0;
+    const now = new Date().toISOString();
+    return (
+        getDb()
+            .prepare("UPDATE users SET role = ?, updated_at = ? WHERE id = ?")
+            .run(role, now, userId).changes > 0
+    );
 }
 
 /** Get user role */
 export function getUserRole(userId: string): string | null {
-  const row = getDb().prepare('SELECT role FROM users WHERE id = ?').get(userId) as { role: string } | undefined;
-  return row?.role ?? null;
+    const row = getDb()
+        .prepare("SELECT role FROM users WHERE id = ?")
+        .get(userId) as { role: string } | undefined;
+    return row?.role ?? null;
 }
 
 /** Update custom_name and/or bio */
-export function updateProfile(userId: string, data: { name?: string; bio?: string }): boolean {
-  const now = new Date().toISOString();
-  const sets: string[] = ['updated_at = ?'];
-  const params: (string)[] = [now];
+export function updateProfile(
+    userId: string,
+    data: { name?: string; bio?: string },
+): boolean {
+    const now = new Date().toISOString();
+    const sets: string[] = ["updated_at = ?"];
+    const params: string[] = [now];
 
-  if (data.name !== undefined) {
-    sets.push('custom_name = ?', 'name = ?');
-    params.push(data.name, data.name);
-  }
-  if (data.bio !== undefined) {
-    sets.push('bio = ?');
-    params.push(data.bio);
-  }
+    if (data.name !== undefined) {
+        sets.push("custom_name = ?", "name = ?");
+        params.push(data.name, data.name);
+    }
+    if (data.bio !== undefined) {
+        sets.push("bio = ?");
+        params.push(data.bio);
+    }
 
-  params.push(userId);
-  return getDb().prepare(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`).run(...params).changes > 0;
+    params.push(userId);
+    return (
+        getDb()
+            .prepare(`UPDATE users SET ${sets.join(", ")} WHERE id = ?`)
+            .run(...params).changes > 0
+    );
 }
 
 /** Update custom_avatar path */
 export function updateAvatar(userId: string, avatarPath: string): boolean {
-  const now = new Date().toISOString();
-  return getDb().prepare('UPDATE users SET custom_avatar = ?, avatar = ?, updated_at = ? WHERE id = ?')
-    .run(avatarPath, avatarPath, now, userId).changes > 0;
+    const now = new Date().toISOString();
+    return (
+        getDb()
+            .prepare(
+                "UPDATE users SET custom_avatar = ?, avatar = ?, updated_at = ? WHERE id = ?",
+            )
+            .run(avatarPath, avatarPath, now, userId).changes > 0
+    );
 }
 
 // ════════════════════════════════════════════
@@ -196,55 +347,94 @@ export function updateAvatar(userId: string, avatarPath: string): boolean {
 // ════════════════════════════════════════════
 
 export interface DbUserProfile {
-  id: string; name: string; avatar: string; bio: string; joined_at: string;
-  published_assets: string; favorite_assets: string;
-  followers: number; following: number; is_agent: number;
-  agent_model: string | null; agent_uptime: string | null; agent_tasks_completed: number;
-  agent_specialization: string | null; contribution_points: number;
-  contributor_level: string; instance_id: string | null;
+    id: string;
+    name: string;
+    avatar: string;
+    bio: string;
+    joined_at: string;
+    published_assets: string;
+    favorite_assets: string;
+    followers: number;
+    following: number;
+    is_agent: number;
+    agent_model: string | null;
+    agent_uptime: string | null;
+    agent_tasks_completed: number;
+    agent_specialization: string | null;
+    contribution_points: number;
+    contributor_level: string;
+    instance_id: string | null;
 }
 
 function profileRowToUser(row: DbUserProfile): User {
-  const isAgent = !!row.is_agent;
-  return {
-    id: row.id, name: row.name, avatar: row.avatar, bio: row.bio, joinedAt: row.joined_at,
-    publishedAssets: JSON.parse(row.published_assets),
-    favoriteAssets: JSON.parse(row.favorite_assets),
-    followers: row.followers, following: row.following, isAgent: isAgent,
-    agentConfig: isAgent ? {
-      model: row.agent_model || '', uptime: row.agent_uptime || '',
-      tasksCompleted: row.agent_tasks_completed,
-      specialization: row.agent_specialization ? JSON.parse(row.agent_specialization) : [],
-    } : undefined,
-    contributionPoints: row.contribution_points,
-    contributorLevel: row.contributor_level as User['contributorLevel'],
-    instanceId: row.instance_id ?? undefined,
-  };
+    const isAgent = !!row.is_agent;
+    return {
+        id: row.id,
+        name: row.name,
+        avatar: row.avatar,
+        bio: row.bio,
+        joinedAt: row.joined_at,
+        publishedAssets: JSON.parse(row.published_assets),
+        favoriteAssets: JSON.parse(row.favorite_assets),
+        followers: row.followers,
+        following: row.following,
+        isAgent: isAgent,
+        agentConfig: isAgent
+            ? {
+                  model: row.agent_model || "",
+                  uptime: row.agent_uptime || "",
+                  tasksCompleted: row.agent_tasks_completed,
+                  specialization: row.agent_specialization
+                      ? JSON.parse(row.agent_specialization)
+                      : [],
+              }
+            : undefined,
+        contributionPoints: row.contribution_points,
+        contributorLevel: row.contributor_level as User["contributorLevel"],
+        instanceId: row.instance_id ?? undefined,
+    };
 }
 
 export function getUserProfile(id: string): User | null {
-  const row = getDb().prepare('SELECT * FROM user_profiles WHERE id = ?').get(id) as DbUserProfile | undefined;
-  return row ? profileRowToUser(row) : null;
+    const row = getDb()
+        .prepare("SELECT * FROM user_profiles WHERE id = ?")
+        .get(id) as DbUserProfile | undefined;
+    return row ? profileRowToUser(row) : null;
 }
 
 export function listUserProfiles(): User[] {
-  const rows = getDb().prepare('SELECT * FROM user_profiles ORDER BY followers DESC').all() as DbUserProfile[];
-  return rows.map(profileRowToUser);
+    const rows = getDb()
+        .prepare("SELECT * FROM user_profiles ORDER BY followers DESC")
+        .all() as DbUserProfile[];
+    return rows.map(profileRowToUser);
 }
 
 export function searchUserProfiles(query: string): User[] {
-  const escaped = query.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
-  const pattern = `%${escaped}%`;
-  const rows = getDb().prepare("SELECT * FROM user_profiles WHERE name LIKE ? ESCAPE '\\' OR bio LIKE ? ESCAPE '\\' ORDER BY followers DESC").all(pattern, pattern) as DbUserProfile[];
-  return rows.map(profileRowToUser);
+    const escaped = query
+        .replace(/\\/g, "\\\\")
+        .replace(/%/g, "\\%")
+        .replace(/_/g, "\\_");
+    const pattern = `%${escaped}%`;
+    const rows = getDb()
+        .prepare(
+            "SELECT * FROM user_profiles WHERE name LIKE ? ESCAPE '\\' OR bio LIKE ? ESCAPE '\\' ORDER BY followers DESC",
+        )
+        .all(pattern, pattern) as DbUserProfile[];
+    return rows.map(profileRowToUser);
 }
 
 export function getAgentUserProfiles(): User[] {
-  const rows = getDb().prepare('SELECT * FROM user_profiles WHERE is_agent = 1 ORDER BY followers DESC').all() as DbUserProfile[];
-  return rows.map(profileRowToUser);
+    const rows = getDb()
+        .prepare(
+            "SELECT * FROM user_profiles WHERE is_agent = 1 ORDER BY followers DESC",
+        )
+        .all() as DbUserProfile[];
+    return rows.map(profileRowToUser);
 }
 
 export function listUserProfileIds(): string[] {
-  const rows = getDb().prepare('SELECT id FROM user_profiles').all() as { id: string }[];
-  return rows.map(r => r.id);
+    const rows = getDb().prepare("SELECT id FROM user_profiles").all() as {
+        id: string;
+    }[];
+    return rows.map((r) => r.id);
 }

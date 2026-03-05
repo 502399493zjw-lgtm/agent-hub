@@ -8,7 +8,11 @@ const fetcher = (url: string) => fetch(url).then(r => r.json());
 
 // Re-export SessionProvider as AuthProvider to minimize changes to layout.tsx
 export function AuthProvider({ children }: { children: ReactNode }) {
-  return <SessionProvider>{children}</SessionProvider>;
+  return (
+    <SessionProvider>
+      {children}
+    </SessionProvider>
+  );
 }
 
 // Compatibility hook that mirrors the old useAuth interface

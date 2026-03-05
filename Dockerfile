@@ -3,9 +3,20 @@
 # 使用预构建产物，无需重新编译
 # ═══════════════════════════════════════════════
 
-FROM hub.i.basemind.com/base/node:22-alpine
+# Dependencies stage - install with native build tools for better-sqlite3
+FROM base AS deps
+RUN apk add --no-cache libc6-compat python3 make g++
+WORKDIR /app
+COPY package.json package-lock.json* ./
+RUN npm ci --registry=https://registry.npmmirror.com
 
 WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+ENV NEXT_TELEMETRY_DISABLED=1
+# Create data dir so Next.js can open SQLite during static page generation
+RUN mkdir -p data
+RUN npm run build
 
 # 设置生产环境
 ENV NODE_ENV=production
@@ -26,15 +37,7 @@ COPY --chown=nextjs:nodejs .next/standalone/. ./
 COPY --chown=nextjs:nodejs .next/static ./.next/static
 COPY --chown=nextjs:nodejs public ./public
 
-# 安装生产依赖（会安装 Linux 兼容的二进制文件）
-# .next/node_modules 中的符号链接会自动指向新安装的依赖
-RUN npm install --omit=dev && npm cache clean --force
-
-# 拷贝环境变量文件
-COPY --chown=nextjs:nodejs .env .env
-COPY --chown=nextjs:nodejs .env.prod .env.prod
-
-# 创建数据目录（SQLite 数据库存放位置）
+# Data directory for SQLite (do NOT copy hub.db — volume mount provides it)
 RUN mkdir -p /app/data && chown nextjs:nodejs /app/data
 
 # 显式指定数据库路径
@@ -44,17 +47,7 @@ ENV DATABASE_URL=/app/data/hub.db
 # 暴露端口
 EXPOSE 3000
 
-# 健康检查
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:${PORT:-3000}/health || exit 1
-
-# 切换到非特权用户
-USER nextjs
-
-# 启动脚本：加载环境变量并启动服务
-# 注意：使用 sh 因为 alpine 没有 bash，且不能直接 source，需要用 . 命令
-CMD set -a && \
-    . .env && \
-    . .env.prod && \
-    set +a && \
-    node server.js
+# Run as root to avoid volume mount permission issues with SQLite
+# (mounted /app/data is owned by host root)
+# DB is provided by volume mount at runtime — schema auto-creates tables if needed
+CMD ["node", "server.js"]

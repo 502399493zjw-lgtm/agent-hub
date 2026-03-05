@@ -1,12 +1,12 @@
 /**
  * db/schema.ts — Table creation and migrations.
  */
-import crypto from 'crypto';
-import { getDb, __registerInitFn } from './connection';
-import { inviteCodes } from '@/data/seed';
+import crypto from "crypto";
+import { getDb, __registerInitFn } from "./connection";
+import { inviteCodes } from "@/data/seed";
 
-export function initTables(db: import('better-sqlite3').Database): void {
-  db.exec(`
+export function initTables(db: import("better-sqlite3").Database): void {
+    db.exec(`
     CREATE TABLE IF NOT EXISTS assets (
       id TEXT PRIMARY KEY, name TEXT NOT NULL, display_name TEXT NOT NULL,
       type TEXT NOT NULL CHECK(type IN ('skill','channel','plugin','trigger','experience','template')),
@@ -127,61 +127,105 @@ export function initTables(db: import('better-sqlite3').Database): void {
     CREATE INDEX IF NOT EXISTS idx_api_keys_user ON api_keys(user_id);
   `);
 
-  // L03: Helper to check if a column exists before ALTER TABLE
-  function hasColumn(table: string, column: string): boolean {
-    const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
-    return cols.some(c => c.name === column);
-  }
+    // L03: Helper to check if a column exists before ALTER TABLE
+    function hasColumn(table: string, column: string): boolean {
+        const cols = db.prepare(`PRAGMA table_info(${table})`).all() as {
+            name: string;
+        }[];
+        return cols.some((c) => c.name === column);
+    }
 
-  // Migration: add reputation and shrimp_coins columns to users table if missing
-  if (!hasColumn('users', 'reputation')) {
-    db.exec(`ALTER TABLE users ADD COLUMN reputation INTEGER NOT NULL DEFAULT 0`);
-  }
-  if (!hasColumn('users', 'shrimp_coins')) {
-    db.exec(`ALTER TABLE users ADD COLUMN shrimp_coins INTEGER NOT NULL DEFAULT 100`);
-  }
-  // Migration: add onboarding + custom profile columns
-  if (!hasColumn('users', 'onboarding_completed')) {
-    db.exec(`ALTER TABLE users ADD COLUMN onboarding_completed INTEGER NOT NULL DEFAULT 0`);
-  }
-  if (!hasColumn('users', 'custom_name')) {
-    db.exec(`ALTER TABLE users ADD COLUMN custom_name TEXT`);
-  }
-  if (!hasColumn('users', 'custom_avatar')) {
-    db.exec(`ALTER TABLE users ADD COLUMN custom_avatar TEXT`);
-  }
-  if (!hasColumn('users', 'provider_name')) {
-    db.exec(`ALTER TABLE users ADD COLUMN provider_name TEXT`);
-  }
-  if (!hasColumn('users', 'provider_avatar')) {
-    db.exec(`ALTER TABLE users ADD COLUMN provider_avatar TEXT`);
-  }
-  // Migration: add manifest column to assets
-  if (!hasColumn('assets', 'manifest')) {
-    db.exec(`ALTER TABLE assets ADD COLUMN manifest TEXT NOT NULL DEFAULT '{}'`);
-  }
-  // Migration: add GitHub columns to assets
-  if (!hasColumn('assets', 'github_url')) { db.exec(`ALTER TABLE assets ADD COLUMN github_url TEXT NOT NULL DEFAULT ''`); }
-  if (!hasColumn('assets', 'github_stars')) { db.exec(`ALTER TABLE assets ADD COLUMN github_stars INTEGER NOT NULL DEFAULT 0`); }
-  if (!hasColumn('assets', 'github_forks')) { db.exec(`ALTER TABLE assets ADD COLUMN github_forks INTEGER NOT NULL DEFAULT 0`); }
-  if (!hasColumn('assets', 'github_language')) { db.exec(`ALTER TABLE assets ADD COLUMN github_language TEXT NOT NULL DEFAULT ''`); }
-  if (!hasColumn('assets', 'github_license')) { db.exec(`ALTER TABLE assets ADD COLUMN github_license TEXT NOT NULL DEFAULT ''`); }
-  if (!hasColumn('assets', 'github_synced_at')) { db.exec(`ALTER TABLE assets ADD COLUMN github_synced_at TEXT NOT NULL DEFAULT ''`); }
-  if (!hasColumn('assets', 'github_star_rep_synced')) { db.exec(`ALTER TABLE assets ADD COLUMN github_star_rep_synced INTEGER NOT NULL DEFAULT 0`); }
-  // Migration: add type column to users table (agent vs user)
-  if (!hasColumn('users', 'type')) { db.exec(`ALTER TABLE users ADD COLUMN type TEXT NOT NULL DEFAULT 'user'`); }
+    // Migration: add reputation and shrimp_coins columns to users table if missing
+    if (!hasColumn("users", "reputation")) {
+        db.exec(
+            `ALTER TABLE users ADD COLUMN reputation INTEGER NOT NULL DEFAULT 0`,
+        );
+    }
+    if (!hasColumn("users", "shrimp_coins")) {
+        db.exec(
+            `ALTER TABLE users ADD COLUMN shrimp_coins INTEGER NOT NULL DEFAULT 100`,
+        );
+    }
+    // Migration: add onboarding + custom profile columns
+    if (!hasColumn("users", "onboarding_completed")) {
+        db.exec(
+            `ALTER TABLE users ADD COLUMN onboarding_completed INTEGER NOT NULL DEFAULT 0`,
+        );
+    }
+    if (!hasColumn("users", "custom_name")) {
+        db.exec(`ALTER TABLE users ADD COLUMN custom_name TEXT`);
+    }
+    if (!hasColumn("users", "custom_avatar")) {
+        db.exec(`ALTER TABLE users ADD COLUMN custom_avatar TEXT`);
+    }
+    if (!hasColumn("users", "provider_name")) {
+        db.exec(`ALTER TABLE users ADD COLUMN provider_name TEXT`);
+    }
+    if (!hasColumn("users", "provider_avatar")) {
+        db.exec(`ALTER TABLE users ADD COLUMN provider_avatar TEXT`);
+    }
+    // Migration: add manifest column to assets
+    if (!hasColumn("assets", "manifest")) {
+        db.exec(
+            `ALTER TABLE assets ADD COLUMN manifest TEXT NOT NULL DEFAULT '{}'`,
+        );
+    }
+    // Migration: add GitHub columns to assets
+    if (!hasColumn("assets", "github_url")) {
+        db.exec(
+            `ALTER TABLE assets ADD COLUMN github_url TEXT NOT NULL DEFAULT ''`,
+        );
+    }
+    if (!hasColumn("assets", "github_stars")) {
+        db.exec(
+            `ALTER TABLE assets ADD COLUMN github_stars INTEGER NOT NULL DEFAULT 0`,
+        );
+    }
+    if (!hasColumn("assets", "github_forks")) {
+        db.exec(
+            `ALTER TABLE assets ADD COLUMN github_forks INTEGER NOT NULL DEFAULT 0`,
+        );
+    }
+    if (!hasColumn("assets", "github_language")) {
+        db.exec(
+            `ALTER TABLE assets ADD COLUMN github_language TEXT NOT NULL DEFAULT ''`,
+        );
+    }
+    if (!hasColumn("assets", "github_license")) {
+        db.exec(
+            `ALTER TABLE assets ADD COLUMN github_license TEXT NOT NULL DEFAULT ''`,
+        );
+    }
+    if (!hasColumn("assets", "github_synced_at")) {
+        db.exec(
+            `ALTER TABLE assets ADD COLUMN github_synced_at TEXT NOT NULL DEFAULT ''`,
+        );
+    }
+    if (!hasColumn("assets", "github_star_rep_synced")) {
+        db.exec(
+            `ALTER TABLE assets ADD COLUMN github_star_rep_synced INTEGER NOT NULL DEFAULT 0`,
+        );
+    }
+    // Migration: add type column to users table (agent vs user)
+    if (!hasColumn("users", "type")) {
+        db.exec(
+            `ALTER TABLE users ADD COLUMN type TEXT NOT NULL DEFAULT 'user'`,
+        );
+    }
 
-  // Migration S05: expires_at column now included in CREATE TABLE definition above.
-  // Kept as no-op for existing DBs that already have the column.
+    // Migration S05: expires_at column now included in CREATE TABLE definition above.
+    // Kept as no-op for existing DBs that already have the column.
 
-  // Migration S01: migrate api_keys from plaintext key to key_hash
-  try {
-    const tableInfo = db.prepare("PRAGMA table_info(api_keys)").all() as { name: string }[];
-    const hasOldKeyCol = tableInfo.some(c => c.name === 'key');
-    const hasKeyHash = tableInfo.some(c => c.name === 'key_hash');
-    if (hasOldKeyCol && !hasKeyHash) {
-      db.exec(`ALTER TABLE api_keys RENAME TO api_keys_old`);
-      db.exec(`
+    // Migration S01: migrate api_keys from plaintext key to key_hash
+    try {
+        const tableInfo = db.prepare("PRAGMA table_info(api_keys)").all() as {
+            name: string;
+        }[];
+        const hasOldKeyCol = tableInfo.some((c) => c.name === "key");
+        const hasKeyHash = tableInfo.some((c) => c.name === "key_hash");
+        if (hasOldKeyCol && !hasKeyHash) {
+            db.exec(`ALTER TABLE api_keys RENAME TO api_keys_old`);
+            db.exec(`
         CREATE TABLE api_keys (
           key_hash TEXT PRIMARY KEY,
           key_prefix TEXT NOT NULL DEFAULT '',
@@ -193,35 +237,69 @@ export function initTables(db: import('better-sqlite3').Database): void {
         );
         CREATE INDEX IF NOT EXISTS idx_api_keys_user ON api_keys(user_id);
       `);
-      const oldRows = db.prepare('SELECT * FROM api_keys_old').all() as { key: string; user_id: string; name: string; created_at: string; last_used_at: string | null; revoked: number }[];
-      const insertNew = db.prepare('INSERT OR IGNORE INTO api_keys (key_hash, key_prefix, user_id, name, created_at, last_used_at, revoked) VALUES (?, ?, ?, ?, ?, ?, ?)');
-      for (const row of oldRows) {
-        const hash = crypto.createHash('sha256').update(row.key).digest('hex');
-        const prefix = row.key.substring(0, 10);
-        insertNew.run(hash, prefix, row.user_id, row.name, row.created_at, row.last_used_at, row.revoked);
-      }
-      db.exec('DROP TABLE api_keys_old');
+            const oldRows = db.prepare("SELECT * FROM api_keys_old").all() as {
+                key: string;
+                user_id: string;
+                name: string;
+                created_at: string;
+                last_used_at: string | null;
+                revoked: number;
+            }[];
+            const insertNew = db.prepare(
+                "INSERT OR IGNORE INTO api_keys (key_hash, key_prefix, user_id, name, created_at, last_used_at, revoked) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            );
+            for (const row of oldRows) {
+                const hash = crypto
+                    .createHash("sha256")
+                    .update(row.key)
+                    .digest("hex");
+                const prefix = row.key.substring(0, 10);
+                insertNew.run(
+                    hash,
+                    prefix,
+                    row.user_id,
+                    row.name,
+                    row.created_at,
+                    row.last_used_at,
+                    row.revoked,
+                );
+            }
+            db.exec("DROP TABLE api_keys_old");
+        }
+    } catch {
+        /* migration already done or not needed */
     }
-  } catch { /* migration already done or not needed */ }
 
-  // Migration: add role column to users table
-  if (!hasColumn('users', 'role')) {
-    db.exec(`ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'`);
-  }
+    // Migration: add role column to users table
+    if (!hasColumn("users", "role")) {
+        db.exec(
+            `ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'`,
+        );
+    }
 
-  // Migration: add ban columns to users table
-  if (!hasColumn('users', 'banned_at')) {
-    db.exec(`ALTER TABLE users ADD COLUMN banned_at TEXT`);
-  }
-  if (!hasColumn('users', 'ban_reason')) {
-    db.exec(`ALTER TABLE users ADD COLUMN ban_reason TEXT`);
-  }
-  if (!hasColumn('users', 'banned_by')) {
-    db.exec(`ALTER TABLE users ADD COLUMN banned_by TEXT`);
-  }
+    // Migration: add ban columns to users table
+    if (!hasColumn("users", "banned_at")) {
+        db.exec(`ALTER TABLE users ADD COLUMN banned_at TEXT`);
+    }
+    if (!hasColumn("users", "ban_reason")) {
+        db.exec(`ALTER TABLE users ADD COLUMN ban_reason TEXT`);
+    }
+    if (!hasColumn("users", "banned_by")) {
+        db.exec(`ALTER TABLE users ADD COLUMN banned_by TEXT`);
+    }
 
-  // Star system: user_stars table
-  db.exec(`
+    // Migration: add package_sha256 column to assets (for dedup L2)
+    if (!hasColumn("assets", "package_sha256")) {
+        db.exec(
+            `ALTER TABLE assets ADD COLUMN package_sha256 TEXT NOT NULL DEFAULT ''`,
+        );
+    }
+    db.exec(
+        `CREATE INDEX IF NOT EXISTS idx_assets_sha256 ON assets(package_sha256)`,
+    );
+
+    // Star system: user_stars table
+    db.exec(`
     CREATE TABLE IF NOT EXISTS user_stars (
       user_id TEXT NOT NULL,
       asset_id TEXT NOT NULL,
@@ -232,8 +310,8 @@ export function initTables(db: import('better-sqlite3').Database): void {
     CREATE INDEX IF NOT EXISTS idx_user_stars_asset ON user_stars(asset_id);
   `);
 
-  // Install dedup table: tracks which users installed which assets at which version
-  db.exec(`
+    // Install dedup table: tracks which users installed which assets at which version
+    db.exec(`
     CREATE TABLE IF NOT EXISTS user_installs (
       user_id TEXT NOT NULL,
       asset_id TEXT NOT NULL,
@@ -244,20 +322,20 @@ export function initTables(db: import('better-sqlite3').Database): void {
     )
   `);
 
-  // ════════════════════════════════════════════
-  // Performance indexes
-  // ════════════════════════════════════════════
-  db.exec(`
+    // ════════════════════════════════════════════
+    // Performance indexes
+    // ════════════════════════════════════════════
+    db.exec(`
     CREATE INDEX IF NOT EXISTS idx_assets_type_downloads ON assets(type, downloads DESC);
     CREATE INDEX IF NOT EXISTS idx_assets_author ON assets(author_id);
     CREATE INDEX IF NOT EXISTS idx_assets_updated ON assets(updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_comments_asset ON comments(asset_id);
     CREATE INDEX IF NOT EXISTS idx_issues_asset ON issues(asset_id);
   `);
-  // Note: idx_user_stars_asset is already created above with user_stars table
+    // Note: idx_user_stars_asset is already created above with user_stars table
 
-  // FTS5 full-text search virtual table
-  db.exec(`
+    // FTS5 full-text search virtual table
+    db.exec(`
     CREATE VIRTUAL TABLE IF NOT EXISTS assets_fts USING fts5(
       name, display_name, description, tags, category, author_name,
       content='assets',
@@ -265,8 +343,8 @@ export function initTables(db: import('better-sqlite3').Database): void {
     );
   `);
 
-  // FTS sync triggers
-  db.exec(`
+    // FTS sync triggers
+    db.exec(`
     CREATE TRIGGER IF NOT EXISTS assets_ai AFTER INSERT ON assets BEGIN
       INSERT INTO assets_fts(rowid, name, display_name, description, tags, category, author_name)
       VALUES (new.rowid, new.name, new.display_name, new.description, new.tags, new.category, new.author_name);
@@ -283,24 +361,28 @@ export function initTables(db: import('better-sqlite3').Database): void {
     END;
   `);
 
-  // Seed invite codes if empty
-  const inviteCount = db.prepare('SELECT COUNT(*) as cnt FROM invite_codes').get() as { cnt: number };
-  if (inviteCount.cnt === 0) {
-    const now = new Date().toISOString();
-    const insertCode = db.prepare(`INSERT OR IGNORE INTO invite_codes (code, created_by, max_uses, use_count, type, created_at) VALUES (?, 'system', ?, 0, ?, ?)`);
-    for (const c of inviteCodes) {
-      insertCode.run(c.code, c.maxUses, c.type ?? 'system', now);
+    // Seed invite codes if empty
+    const inviteCount = db
+        .prepare("SELECT COUNT(*) as cnt FROM invite_codes")
+        .get() as { cnt: number };
+    if (inviteCount.cnt === 0) {
+        const now = new Date().toISOString();
+        const insertCode = db.prepare(
+            `INSERT OR IGNORE INTO invite_codes (code, created_by, max_uses, use_count, type, created_at) VALUES (?, 'system', ?, 0, ?, ?)`,
+        );
+        for (const c of inviteCodes) {
+            insertCode.run(c.code, c.maxUses, c.type ?? "system", now);
+        }
     }
-  }
 }
 
 /** Rebuild the FTS index from scratch (useful after bulk imports or initial setup) */
 export function rebuildFtsIndex(): void {
-  const db = getDb();
-  // Clear existing FTS content
-  db.exec(`DELETE FROM assets_fts`);
-  // Re-populate from assets table
-  db.exec(`
+    const db = getDb();
+    // Clear existing FTS content
+    db.exec(`DELETE FROM assets_fts`);
+    // Re-populate from assets table
+    db.exec(`
     INSERT INTO assets_fts(rowid, name, display_name, description, tags, category, author_name)
     SELECT rowid, name, display_name, description, tags, category, author_name FROM assets
   `);

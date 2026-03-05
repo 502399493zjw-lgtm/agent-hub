@@ -6,16 +6,19 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 # debug
 # dependencies
+# env files (can opt-in for committing if needed)
 # misc
 # next.js
 # production
 # testing
 # typescript
 # vercel
+*.pem
 *.tsbuildinfo
 .DS_Store
+.env*
+.env.local
 .next/
-dist/
 .pnp.*
 .pnpm-debug.log*
 .vercel
@@ -33,3 +36,6 @@ yarn-debug.log*
 yarn-error.log*
 data/hub-test.db.bak
 *.db.bak
+
+# data directory: DB files, packages, backups — never commit
+data/
