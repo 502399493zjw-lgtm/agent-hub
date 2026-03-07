@@ -6,6 +6,7 @@ import { useState, useRef, useEffect } from 'react';
 import { AssetType, Asset, formatDownloads, typeConfig } from '@/data/types';
 import { StatsData } from '@/lib/db';
 import { showToast } from '@/components/toast';
+import BindWechatModal from '@/components/bind-wechat-modal';
 
 /* ── Tab definitions ── */
 const TAB_COLORS: Record<string, string> = {
@@ -155,6 +156,7 @@ export default function HomeClient({ stats, tabAssets }: HomeClientProps) {
 
   return (
     <div className="relative">
+      <BindWechatModal />
       {/* ── Hero Section — Left-aligned title + right illustration ── */}
       <section className="relative overflow-hidden min-h-[85vh] flex items-center section-light">
         {/* Right illustration — positioned absolute with gradient overlays */}

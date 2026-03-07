@@ -55,6 +55,7 @@ async function callLLM(systemPrompt: string, userContent: string): Promise<strin
         { role: 'user', content: userContent },
       ],
     }),
+    signal: AbortSignal.timeout(180_000), // 180s timeout to prevent hanging on long README translation
   });
 
   if (!res.ok) {
