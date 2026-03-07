@@ -111,7 +111,7 @@ const README_SYSTEM = `你是一个技术文档翻译专家。将以下 Markdown
 async function translateReadme(readme: string): Promise<string> {
   if (!readme.trim()) return '';
 
-  const MAX_CHUNK = 8000;
+  const MAX_CHUNK = 3000;
   const chunks: string[] = [];
   const paragraphs = readme.split(/\n\n/);
   let current = '';
