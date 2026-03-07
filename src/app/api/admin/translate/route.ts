@@ -26,8 +26,8 @@ function isAdminAuthed(request: NextRequest): boolean {
 // ═══════════════════════════════════════════
 
 const API_KEY = process.env.TRANSLATE_API_KEY || process.env.MODELSPROXY_KEY || '';
-const BASE_URL = (process.env.TRANSLATE_BASE_URL || 'https://models-proxy.stepfun-inc.com/v1').replace(/\/$/, '');
-const MODEL = process.env.TRANSLATE_MODEL || 'ccr/glm-4.5-air';
+const BASE_URL = (process.env.TRANSLATE_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4').replace(/\/$/, '');
+const MODEL = process.env.TRANSLATE_MODEL || 'glm-4.5-air';
 const DELAY_MS = 200;
 
 function sleep(ms: number): Promise<void> {
@@ -49,7 +49,6 @@ async function callLLM(systemPrompt: string, userContent: string): Promise<strin
       model: MODEL,
       temperature: 0.3,
       max_tokens: 8192,
-      reasoning_effort: 'none',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userContent },
