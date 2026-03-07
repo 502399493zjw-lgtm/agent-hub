@@ -42,4 +42,4 @@ ENV HOSTNAME="0.0.0.0"
 # Run as root to avoid volume mount permission issues with SQLite
 # (mounted /app/data is owned by host root)
 # DB is provided by volume mount at runtime — schema auto-creates tables if needed
-CMD ["node", "server.js"]
+CMD ["node", "--max-old-space-size=10240", "server.js"]
