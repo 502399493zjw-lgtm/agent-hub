@@ -91,7 +91,7 @@ export async function GET(
   const lowerPath = filePath.toLowerCase();
 
   // Handle README / SKILL.md requests
-  if (lowerPath === 'readme.md' || lowerPath === 'skill.md' || lowerPath === 'readme') {
+  if (lowerPath === 'readme.md' || lowerPath === 'readme') {
     const data = getAssetReadme(id);
     let markdown = data?.readme || '';
     if (!markdown.trim()) {
