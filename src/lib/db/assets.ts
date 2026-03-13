@@ -64,6 +64,9 @@ export interface DbRow {
     github_language: string;
     github_license: string;
     github_synced_at: string;
+    // 新增：审核状态
+    scan_status?: string;
+    scan_message?: string;
     user_star_count?: number;
     author_reputation?: number;
 }
@@ -108,9 +111,12 @@ export function rowToAsset(row: DbRow): Asset {
         githubForks: row.github_forks || undefined,
         githubLanguage: row.github_language || undefined,
         githubLicense: row.github_license || undefined,
+        // 新增：审核状态
+        scanStatus: (row as any).scan_status,
+        scanMessage: (row as any).scan_message,
         userStars,
         totalStars,
-    };
+    } as any;
 }
 
 function assetToRow(a: Asset) {
@@ -204,6 +210,7 @@ export function listAssets(params: ListParams): {
     const db = getDb();
     const conditions: string[] = [];
     const bindings: Record<string, string | number> = {};
+
     let usingFtsRelevance = false;
 
     if (
@@ -446,6 +453,9 @@ export function updateAsset(
         githubLicense: string;
         /** SHA256 hash of the uploaded package file (for dedup) */
         packageSha256: string;
+        /** 内容/安审状态与说明 */
+        scanStatus: string;
+        scanMessage: string;
     }>,
 ): Asset | null {
     const db = getDb();
@@ -518,6 +528,14 @@ export function updateAsset(
     if (data.packageSha256 !== undefined) {
         updates.push("package_sha256 = @psha");
         bindings.psha = data.packageSha256;
+    }
+    if ((data as { scanStatus?: string }).scanStatus !== undefined) {
+        updates.push("scan_status = @scs");
+        bindings.scs = (data as { scanStatus: string }).scanStatus;
+    }
+    if ((data as { scanMessage?: string }).scanMessage !== undefined) {
+        updates.push("scan_message = @scm");
+        bindings.scm = (data as { scanMessage: string }).scanMessage;
     }
     updates.push("updated_at = @ua");
     bindings.ua = new Date().toISOString().split("T")[0];
@@ -673,7 +691,7 @@ export interface AssetCompact {
     totalStars: number;
 }
 
-export function listAssetsCompact(params: ListParams & { tag?: string }): {
+export function listAssetsCompact(params: ListParams & { tag?: string; excludePendingFailed?: boolean }): {
     assets: AssetCompact[];
     total: number;
     page: number;
@@ -703,6 +721,9 @@ export function listAssetsCompact(params: ListParams & { tag?: string }): {
     if (params.category) {
         conditions.push("a.category = @category");
         bindings.category = params.category;
+    }
+    if (params.excludePendingFailed) {
+        conditions.push("a.scan_status NOT IN ('pending','failed')");
     }
     if (params.tag) {
         conditions.push("a.tags LIKE @tag");
@@ -971,14 +992,14 @@ export interface L1ListParams {
     limit?: number;
 }
 
-export function listAssetsL1(params: L1ListParams): {
+export function listAssetsL1(params: L1ListParams & { excludePendingFailed?: boolean }): {
     total: number;
     items: AssetCompact[];
     nextCursor: string | null;
 } {
     const page = params.cursor ? parseInt(params.cursor, 10) : 1;
     const pageSize = Math.min(50, Math.max(1, params.limit ?? 20));
-    const result = listAssetsCompact({
+    const result = listAssetsCompact({ excludePendingFailed: params.excludePendingFailed !== false,
         type: params.type,
         category: params.category,
         q: params.q,

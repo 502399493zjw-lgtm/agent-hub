@@ -298,6 +298,18 @@ export function initTables(db: import("better-sqlite3").Database): void {
         `CREATE INDEX IF NOT EXISTS idx_assets_sha256 ON assets(package_sha256)`,
     );
 
+    // Migration: add content/security scan columns
+    if (!hasColumn("assets", "scan_status")) {
+        db.exec(
+            `ALTER TABLE assets ADD COLUMN scan_status TEXT NOT NULL DEFAULT 'unknown'`,
+        );
+    }
+    if (!hasColumn("assets", "scan_message")) {
+        db.exec(
+            `ALTER TABLE assets ADD COLUMN scan_message TEXT NOT NULL DEFAULT ''`,
+        );
+    }
+
     // Star system: user_stars table
     db.exec(`
     CREATE TABLE IF NOT EXISTS user_stars (

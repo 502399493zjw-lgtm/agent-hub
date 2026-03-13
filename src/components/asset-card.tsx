@@ -50,6 +50,17 @@ function formatCount(n: number): string {
 export function AssetCard({ asset }: { asset: Asset }) {
     const config = typeConfig[asset.type];
     const stars = asset.totalStars ?? asset.githubStars ?? 0;
+    // 状态映射：支持 snake_case 与 camelCase，兼容 unknown/pending/success/failed
+    const StatusLabel: Record<string, string> = {
+        unknown: "未审核",
+        pending: "审核中",
+        success: "已通过",
+        failed: "未通过",
+        reject: "未通过",
+    };
+    const scanStatus =
+        (asset as any).scan_status ?? (asset as any).scanStatus ?? "unknown";
+    const scanStatusLabel = StatusLabel[String(scanStatus)] ?? "未审核";
 
     const router = useRouter();
 
@@ -156,10 +167,19 @@ export function AssetCard({ asset }: { asset: Asset }) {
                             </span>
                         </div>
                     </div>
-                    {/* Version */}
-                    <span className="text-xs text-muted font-mono">
-                        v{asset.version}
-                    </span>
+
+                    <div>
+                        <span className="text-xs text-muted font-mono">
+                            {scanStatusLabel}
+                        </span>
+                        {/* Version */}
+                        <span className="text-xs text-muted font-mono">
+                            {" ｜ "}
+                        </span>
+                        <span className="text-xs text-muted font-mono">
+                            v{asset.version}
+                        </span>
+                    </div>
                 </div>
             </div>
         </div>

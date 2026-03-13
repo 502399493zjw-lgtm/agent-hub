@@ -16,7 +16,8 @@ export async function GET(request: NextRequest) {
   const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!, 10) : undefined;
   const facets = searchParams.get('facets') === 'true';
 
-  const result = listAssetsL1({ type, tag, category, q, sort, cursor, limit });
+  // Explore/首页：过滤审核中(pending)与失败(failed)的资产
+  const result = listAssetsL1({ type, tag, category, q, sort, cursor, limit, excludePendingFailed: true });
 
   const response: Record<string, unknown> = {
     total: result.total,

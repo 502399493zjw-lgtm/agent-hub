@@ -28,27 +28,46 @@ import os from "os";
 import crypto from "crypto";
 import { execSync } from "child_process";
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-const PACKAGES_DIR = path.join(process.cwd(), "data", "packages");
+// ─────────────────────────────────────────────────────────────────────────────
+// 本路由实现了 /api/v1/assets/publish 端点（发布或更新资产包）
+// 主要流程：
+// 1) 鉴权 + 邀请码/封禁校验
+// 2) 读取 multipart/form-data：解析 metadata JSON + 包文件(package)
+// 3) 对包文件进行类型校验与解压，收集文本文件用于内容校验
+// 4) 按资产类型（skill/plugin/channel/trigger/experience）做结构校验
+// 5) 服务端补全 displayName/description/readme
+// 6) 查重（哈希层面）+ 相似度检测（内容层面）
+// 7) 写入数据库（创建或更新），保存包文件
+// 8) 返回结果（携带 warnings 等信息）
+// ─────────────────────────────────────────────────────────────────────────────
 
-export const dynamic = "force-dynamic";
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB：单个上传文件大小上限（防止过大）
+const PACKAGES_DIR = path.join(process.cwd(), "data", "packages"); // 包文件持久化目录
 
-// ─── Publish validation helpers ─────────────────────────────────────────────
+export const dynamic = "force-dynamic"; // 强制动态（避免被静态化/缓存）
 
+// ─── 发布校验辅助函数 ────────────────────────────────────────────────────────
+
+/**
+ * 解析 Frontmatter（--- 分隔的头部 + 正文），返回 { frontmatter, body }
+ */
 function parseFrontmatter(content: string): {
     frontmatter: Record<string, string>;
     body: string;
 } {
     const fm: Record<string, string> = {};
     let body = content;
+    // 使用正则匹配头部与正文，头部与正文间以 --- 分隔
     const match = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)/);
     if (match) {
+        // 逐行解析 key: value；忽略空行与注释行
         for (const line of match[1].split("\n")) {
             const trimmed = line.trim();
             if (!trimmed || trimmed.startsWith("#")) continue;
             const kv = trimmed.match(/^([\w-]+)\s*:\s*(.*)/);
             if (kv) {
                 let val = kv[2].trim();
+                // 去掉可能包裹的引号
                 if (
                     (val.startsWith('"') && val.endsWith('"')) ||
                     (val.startsWith("'") && val.endsWith("'"))
@@ -63,6 +82,11 @@ function parseFrontmatter(content: string): {
     return { frontmatter: fm, body };
 }
 
+/**
+ * 从 README 文本提取：
+ * - 标题（第一处 “# 标题”）
+ * - 描述（第一段非空且非标题/分隔/引用的文本）
+ */
 function extractFromReadme(content: string): {
     title: string;
     description: string;
@@ -71,6 +95,7 @@ function extractFromReadme(content: string): {
         description = "";
     for (const line of content.split("\n")) {
         const t = line.trim();
+        // 先找 H1 标题
         if (!title) {
             const m = t.match(/^#\s+(.+)$/);
             if (m) {
@@ -78,6 +103,7 @@ function extractFromReadme(content: string): {
                 continue;
             }
         }
+        // 再找首个描述段落
         if (
             title &&
             !description &&
@@ -93,29 +119,38 @@ function extractFromReadme(content: string): {
     return { title, description };
 }
 
+// 校验结果结构体（便于返回详细错误与提取信息）
 interface ValidationResult {
-    valid: boolean;
-    error?: string;
-    missing?: string[];
-    hint?: string;
-    required?: Record<string, string>;
-    extractedDisplayName?: string;
-    extractedDescription?: string;
-    extractedReadme?: string;
+    valid: boolean; // 是否通过
+    error?: string; // 错误提示（人类可读）
+    missing?: string[]; // 缺失项清单
+    hint?: string; // 修正建议
+    required?: Record<string, string>; // 必填项状态（✅/❌）
+    extractedDisplayName?: string; // 从包内容提取的展示名
+    extractedDescription?: string; // 从包内容提取的描述
+    extractedReadme?: string; // 从包内容提取的 README 文本
 }
 
+/**
+ * 按资产类型进行结构校验，并在必要时从文本文件提取展示名/描述/README。
+ * @param type 资产类型
+ * @param textFiles 解压后收集到的文本文件映射（路径→内容）
+ * @param metadata 前端提供的可选字段（优先使用），缺失时用提取值补全
+ */
 function validatePackageByType(
     type: string,
     textFiles: Map<string, string>,
     metadata: { displayName?: string; description?: string; readme?: string },
 ): ValidationResult {
     const missing: string[] = [];
+    // 以下变量为可补全字段的临时容器
     let dn = metadata.displayName || "";
     let desc = metadata.description || "";
     let readme = metadata.readme || "";
 
     switch (type) {
         case "skill": {
+            // skill 类型要求存在 SKILL.md，并且 frontmatter 里具备 name/displayName/description 且正文不为空
             const skillMd = textFiles.get("SKILL.md");
             if (!skillMd) {
                 return {
@@ -149,6 +184,7 @@ function validatePackageByType(
                     },
                 };
             }
+            // 用 frontmatter/正文补齐展示名、描述与 README
             dn = dn || fm.displayName || fm["display-name"] || fm.name;
             desc = desc || fm.description;
             readme = readme || body;
@@ -157,6 +193,7 @@ function validatePackageByType(
 
         case "plugin":
         case "channel": {
+            // plugin/channel 类型要求：openclaw.plugin.json（含 id；channel 还需 channels 非空）+ README.md
             const pj = textFiles.get("openclaw.plugin.json");
             if (!pj) {
                 return {
@@ -213,6 +250,7 @@ function validatePackageByType(
 
         case "trigger":
         case "experience": {
+            // trigger/experience 类型：只要求 README.md，标题与描述必须能从 README 中提取
             const rm = textFiles.get("README.md");
             if (!rm) {
                 return {
@@ -245,6 +283,7 @@ function validatePackageByType(
         }
     }
 
+    // 校验通过，返回可能提取到的字段
     return {
         valid: true,
         extractedDisplayName: dn,
@@ -253,32 +292,54 @@ function validatePackageByType(
     };
 }
 
-// ─── POST handler ───────────────────────────────────────────────────────────
+// ─── POST 处理器 ─────────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
     try {
+        // 1) 鉴权 + 封禁检查
         const { auth: authResult, banned } =
             await authenticateAndCheckBan(request);
         if (!authResult) return unauthorizedResponse();
         if (banned) return bannedResponse();
 
+        // 邀请码限制：必须持有邀请码才可发布
         const dbUser = findUserById(authResult.userId);
         if (!dbUser?.invite_code) return inviteRequiredResponse();
 
+        // 2) 读取 multipart 表单（metadata + package + 其他文件）
         const formData = await request.formData();
 
-        // Parse metadata JSON
-        const metadataRaw = formData.get("metadata") as string | null;
+        // console.log(
+        //     "读取 multipart 表单（metadata + package + 其他文件）",
+        //     formData.get("metadata"),
+        // );
+
+        // debugger;
+
+        // 2.1 元数据（JSON 或 Blob(JSON)）是必填项：兼容外部以 Blob 方式上传 metadata
+        const metaEntry = formData.get("metadata");
+        let metadataRaw: string | null = null;
+        if (typeof metaEntry === "string") {
+            metadataRaw = metaEntry;
+        } else if (metaEntry && typeof (metaEntry as any).text === "function") {
+            try {
+                // 兼容 File/Blob：读取文本内容作为 JSON 字符串
+                metadataRaw = await (metaEntry as any).text();
+            } catch {
+                metadataRaw = null;
+            }
+        }
         if (!metadataRaw) {
             return NextResponse.json(
                 {
                     success: false,
-                    error: "Missing required field: metadata (JSON string)",
+                    error: "Missing required field: metadata (JSON)",
                 },
                 { status: 400 },
             );
         }
 
+        // 2.2 解析 metadata；displayName/description/readme 可缺省，由服务端从包中提取
         let metadata: {
             name: string;
             displayName: string;
@@ -293,6 +354,7 @@ export async function POST(request: NextRequest) {
         };
         try {
             metadata = JSON.parse(metadataRaw);
+            // console.log("metadata", metadata);
         } catch {
             return NextResponse.json(
                 { success: false, error: "Invalid metadata JSON" },
@@ -301,7 +363,7 @@ export async function POST(request: NextRequest) {
         }
 
         const { name, type, version } = metadata;
-        // Only require name + type + version upfront; displayName/description can be extracted from package
+        // 仅强制 name/type/version；其他字段可后续从包中补全
         if (!name || !type || !version) {
             return NextResponse.json(
                 {
@@ -312,6 +374,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        // 允许的类型校验
         const validTypes = [
             "skill",
             "experience",
@@ -329,7 +392,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Collect uploaded files
+        // 3) 遍历表单文件，记录元信息并识别包文件
         const uploadedFiles: {
             path: string;
             size: number;
@@ -340,8 +403,9 @@ export async function POST(request: NextRequest) {
         let packageFile: { buffer: Buffer; ext: string } | null = null;
 
         for (const [key, value] of formData.entries()) {
-            if (key === "metadata") continue;
+            if (key === "metadata") continue; // 跳过 metadata 字段本身
             if (value instanceof File) {
+                // 限制文件大小（友好错误提示）
                 if (value.size > MAX_FILE_SIZE) {
                     return NextResponse.json(
                         {
@@ -357,6 +421,7 @@ export async function POST(request: NextRequest) {
                     .update(buf)
                     .digest("hex");
 
+                // 识别包文件：key === "package"；仅允许 zip/skill/tar.gz/tgz
                 if (key === "package") {
                     const origName = value.name || "package.tar.gz";
                     const isZip =
@@ -394,7 +459,7 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // ─── Package is required ────────────────────────────────────────────
+        // 包文件是必需的
         if (!packageFile) {
             return NextResponse.json(
                 {
@@ -407,8 +472,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // ─── Extract package + validate (single pass) ───────────────────────
-
+        // 4) 解压包并收集文本文件（单次遍历）
         let packageFilesMetadata: {
             path: string;
             size: number;
@@ -416,6 +480,7 @@ export async function POST(request: NextRequest) {
             contentType: string;
         }[] = [];
         const textFiles = new Map<string, string>();
+        // 需要收集正文内容的扩展名（作为文本读取）
         const TEXT_EXTS = [
             ".md",
             ".json",
@@ -429,6 +494,7 @@ export async function POST(request: NextRequest) {
         ];
 
         if (packageFile) {
+            // 在系统临时目录创建工作目录
             const tmpDir = fs.mkdtempSync(
                 path.join(os.tmpdir(), "openclawmp-pkg-"),
             );
@@ -438,6 +504,7 @@ export async function POST(request: NextRequest) {
             fs.writeFileSync(tmpPkg, packageFile.buffer);
 
             try {
+                // 根据扩展名使用 tar 或 unzip 解压；开启两种 tar 方式以兼容 strip-components 失败的情况
                 if (packageFile.ext === "tar.gz") {
                     try {
                         execSync(
@@ -451,7 +518,7 @@ export async function POST(request: NextRequest) {
                                 { stdio: "pipe" },
                             );
                         } catch {
-                            /* ignore */
+                            /* ignore 解压失败 */
                         }
                     }
                 } else {
@@ -461,11 +528,11 @@ export async function POST(request: NextRequest) {
                             { stdio: "pipe" },
                         );
                     } catch {
-                        /* ignore */
+                        /* ignore 解压失败 */
                     }
                 }
 
-                // Walk extracted directory: build file metadata + collect text contents
+                // 遍历解压目录：收集文件元信息 + 读取文本内容
                 const walkDir = (dir: string, prefix: string): void => {
                     for (const entry of fs.readdirSync(dir, {
                         withFileTypes: true,
@@ -483,6 +550,7 @@ export async function POST(request: NextRequest) {
                                 .update(buf)
                                 .digest("hex");
                             const ext = path.extname(entry.name).toLowerCase();
+                            // 简单的 content-type 推断（仅用于展示/统计）
                             const ct =
                                 ext === ".md"
                                     ? "text/markdown"
@@ -504,12 +572,12 @@ export async function POST(request: NextRequest) {
                                 contentType: ct,
                             });
 
-                            // Collect text file contents for validation
+                            // 若为关注的文本扩展名，则读取为 UTF-8 文本加入 textFiles
                             if (TEXT_EXTS.includes(ext)) {
                                 try {
                                     textFiles.set(rel, buf.toString("utf-8"));
                                 } catch {
-                                    /* ignore */
+                                    /* ignore 非 UTF-8 或读取失败 */
                                 }
                             }
                         }
@@ -517,6 +585,7 @@ export async function POST(request: NextRequest) {
                 };
                 walkDir(extractDir, "");
             } finally {
+                // 清理临时目录
                 try {
                     fs.rmSync(tmpDir, { recursive: true, force: true });
                 } catch {
@@ -525,8 +594,7 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // ─── Validate by type ───────────────────────────────────────────────
-
+        // 5) 基于类型的结构校验（必要时从包中提取字段）
         const validation = validatePackageByType(type, textFiles, {
             displayName: metadata.displayName,
             description: metadata.description,
@@ -547,18 +615,18 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Server-side enrichment: use extracted values when metadata didn't provide them
+        // 6) 服务端补全：优先 metadata，其次校验阶段提取的值，最后兜底
         const finalDisplayName =
             metadata.displayName || validation.extractedDisplayName || name;
         const finalDescription =
             metadata.description || validation.extractedDescription || "";
         const finalReadme = metadata.readme || validation.extractedReadme || "";
 
-        // ─── Dedup L2: Package SHA256 fingerprint check ─────────────────────
-
+        // 7) 去重（L2：包 SHA256 指纹）
         const packageSha256 = computePackageSha256(packageFile.buffer);
+        console.log("packageSha256", packageSha256);
 
-        // For updates, find the existing asset ID to exclude from dedup check
+        // 如果是更新同名资产，需要把自身从查重中排除
         const db = getDb();
         const existingAssets = db
             .prepare("SELECT id FROM assets WHERE name = ? AND author_id = ?")
@@ -584,10 +652,8 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // ─── Dedup L3: Content similarity check ─────────────────────────────
-
+        // 8) 相似度检测（L3）：基于 README 内容的近似查重
         const warnings: string[] = [];
-
         if (finalReadme) {
             const similarAssets = findSimilarAssets(
                 type,
@@ -595,7 +661,7 @@ export async function POST(request: NextRequest) {
                 existingId,
             );
 
-            // Check for near-identical content (>95% similarity) → reject
+            // >95%：视为过于相似，拒绝发布
             const tooSimilar = similarAssets.filter((a) => a.similarity > 0.95);
             if (tooSimilar.length > 0) {
                 const top = tooSimilar[0];
@@ -615,7 +681,7 @@ export async function POST(request: NextRequest) {
                 );
             }
 
-            // Check for moderate similarity (80%-95%) → warn but allow
+            // 80%-95%：允许但附带 warnings 提示
             const moderatelySimilar = similarAssets.filter(
                 (a) => a.similarity > 0.8 && a.similarity <= 0.95,
             );
@@ -628,8 +694,8 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // ─── Save to DB ─────────────────────────────────────────────────────
-
+        // 9) 持久化到数据库（更新或创建）
+        // 构建文件元数据列表：优先解压得到的文件；否则使用上传文件（去掉包本身）
         const filesMetadata =
             packageFilesMetadata.length > 0
                 ? packageFilesMetadata
@@ -647,8 +713,8 @@ export async function POST(request: NextRequest) {
                       }));
 
         let asset;
-
         if (existingAssets.length > 0) {
+            // 更新同名资产：写入新版本/描述/README/文件列表/包哈希
             updateAsset(existingId!, {
                 displayName: finalDisplayName,
                 description: finalDescription,
@@ -665,6 +731,7 @@ export async function POST(request: NextRequest) {
             });
             asset = getAssetById(existingId!)!;
 
+            // 记账：发布新版本获得声望与虾米币
             addCoins(
                 authResult.userId,
                 "reputation",
@@ -680,6 +747,7 @@ export async function POST(request: NextRequest) {
                 existingId!,
             );
         } else {
+            // 创建新资产
             asset = createAsset({
                 name,
                 displayName: finalDisplayName,
@@ -706,7 +774,7 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // Save package file
+        // 10) 保存包文件至磁盘（data/packages/{asset.id}.{ext}）
         if (packageFile) {
             fs.mkdirSync(PACKAGES_DIR, { recursive: true });
             const packagePath = path.join(
@@ -716,20 +784,26 @@ export async function POST(request: NextRequest) {
             fs.writeFileSync(packagePath, packageFile.buffer);
         }
 
+        // 11) 返回成功响应（若存在相似性 warnings 一并返回）
         const response: Record<string, unknown> = {
             success: true,
             data: {
                 id: asset.id,
                 name: asset.name,
                 version: asset.version,
+                // url:
+                //     process.env.NODE_ENV === "production"
+                //         ? `https://openclawmp.cc/api/v1/assets/${asset.id}/download`
+                //         : `https://openclawmp.cc/api/v1/assets/s-e138a664382d10b1/download`,
+                url: `https://openclawmp.cc/api/v1/assets/${asset.id}/download`,
+
+                hash: packageSha256,
                 files: filesMetadata,
                 packageFile: packageFile
                     ? `${asset.id}.${packageFile.ext}`
                     : null,
             },
         };
-
-        // Attach warnings if any (L3 moderate similarity)
         if (warnings.length > 0) {
             response.warnings = warnings;
         }
@@ -738,6 +812,7 @@ export async function POST(request: NextRequest) {
             status: existingAssets.length > 0 ? 200 : 201,
         });
     } catch (err) {
+        // 兜底异常处理（记录摘要日志）
         console.error(
             "POST /api/v1/assets/publish error:",
             err instanceof Error ? err.message : "Unknown",
