@@ -52,7 +52,7 @@ export function AssetCard({ asset }: { asset: Asset }) {
     const stars = asset.totalStars ?? asset.githubStars ?? 0;
     // 状态映射：支持 snake_case 与 camelCase，兼容 unknown/pending/success/failed
     const StatusLabel: Record<string, string> = {
-        unknown: "未审核",
+        unknown: "",
         pending: "审核中",
         success: "已通过",
         failed: "未通过",
@@ -60,7 +60,7 @@ export function AssetCard({ asset }: { asset: Asset }) {
     };
     const scanStatus =
         (asset as any).scan_status ?? (asset as any).scanStatus ?? "unknown";
-    const scanStatusLabel = StatusLabel[String(scanStatus)] ?? "未审核";
+    const scanStatusLabel = StatusLabel[String(scanStatus)] ?? "";
 
     const router = useRouter();
 
