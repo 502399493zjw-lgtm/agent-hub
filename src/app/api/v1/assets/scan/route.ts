@@ -210,6 +210,7 @@ export async function POST(request: NextRequest) {
                             },
                             body: JSON.stringify(task.payload),
                         });
+                        console.log("参数：", JSON.stringify(task.payload));
                         const text = await res.text().catch(() => "");
                         let body: unknown = text;
                         try {
@@ -218,6 +219,7 @@ export async function POST(request: NextRequest) {
                             // 不是 JSON 时也记录为字符串
                             body = text;
                         }
+                        console.log("status:", res.status, body);
                         return { ok: res.ok, status: res.status, body };
                     }),
                 ),
