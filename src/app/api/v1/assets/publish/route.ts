@@ -791,12 +791,7 @@ export async function POST(request: NextRequest) {
                 id: asset.id,
                 name: asset.name,
                 version: asset.version,
-                url:
-                    process.env.NODE_ENV === "production"
-                        ? `https://openclawmp.cc/api/v1/assets/${asset.id}/download`
-                        : `https://raw.githubusercontent.com/xiao-zhe111/pkg/refs/heads/main/better-polymarket.zip`,
-                // url: `https://openclawmp.cc/api/v1/assets/${asset.id}/download`,
-
+                url: `https://openclawmp.cc/api/v1/assets/${asset.id}/download`,
                 hash: packageSha256,
                 files: filesMetadata,
                 packageFile: packageFile
