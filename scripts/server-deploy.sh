@@ -806,9 +806,9 @@ server {
         proxy_set_header Connection "upgrade";
         
         # 超时设置
-        proxy_connect_timeout 60s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
+        proxy_connect_timeout 3000s;
+        proxy_send_timeout 3000s;
+        proxy_read_timeout 3000s;
     }
 }
 EOF

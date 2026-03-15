@@ -112,9 +112,24 @@ export async function POST(request: NextRequest) {
                         scanMessage: "审核进行中",
                     });
                 }
-            } catch {}
+            } catch (error) {
+                const err = (error ?? {}) as Record<string, unknown>;
+                console.error("updateAsset error", {
+                    message:
+                        typeof err["message"] === "string"
+                            ? (err["message"] as string)
+                            : String(error),
+                    code: err["code"],
+                    errno: err["errno"],
+                });
+            }
 
-            const packageId = assetIdStr || metadata.name || "";
+            const baseSeed = assetIdStr || metadata.name || "pkg";
+            const hashSeed = (hashStr || "").slice(0, 12);
+            const timeSeed = Date.now().toString(36);
+            const packageId = [baseSeed, hashSeed, timeSeed]
+                .filter(Boolean)
+                .join("_");
             const tagsText = Array.isArray(metadata.tags)
                 ? (metadata.tags as string[]).join(",")
                 : metadata.tags
@@ -140,7 +155,7 @@ export async function POST(request: NextRequest) {
                         },
                         resources: [
                             {
-                                id: `package_${assetId}`,
+                                id: `package_${packageId}`,
                                 name: metadata.name,
                                 type: "TEXT",
                                 scene: "skill_scan:package",
@@ -166,21 +181,21 @@ export async function POST(request: NextRequest) {
                         },
                         resources: [
                             {
-                                id: `name_${assetId}`,
+                                id: `name_${packageId}`,
                                 name: metadata.name,
                                 type: "TEXT",
                                 scene: "skill_market:name",
                                 context: metadata.name,
                             },
                             {
-                                id: `label_${assetId}`,
+                                id: `label_${packageId}`,
                                 name: metadata.name,
                                 type: "TEXT",
                                 scene: "skill_market:label",
                                 context: tagsText,
                             },
                             {
-                                id: `content_${assetId}`,
+                                id: `content_${packageId}`,
                                 name: metadata.name,
                                 type: "TEXT",
                                 scene: "skill_market:content",
@@ -210,7 +225,7 @@ export async function POST(request: NextRequest) {
                             },
                             body: JSON.stringify(task.payload),
                         });
-                        console.log("参数：", JSON.stringify(task.payload));
+                        // console.log("参数：", JSON.stringify(task.payload));
                         const text = await res.text().catch(() => "");
                         let body: unknown = text;
                         try {
@@ -219,7 +234,7 @@ export async function POST(request: NextRequest) {
                             // 不是 JSON 时也记录为字符串
                             body = text;
                         }
-                        console.log("status:", res.status, body);
+                        // console.log("status:", res.status, body);
                         return { ok: res.ok, status: res.status, body };
                     }),
                 ),
@@ -236,7 +251,17 @@ export async function POST(request: NextRequest) {
                         ""
                     ).toString();
                     decision = raw.toUpperCase();
-                } catch {}
+                } catch (error) {
+                    const err = (error ?? {}) as Record<string, unknown>;
+                    console.error("updateAsset error", {
+                        message:
+                            typeof err["message"] === "string"
+                                ? (err["message"] as string)
+                                : String(error),
+                        code: err["code"],
+                        errno: err["errno"],
+                    });
+                }
                 const passed = r.ok && decision === "PASS";
                 return { ...r, decision, passed };
             });
@@ -277,7 +302,17 @@ export async function POST(request: NextRequest) {
                         });
                     }
                 }
-            } catch {}
+            } catch (error) {
+                const err = (error ?? {}) as Record<string, unknown>;
+                console.error("updateAsset error", {
+                    message:
+                        typeof err["message"] === "string"
+                            ? (err["message"] as string)
+                            : String(error),
+                    code: err["code"],
+                    errno: err["errno"],
+                });
+            }
 
             if (firstFail) {
                 return NextResponse.json(
@@ -290,7 +325,7 @@ export async function POST(request: NextRequest) {
                         scan_message:
                             firstFail.decision === "BLOCK"
                                 ? "审核未通过（BLOCK）"
-                                : "外部审核接口返回失败",
+                                : "审核返回失败",
                     },
                     { status: 502 },
                 );
@@ -313,5 +348,14 @@ export async function POST(request: NextRequest) {
                 { status: 400 },
             );
         }
-    } catch (error) {}
+    } catch (error) {
+        console.error(
+            "POST /api/v1/assets/scan error:",
+            error instanceof Error ? error.message : String(error),
+        );
+        return NextResponse.json(
+            { success: false, error: "Internal server error" },
+            { status: 500 },
+        );
+    }
 }

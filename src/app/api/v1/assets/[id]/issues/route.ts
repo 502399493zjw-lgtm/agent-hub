@@ -12,6 +12,8 @@ import {
     inviteRequiredResponse,
 } from "@/lib/api-auth";
 
+import crypto from "crypto";
+
 export const dynamic = "force-dynamic";
 const ENDPOINT =
     process.env.SKILL_SCAN_ENDPOINT ||
@@ -66,7 +68,12 @@ export async function POST(
             user_info: {
                 user_id: authResult.userId,
             },
-            package_id: id,
+            // 资源维度幂等 & 全局唯一（<=64）
+            package_id: crypto
+                .createHash("sha256")
+                .update(`${id}:${authResult.userId}`)
+                .digest("hex")
+                .slice(0, 48),
             async: false,
             biz_type: "skill_market",
             only_machine_audit: false,
@@ -75,7 +82,11 @@ export async function POST(
             },
             resources: [
                 {
-                    id: `issue${id}`,
+                    id: `issue_${crypto
+                        .createHash("sha256")
+                        .update(`${id}:${authResult.userId}:${title?.trim()}${bodyText?.trim()}`)
+                        .digest("hex")
+                        .slice(0, 60)}`,
                     name: "",
                     type: "TEXT",
                     scene: "skill_market:issue",
