@@ -155,7 +155,6 @@ export default function HomeClient({ stats, tabAssets }: HomeClientProps) {
 
   return (
     <div className="relative">
-
       {/* ── Hero Section — Left-aligned title + right illustration ── */}
       <section className="relative overflow-hidden min-h-[85vh] flex items-center section-light">
         {/* Right illustration — positioned absolute with gradient overlays */}
