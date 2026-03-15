@@ -36,6 +36,8 @@ yarn-debug.log*
 yarn-error.log*
 data/hub-test.db.bak
 *.db.bak
+proto-gen.res.json
+proto-registry
 
 # data directory: DB files, packages, backups — never commit
 data/
