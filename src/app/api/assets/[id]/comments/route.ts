@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCommentsByAssetId, createComment, getAssetById, userHasInviteAccess, findUserById } from '@/lib/db';
 import { authenticateRequest, unauthorizedResponse, inviteRequiredResponse } from '@/lib/api-auth';
+import crypto from 'crypto';
+
+const ENDPOINT = process.env.SKILL_SCAN_ENDPOINT || 'http://scp-test.i-stepfun.net/scp/v1/risk/rich_text';
+const TOKEN = process.env.SKILL_SCAN_API_KEY || '';
 
 export async function GET(
   _request: NextRequest,
@@ -37,6 +41,64 @@ export async function POST(
 
     if (!content || typeof content !== 'string' || !content.trim()) {
       return NextResponse.json({ success: false, error: '评论内容不能为空' }, { status: 400 });
+    }
+
+    // 调用内容审核（参照 v1 实现）
+    const paramsForScan = {
+      user_info: {
+        user_id: authResult.userId,
+      },
+      // 资源维度幂等 & 全局唯一（<=64）
+      package_id: crypto
+        .createHash('sha256')
+        .update(`${id}:${authResult.userId}`)
+        .digest('hex')
+        .slice(0, 48),
+      async: false,
+      biz_type: 'skill_market',
+      only_machine_audit: false,
+      extra: {
+        penetrate_data: '{}',
+      },
+      resources: [
+        {
+          id: `comment_${crypto
+            .createHash('sha256')
+            .update(`${id}:${authResult.userId}:${content?.trim()}`)
+            .digest('hex')
+            .slice(0, 60)}`,
+          name: '',
+          type: 'TEXT',
+          scene: 'skill_market:comment',
+          context: `${content?.trim()}`,
+        },
+      ],
+    };
+
+    const res = await fetch(ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${TOKEN}`,
+      },
+      body: JSON.stringify(paramsForScan),
+    });
+
+    const text = await res.text().catch(() => '');
+    let scanBody: unknown = text;
+    try {
+      scanBody = text ? JSON.parse(text) : {};
+    } catch {}
+    if (!res.ok || JSON.parse(text).data.decision === 'BLOCK') {
+      return NextResponse.json(
+        {
+          success: false,
+          error: '评论内容审核未通过',
+          status: res.status,
+          data: scanBody,
+        },
+        { status: 400 },
+      );
     }
 
     const user = findUserById(authResult.userId);
