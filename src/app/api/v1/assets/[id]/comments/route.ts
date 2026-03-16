@@ -13,12 +13,22 @@ import {
 } from "@/lib/api-auth";
 
 import crypto from "crypto";
+import fs from "fs";
+import path from "path";
 
 export const dynamic = "force-dynamic";
 const ENDPOINT =
     process.env.SKILL_SCAN_ENDPOINT ||
     "http://scp-test.i-stepfun.net/scp/v1/risk/rich_text";
 const TOKEN = process.env.SKILL_SCAN_API_KEY || "";
+
+// ENDPOINT 调用日志（与 scan 路由同目录与文件）
+const LOG_DIR = process.env.SCAN_LOG_DIR || path.join(process.cwd(), "data", "logs");
+const LOG_FILE = path.join(LOG_DIR, "skill-scan-endpoint.log");
+try {
+    fs.mkdirSync(LOG_DIR, { recursive: true });
+    fs.closeSync(fs.openSync(LOG_FILE, 'a'));
+} catch {}
 
 export async function GET(
     request: NextRequest,
@@ -95,23 +105,48 @@ export async function POST(
             ],
         };
 
-        // 调用内容审核
+        // 调用内容审核 + 记录 ENDPOINT 请求/响应日志
+        const requestBody = JSON.stringify(params);
         const res = await fetch(ENDPOINT, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
                 Authorization: `Bearer ${TOKEN}`,
             },
-            body: JSON.stringify(params),
+            body: requestBody,
         });
-        // 内容审核必须成功才允许创建 comments
         const text = await res.text().catch(() => "");
         let body: unknown = text;
-        console.log("res", res, "text", text, "body", body);
+        try { body = text ? JSON.parse(text) : {}; } catch { body = text; }
+
+        // 追加两行 NDJSON 日志（request + response）
         try {
-            body = text ? JSON.parse(text) : {};
+            const nowIso = new Date().toISOString();
+            const reqLine = JSON.stringify({
+                ts: nowIso,
+                userId: authResult.userId,
+                assetId: id,
+                packageId: params.package_id,
+                direction: "request",
+                url: ENDPOINT,
+                headers: { "Content-Type": "application/json" },
+                body: params,
+            });
+            const resLine = JSON.stringify({
+                ts: nowIso,
+                userId: authResult.userId,
+                assetId: id,
+                packageId: params.package_id,
+                direction: "response",
+                status: res.status,
+                ok: res.ok,
+                body,
+            });
+            fs.appendFile(LOG_FILE, reqLine + "\n" + resLine + "\n", () => {});
         } catch {}
-        if (!res.ok || JSON.parse(text).data.decision === "BLOCK") {
+
+        // 内容审核必须成功才允许创建 comments
+        if (!res.ok || (typeof body === 'object' && body !== null && (body as any).data?.decision === "BLOCK")) {
             return NextResponse.json(
                 {
                     success: false,

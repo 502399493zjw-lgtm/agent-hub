@@ -7,11 +7,22 @@ import {
     bannedResponse,
     inviteRequiredResponse,
 } from "@/lib/api-auth";
+import fs from "fs";
+import path from "path";
 
 const ENDPOINT =
     process.env.SKILL_SCAN_ENDPOINT ||
     "http://scp-test.i-stepfun.net/scp/v1/risk/rich_text";
 const TOKEN = process.env.SKILL_SCAN_API_KEY || "";
+
+// 日志目录与文件（可通过 SCAN_LOG_DIR 环境变量覆盖目录）
+const LOG_DIR = process.env.SCAN_LOG_DIR || path.join(process.cwd(), "data", "logs");
+const LOG_FILE = path.join(LOG_DIR, "skill-scan-endpoint.log");
+try {
+    fs.mkdirSync(LOG_DIR, { recursive: true });
+    // 预创建日志文件，'a' 模式确保存在但不截断
+    fs.closeSync(fs.openSync(LOG_FILE, 'a'));
+} catch {}
 
 export async function POST(request: NextRequest) {
     // 1. 初始化队列：设置并发数为 10
@@ -217,15 +228,15 @@ export async function POST(request: NextRequest) {
             }> = await Promise.all(
                 tasks.map((task) =>
                     queue.add(async () => {
+                        const requestBody = JSON.stringify(task.payload);
                         const res = await fetch(task.url, {
                             method: "POST",
                             headers: {
                                 "Content-Type": "application/json",
                                 Authorization: `Bearer ${task.token}`,
                             },
-                            body: JSON.stringify(task.payload),
+                            body: requestBody,
                         });
-                        // console.log("参数：", JSON.stringify(task.payload));
                         const text = await res.text().catch(() => "");
                         let body: unknown = text;
                         try {
@@ -234,7 +245,34 @@ export async function POST(request: NextRequest) {
                             // 不是 JSON 时也记录为字符串
                             body = text;
                         }
-                        // console.log("status:", res.status, body);
+
+                        // 记录日志：按 userId 写一条（请求参数）+ 一条（返回结果）
+                        try {
+                            const userId = String(task.payload?.user_info?.user_id || "");
+                            const nowIso = new Date().toISOString();
+                            const reqLine = JSON.stringify({
+                                ts: nowIso,
+                                userId,
+                                assetId: assetIdStr,
+                                packageId,
+                                direction: "request",
+                                url: task.url,
+                                headers: { "Content-Type": "application/json" },
+                                body: task.payload,
+                            });
+                            const resLine = JSON.stringify({
+                                ts: nowIso,
+                                userId,
+                                assetId: assetIdStr,
+                                packageId,
+                                direction: "response",
+                                status: res.status,
+                                ok: res.ok,
+                                body,
+                            });
+                            fs.appendFile(LOG_FILE, reqLine + "\n" + resLine + "\n", () => {});
+                        } catch {}
+
                         return { ok: res.ok, status: res.status, body };
                     }),
                 ),
@@ -244,13 +282,23 @@ export async function POST(request: NextRequest) {
             const withDecisions = results.map((r) => {
                 let decision = "";
                 try {
-                    const b = r.body as any;
-                    const raw = (
-                        b?.data?.decision ??
-                        b?.decision ??
-                        ""
-                    ).toString();
-                    decision = raw.toUpperCase();
+                    // 安全提取 decision 字段（避免使用 any）
+                    let raw = "";
+                    if (typeof r.body === "object" && r.body !== null) {
+                        const obj = r.body as Record<string, unknown>;
+                        const data = obj["data"];
+                        if (data && typeof data === "object" && data !== null) {
+                            const d = (data as Record<string, unknown>)["decision"];
+                            if (typeof d === "string") raw = d;
+                        }
+                        if (!raw) {
+                            const d2 = obj["decision"];
+                            if (typeof d2 === "string") raw = d2;
+                        }
+                    } else if (typeof r.body === "string") {
+                        raw = r.body;
+                    }
+                    decision = String(raw).toUpperCase();
                 } catch (error) {
                     const err = (error ?? {}) as Record<string, unknown>;
                     console.error("updateAsset error", {
